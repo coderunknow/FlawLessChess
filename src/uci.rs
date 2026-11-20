@@ -285,13 +285,20 @@ impl UciEngine {
             }
         }
 
-        self.last_clocks = Some((
-            wtime.unwrap_or(0),
-            btime.unwrap_or(0),
-            winc,
-            binc,
-            movestogo,
-        ));
+        // Remember clock fields only when the GUI sent a clock. `ponderhit` recalculates the
+        // budget from these; a movetime-only or bare `go ponder` must not recalculate from zeros
+        // (that gave a ~20 ms budget and an immediate bestmove).
+        self.last_clocks = if wtime.is_some() || btime.is_some() {
+            Some((
+                wtime.unwrap_or(0),
+                btime.unwrap_or(0),
+                winc,
+                binc,
+                movestogo,
+            ))
+        } else {
+            None
+        };
 
         let (soft_ms, hard_ms) = if let Some(mt) = movetime {
             (mt, mt)
@@ -308,6 +315,7 @@ impl UciEngine {
             max_nodes,
             soft_ms,
             hard_ms,
+            fixed_time: movetime.is_some(),
             infinite: infinite
                 || ponder
                 || (wtime.is_none()
@@ -324,6 +332,7 @@ impl UciEngine {
             hard_ms: limits.hard_ms,
             infinite: limits.infinite,
             ponder: limits.ponder,
+            fixed_time: limits.fixed_time,
         }));
 
         // Fallback legal move in case the search thread dies unexpectedly —
@@ -426,12 +435,29 @@ impl UciEngine {
         if let Some(worker) = self.worker.as_ref() {
             if let Ok(mut lim) = worker.limits.lock() {
                 if lim.ponder {
-                    if let Some((wt, bt, winc, binc, movestogo)) = self.last_clocks {
-                        let (soft, hard) =
-                            clock_limits(self.pos.side, wt, bt, winc, binc, movestogo);
-                        lim.soft_ms = soft;
-                        lim.hard_ms = hard;
-                        lim.infinite = false;
+                    match self.last_clocks {
+                        // Clock-based ponder: the budget becomes a clock slice now, so the
+                        // growth-prediction stop applies again.
+                        Some((wt, bt, winc, binc, movestogo)) if !lim.fixed_time => {
+                            let (soft, hard) =
+                                clock_limits(self.pos.side, wt, bt, winc, binc, movestogo);
+                            lim.soft_ms = soft;
+                            lim.hard_ms = hard;
+                            lim.infinite = false;
+                        }
+                        // Fixed movetime ponder: keep the movetime deadline (counted from the
+                        // start of the search) and stop there.
+                        _ if lim.fixed_time => {
+                            lim.infinite = false;
+                        }
+                        // Bare `go ponder`: keep searching until an explicit `stop`. A node cap
+                        // (`go ponder nodes N`) is still a limit, so it must be enforced after
+                        // ponderhit; clearing `infinite` is what lets should_stop_now check it.
+                        _ => {
+                            if lim.max_nodes != u64::MAX {
+                                lim.infinite = false;
+                            }
+                        }
                     }
                     lim.ponder = false;
                 }

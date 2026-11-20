@@ -11,15 +11,15 @@ const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(|s| s.as_str()) {
-        None => {
-            eprintln!("{ENGINE_NAME} {ENGINE_VERSION} — UCI chess engine");
-            eprintln!("usage: {ENGINE_NAME} [uci|perft <depth> [fen]|divide <depth> [fen]|bench|eval [fen]|bench_eval]");
-            std::process::exit(2);
-        }
+        // Conventional UCI GUIs (e.g. CrispChess Extended) start a custom engine with
+        // no command-line arguments and then speak UCI over stdin/stdout. A missing
+        // argument therefore means "UCI mode", not "print usage and exit".
+        None => flawless::uci::run_uci(),
+        Some("uci") => flawless::uci::run_uci(),
+        Some("-h") | Some("--help") => print_help(),
         Some("perft") => cmd_perft(&args[2..]),
         Some("divide") => cmd_divide(&args[2..]),
         Some("bench") => cmd_bench(),
-        Some("uci") => flawless::uci::run_uci(),
         Some("eval") => cmd_eval(&args[2..]),
         Some("bench_eval") => cmd_bench_eval(),
         Some("moves") => cmd_moves(&args[2..]),
@@ -27,9 +27,30 @@ fn main() {
         Some("--version") | Some("version") => println!("{ENGINE_NAME} {ENGINE_VERSION}"),
         Some(other) => {
             eprintln!("unknown command: {other}");
+            eprintln!("run `{ENGINE_NAME} --help` for the list of commands");
             std::process::exit(2);
         }
     }
+}
+
+/// Explicit help (requested with `-h` / `--help`) goes to stdout, exit 0.
+fn print_help() {
+    println!("{ENGINE_NAME} {ENGINE_VERSION} — UCI chess engine");
+    println!();
+    println!("With no arguments, {ENGINE_NAME} starts the UCI protocol loop on stdin/stdout.");
+    println!();
+    println!("usage: {ENGINE_NAME} [command]");
+    println!("  (no command)              UCI mode (same as `uci`)");
+    println!("  uci                       UCI mode");
+    println!("  perft <depth> [fen]       count leaf nodes of the legal-move tree");
+    println!("  divide <depth> [fen]      perft split by root move");
+    println!("  bench                     fixed-depth search benchmark + signature");
+    println!("  eval [fen]                static evaluation breakdown");
+    println!("  bench_eval                evaluation timing benchmark");
+    println!("  moves                     read FENs on stdin, print legal moves");
+    println!("  hash [fen]                print Zobrist hash (FEN arg or stdin)");
+    println!("  version | --version       print the engine version");
+    println!("  -h | --help               print this help");
 }
 
 fn cmd_perft(args: &[String]) {
@@ -144,6 +165,7 @@ fn cmd_bench() {
             hard_ms: u64::MAX,
             infinite: false,
             ponder: false,
+            fixed_time: false,
         }));
         let mut tt = TranspositionTable::new(16);
         let result =

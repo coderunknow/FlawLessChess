@@ -338,6 +338,7 @@ fn search_score(
         hard_ms: u64::MAX,
         infinite: false,
         ponder: false,
+        fixed_time: false,
     }));
     let mut tt = TranspositionTable::new(4);
     let moves = searchmoves.map(|v| {
@@ -380,6 +381,7 @@ fn mate_beats_repetition_rule() {
         hard_ms: u64::MAX,
         infinite: false,
         ponder: false,
+        fixed_time: false,
     }));
     let mut tt = flawless::tt::TranspositionTable::new(4);
     let result = flawless::search::Searcher::new(&mut tt, &stop, limits).search_root(

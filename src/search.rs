@@ -36,6 +36,10 @@ pub struct SearchLimits {
     pub hard_ms: u64,
     pub infinite: bool,
     pub ponder: bool,
+    /// True for `go movetime N`: the budget is a fixed per-move time, not a clock slice.
+    /// Such a search runs iterative deepening until the hard deadline instead of stopping
+    /// early on the growth prediction (which is meant only to protect clock budgets).
+    pub fixed_time: bool,
 }
 
 impl Default for SearchLimits {
@@ -47,6 +51,7 @@ impl Default for SearchLimits {
             hard_ms: u64::MAX,
             infinite: false,
             ponder: false,
+            fixed_time: false,
         }
     }
 }
@@ -238,7 +243,12 @@ impl<'a> Searcher<'a> {
         let legal = generate_legal(pos);
         let mut roots: Vec<Move> = legal.iter().copied().collect();
         if let Some(ref only) = root_moves {
-            roots.retain(|m| only.contains(m));
+            // `searchmoves` restricts the search. If none of the named moves is legal, keep all
+            // legal moves: answering a null move in a position with legal moves is never useful.
+            let filtered: Vec<Move> = roots.iter().copied().filter(|m| only.contains(m)).collect();
+            if !filtered.is_empty() {
+                roots = filtered;
+            }
         }
         self.root_moves = if root_moves.is_some() {
             Some(roots.clone())
@@ -352,10 +362,11 @@ impl<'a> Searcher<'a> {
             let l = self.lim();
             let now = self.start.elapsed().as_millis() as u64;
             let iter_ms = now.saturating_sub(iter_begin);
-            if !l.infinite
-                && (self.soft_ms_reached()
-                    || now.saturating_add(iter_ms.saturating_mul(SOFT_GROWTH_FACTOR)) > l.soft_ms)
-            {
+            // For a fixed movetime the soft budget equals the time to spend, so only the
+            // deadline itself ends the search; the growth prediction would stop it early.
+            let predicted_overrun = !l.fixed_time
+                && now.saturating_add(iter_ms.saturating_mul(SOFT_GROWTH_FACTOR)) > l.soft_ms;
+            if !l.infinite && (self.soft_ms_reached() || predicted_overrun) {
                 break;
             }
             depth += 1;
@@ -1012,6 +1023,33 @@ mod draw_rule_tests {
         }));
         let mut s = Searcher::new(&mut tt, &stop, limits);
         s.search_root(pos, None, 1, &mut |_| {})
+    }
+
+    /// Regression: `go searchmoves` naming only illegal moves used to leave no root moves and
+    /// answer `bestmove 0000` in a position with legal moves. It must search the legal moves.
+    #[test]
+    fn searchmoves_with_no_legal_move_still_searches_the_position() {
+        let mut pos = Position::startpos();
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 2,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let illegal = Move::from_uci("e2e5").expect("parse");
+        let r = s.search_root(&mut pos, Some(vec![illegal]), 1, &mut |_| {});
+        assert_ne!(
+            r.best_move,
+            Move::NULL,
+            "null bestmove in a position with legal moves"
+        );
+        let legal = generate_legal(&mut pos);
+        assert!(
+            legal.iter().any(|m| *m == r.best_move),
+            "bestmove {:?} is not legal",
+            r.best_move
+        );
     }
 
     /// R-02a: a repeated ROOT must still be searched (not scored as an instant draw).

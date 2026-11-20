@@ -2,6 +2,62 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
+## [0.1.0] — pre-V1 release candidate (2026-11-19, not yet tagged)
+
+**Pre-V1. Not v1.0.0. The V1 rating gate is not met and no absolute rating is claimed.**
+Product name: FlawLessChess. UCI engine name: Flawless. Cargo package: `flawless`.
+
+- **Fixed: `go movetime N` returned after only 39–100% of N (measured on this branch's pre-fix search code).** Iterative deepening stopped on a
+  growth prediction that was meant only for clock budgets. A fixed-time search now runs until the
+  requested time (measured 100–101% of N at 300, 1000 and 3000 ms). Clock-based searches are unchanged.
+  Regression tests: `tests/movetime_smoke.rs` (real process, interactive waits; fails on the old rule).
+- **Fixed: `ponderhit` answered immediately after `go ponder movetime N` or a clock-free `go ponder`.**
+  `last_clocks` was recorded on every `go` (zeros when no clock was sent), so `ponderhit` recalculated
+  a ~20 ms budget. A movetime ponder now keeps its deadline; a bare `go ponder` waits for `stop`.
+  Regression tests: `ponder_movetime_ponderhit_keeps_the_movetime_deadline`, `bare_go_ponder_keeps_searching_until_stop`.
+- **Fixed: `go ponder nodes N` ignored its node cap after `ponderhit`.** The ponderhit fallback left
+  `infinite` set, so the cap was never checked. Regression test: `ponder_node_cap_is_enforced_after_ponderhit`.
+- **Fixed: `go searchmoves` naming only illegal moves returned `bestmove 0000`** in a position with legal moves.
+  The search now keeps all legal root moves in that case. Regression test: `searchmoves_with_no_legal_move_still_searches_the_position`.
+- **Added: en passant forced-root test** (`t_en_passant_capture` in `scripts/uci_protocol_probe.py`) and a Linux resource
+  probe step in CI. Full-game en passant is still NOT VERIFIED (no played game in the set contains one).
+- **Fixed: no-argument launch starts UCI mode** (see the next section).
+- **Added:** `tests/movetime_smoke.rs` (8 real-process timing and lifecycle tests); CI steps for
+  `scripts/uci_protocol_probe.py`, `scripts/uci_malformed_probe.py` and `scripts/selfplay_games.py`
+  (python-chess referee, full games).
+- **Added:** the Windows artifact manifest records the product name, package version and the
+  `--version` output of the exact exe; the artifact job refuses an exe whose version differs from
+  `Cargo.toml`.
+- **Added:** `docs/WINDOWS_GUI_TEST.md` (Arena / Cute Chess test checklist) and
+  `docs/audit/2026-11-19-v0.1.0-release-candidate.md` (gate table).
+- **Version:** `0.1.0-dev.1` → `0.1.0`. `flawless --version` prints `Flawless 0.1.0`.
+- **Not claimed:** GUI playability (not yet tested by the project), Windows artifact integrity (not yet
+  inspected by hand), independent review (pending), V1 status (not met).
+
+## [Unreleased] — UCI no-argument startup compatibility + Windows x64 artifact (2026-11-19)
+
+- **Fixed: launching `flawless` with no command-line arguments now starts UCI mode** (stdin/stdout).
+  Previously it printed usage to stderr and exited with code 2, so conventional UCI GUIs that start
+  a custom engine as `Process.start(path, [])` and then send `uci` failed with
+  `Engine "…exe" exited while searching (exit code 2)` (reproduced from a user diagnostic bundle).
+  `flawless uci` behaves exactly as before; the handshake bytes are identical in both modes.
+- **CLI**: `-h` / `--help` are now explicit (stdout, exit 0) and list the subcommands. Unknown
+  commands still exit 2 with the message on stderr, now with a pointer to `--help`. `perft`,
+  `divide`, `bench`, `eval`, `bench_eval`, `moves`, `hash` and `version` / `--version` are unchanged.
+- **Tests**: `tests/uci_smoke.rs` now runs the real executable with zero arguments through the
+  full lifecycle (uci → uciok, isready → readyok, position startpos, go depth 2 → legal bestmove,
+  quit → exit 0), checks no unsolicited stdout and no usage banner, checks no-arg/explicit-`uci`
+  handshake parity, EOF exit, and CLI regressions. The new no-argument tests fail on the previous
+  binary and pass on this one.
+- **CI**: new job `windows-x64-artifact` (windows-latest, `x86_64-pc-windows-msvc`, Rust 1.99.0)
+  builds `flawless.exe`, verifies the PE machine type is x86-64 (0x8664), smoke-tests the exact file,
+  and uploads `flawless.exe`, `SHA256SUMS.txt` and `BUILD-MANIFEST.txt` as the workflow artifact
+  `flawless-windows-x64-<commit-sha>`. The upload is mandatory (no `continue-on-error`).
+- **Engine binary identity changed** by this release (source change in `src/main.rs`). Search,
+  evaluation and the bench signature (`141943aa23b3fc68`) are unchanged. Previously registered
+  ENGINE-2 binary hashes in the rating documents no longer identify this build; no rating evidence
+  is reused or re-authorized by this change.
+
 ## [Unreleased] — Flawless identity migration + correctness audit (2026-11-14)
 
 - **Identity migration** (ADR-0002): engine, package, library and binary renamed to **Flawless**;

@@ -27,6 +27,7 @@
 - [x] Identity migration to Flawless (ADR-0002) — historical evidence kept under old identifiers
 - [x] Correctness audit pass 1 + 2 (mate>draw precedence, quiesce/RFP terminals, searchmoves MultiPV=1, clock_limits panic, panic-fallback plumbing) — all reproduced by regression tests; bench signature `d790483532d87af0` → `3086f65159758c9d`
 - [x] UCI integration smoke + seeded deterministic fuzz (`tests/uci_smoke.rs`)
+- [x] **UCI no-argument startup compatibility (2026-11-19)**: launching `flawless` with no arguments enters UCI mode (previously exited 2 with usage text, which broke GUIs that start the engine with `Process.start(path, [])`). Regression tests run the real executable in both launch modes (`tests/uci_smoke.rs`). Windows x64 artifact job added to CI. Scope is UCI startup compatibility only: no search, evaluation or rating claim. See `docs/audit/2026-11-19-uci-no-args-compatibility.md`.
 - [ ] Absolute rating > 2,000 (two-sided 95% CI lower bound STRICTLY GREATER THAN 2,000) — NOT MEASURED, NOT MET. CTRL-1 PASS remains candidate-independent; CTRL-2 PASS applies only to the pre-fix binary. CTRL-2-R run 43820392119: resolver + 120/120 shards succeeded, but aggregate-and-commit-evidence was SKIPPED, so no self-match estimate exists. SCREEN-2R remains selection-only (topple-0.1.1 2176.8, topple-0.2.1 2236.4, mean 2206.6). SCREEN-3 run 43820645420: resolver + 60/60 shards succeeded, but aggregate-and-commit-evidence was SKIPPED, so no third-anchor screening estimate exists. No gate plan or Batch A/B evidence exists.
 - [ ] RATING-100 confirmatory sample — NOT AUTHORIZED / BLOCKED. Proposed 100 counted games per anchor per batch (50 opening clusters × AB/BA), with disjoint A/B suites; all historical gate conditions and controls remain unchanged. The delta-method prospective sensitivity report is BLOCKED because full third-anchor covariance and Batch-B cluster variance are absent and power is weak near the 2,000 threshold. No confirmatory dispatch may proceed until a reviewed evidence-backed PASS exists.
 - [ ] SEE-based capture ordering candidate — implemented in source but NOT YET BUILT, TESTED, BENCHMARKED OR REVIEWED. No Elo gain or NPS improvement is claimed.
@@ -278,3 +279,20 @@ CI on c564c5c passed Ubuntu but failed the Windows power-analysis smoke because 
 - Gates at head: fmt clean, clippy `-D warnings` clean, 45/45 tests (+2 R-05 tests), DIFTEST default 2,321 positions 0 mismatches, perft subset exact, bench signature `141943aa23b3fc68` unchanged.
 - Preliminary Elo (internal, not gate evidence): NOT MEASURED this session. No match runs were executed.
 - Open: MSRV 1.80 unverified; ENGINE-1 hash no longer matches the code (decision needed); rating-gate fail-closed cause not investigated; R-08 residual overrun.
+
+## 2026-11-19 — UCI no-argument startup compatibility
+
+- Trigger: user diagnostic bundle `diagnostic-report.zip` (CrispChess Extended 2.3.2-dev6+23, Windows 10 LTSC): engine `flawlessv1 patch2.exe` failed with `exited while searching (exit code 2)` and usage text on stderr.
+- Root cause: `src/main.rs` treated a missing argument as an error. Fix: no arguments now run `flawless::uci::run_uci()`; `-h`/`--help` are explicit help. `uci` and all CLI subcommands are unchanged.
+- Verification at the implementation commit (local, Linux, Rust 1.99.0): fmt, clippy `-D warnings`, `cargo test --release --locked` all green (11 uci_smoke tests incl. 3 new no-argument tests); perft(3)=8902; bench signature `141943aa23b3fc68` before and after (unchanged).
+- Not verified locally: Rust 1.80 MSRV compile (no 1.80 toolchain obtainable in this sandbox; delegated to the CI `msrv` job), Windows execution (delegated to CI `windows-latest` and `windows-x64-artifact`). CI results in `docs/audit/2026-11-19-uci-no-args-compatibility.md` are historical, recorded through `07b68a8`. Current-head evidence (through `c64b743`, run 44700737123) is in `docs/audit/2026-11-19-v0.1.0-release-candidate.md`.
+- Side effect: the engine binary changed, so previously registered ENGINE-2 binary hashes no longer identify this build. No rating gate, dispatch or power-report status changed; RATING-100 remains BLOCKED and V1 is NOT complete.
+
+## 2026-11-19 — v0.1.0 pre-V1 release candidate (status update)
+
+- Version `0.1.0` (pre-V1; not v1.0.0; not tagged; no release). Product: FlawLessChess. UCI name: Flawless. Cargo package: `flawless` (kept; the naming decision is made: the package stays `flawless` (user decision), see the release-candidate report).
+- Fixed: `go movetime N` early return (search stopped at 39–100% of N). Now 100–101% of N. Clock searches unchanged. Tests: `tests/movetime_smoke.rs`.
+- Verified locally on the candidate head: fmt, clippy `-D warnings`, `cargo test --release --locked` (all suites), release build, bench signature `141943aa23b3fc68` (unchanged), perft d3 8902 / d4 197281, diftest 2,321/0, six full games with python-chess referee (all legal), UCI protocol probes 10/10, malformed input 37/37, Python harness suites.
+- Not verified: Windows artifact bytes (SHA-256, PE machine, manifest) by hand; real GUI playability in Arena or Cute Chess; independent AI review; MSRV 1.80 on the new head (depends on CI).
+- Release gates: see `docs/audit/2026-11-19-v0.1.0-release-candidate.md`. The V1 rating gate remains NOT MET and does not apply to a pre-V1 claim.
+
