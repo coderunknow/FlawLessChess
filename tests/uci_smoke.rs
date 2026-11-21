@@ -10,13 +10,19 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// Spawn the engine and a reader thread; lines arrive on an mpsc channel.
-/// `read_line` on the raw stdout would block forever when the child stalls
-/// (or to its EOF), so the test side never reads it directly.
+/// Spawn the engine in explicit `uci` mode (the historical harness default).
 fn start() -> (Child, Receiver<String>) {
+    start_with_args(&["uci"])
+}
+
+/// Spawn the engine with the given command-line arguments and a reader thread;
+/// lines arrive on an mpsc channel. `read_line` on the raw stdout would block
+/// forever when the child stalls (or to its EOF), so the test side never reads
+/// it directly.
+fn start_with_args(args: &[&str]) -> (Child, Receiver<String>) {
     let bin = env!("CARGO_BIN_EXE_flawless");
     let mut child = Command::new(bin)
-        .arg("uci")
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -325,4 +331,312 @@ fn rejected_position_yields_null_bestmove_until_fixed() {
     writeln!(stdin, "quit").unwrap();
     drop(stdin);
     wait_child(child, Duration::from_secs(10));
+}
+
+// ---------------------------------------------------------------------------
+// Launch-mode compatibility (no-argument UCI startup) and CLI regression tests.
+//
+// Conventional UCI GUIs start a custom engine with `Process.start(path, [])` and
+// then write `uci` to stdin. These tests run the real compiled executable in
+// exactly that way, plus the explicit `uci` form, so neither mode can regress.
+// ---------------------------------------------------------------------------
+
+const T: Duration = Duration::from_secs(20);
+
+/// A spawned engine plus its stdout reader channel. Dropping it kills and reaps
+/// the child, so a failing assertion never leaves a process running.
+struct Engine {
+    child: Child,
+    rx: Receiver<String>,
+}
+
+impl Engine {
+    fn spawn(args: &[&str]) -> Self {
+        let (child, rx) = start_with_args(args);
+        Engine { child, rx }
+    }
+
+    fn send(&mut self, cmd: &str) {
+        let stdin = self.child.stdin.as_mut().expect("stdin piped");
+        writeln!(stdin, "{cmd}").expect("write to engine stdin");
+        stdin.flush().expect("flush engine stdin");
+    }
+
+    /// Bounded wait for the process to exit; kills it and panics on timeout.
+    fn wait_exit(&mut self, timeout: Duration) -> std::process::ExitStatus {
+        let start = Instant::now();
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(status)) => return status,
+                Ok(None) => {
+                    if start.elapsed() > timeout {
+                        let _ = self.child.kill();
+                        let _ = self.child.wait();
+                        panic!("engine did not exit within {timeout:?}");
+                    }
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(e) => panic!("failed to poll engine: {e}"),
+            }
+        }
+    }
+}
+
+impl Drop for Engine {
+    fn drop(&mut self) {
+        if let Ok(None) = self.child.try_wait() {
+            let _ = self.child.kill();
+        }
+        let _ = self.child.wait();
+    }
+}
+
+/// Read stdout lines until one equals `token` exactly. Returns every line read,
+/// including the token. Panics (with the lines seen so far) on timeout.
+fn read_until(rx: &Receiver<String>, token: &str, timeout: Duration) -> Vec<String> {
+    let deadline = Instant::now() + timeout;
+    let mut lines = Vec::new();
+    while Instant::now() < deadline {
+        if let Ok(line) = rx.recv_timeout(Duration::from_millis(50)) {
+            let line = line.trim_end().to_string();
+            let done = line == token;
+            lines.push(line);
+            if done {
+                return lines;
+            }
+        }
+    }
+    panic!("timed out after {timeout:?} waiting for {token:?}; stdout so far: {lines:?}");
+}
+
+/// Read stdout lines until one starts with `prefix`. Returns every line read.
+fn read_until_prefix(rx: &Receiver<String>, prefix: &str, timeout: Duration) -> Vec<String> {
+    let deadline = Instant::now() + timeout;
+    let mut lines = Vec::new();
+    while Instant::now() < deadline {
+        if let Ok(line) = rx.recv_timeout(Duration::from_millis(50)) {
+            let line = line.trim_end().to_string();
+            let done = line.starts_with(prefix);
+            lines.push(line);
+            if done {
+                return lines;
+            }
+        }
+    }
+    panic!("timed out after {timeout:?} waiting for prefix {prefix:?}; stdout so far: {lines:?}");
+}
+
+/// Every stdout line in UCI mode must be a protocol line. A banner or usage text
+/// on stdout would confuse a GUI, so this is a strict allow-list.
+fn assert_only_uci_lines(lines: &[String]) {
+    for l in lines {
+        let ok = l == "uciok"
+            || l == "readyok"
+            || l.starts_with("id ")
+            || l.starts_with("option name ")
+            || l.starts_with("info ")
+            || l.starts_with("bestmove ");
+        assert!(ok, "non-UCI text on stdout: {l:?} (all lines: {lines:?})");
+        assert!(!l.contains("usage"), "usage banner leaked to stdout: {l:?}");
+    }
+}
+
+/// The set of legal moves from the start position, in UCI notation.
+fn legal_uci_moves_from_startpos() -> Vec<String> {
+    use flawless::position::Position;
+    flawless::attack::init_attacks();
+    let mut pos = Position::startpos();
+    flawless::movegen::generate_legal(&mut pos)
+        .iter()
+        .map(|m| m.to_uci())
+        .collect()
+}
+
+/// Full lifecycle with ZERO command-line arguments: the exact launch shape used by
+/// the CrispChess Extended generic UCI launcher (`Process.start(path, [])`).
+#[test]
+fn no_arguments_starts_uci_mode_and_completes_lifecycle() {
+    let mut eng = Engine::spawn(&[]);
+
+    // The process must not exit (or print anything) before the first UCI command.
+    thread::sleep(Duration::from_millis(300));
+    assert!(
+        eng.child.try_wait().expect("poll engine").is_none(),
+        "engine exited before receiving any command (no-argument launch)"
+    );
+    assert!(
+        eng.rx.recv_timeout(Duration::from_millis(100)).is_err(),
+        "engine wrote to stdout before receiving any command"
+    );
+
+    // uci -> identification + options + uciok, nothing else.
+    eng.send("uci");
+    let hs = read_until(&eng.rx, "uciok", T);
+    assert_only_uci_lines(&hs);
+    assert!(hs.iter().any(|l| l == "id name Flawless"), "{hs:?}");
+    assert!(hs.iter().any(|l| l.starts_with("id author ")), "{hs:?}");
+
+    // isready -> readyok.
+    eng.send("isready");
+    let ready = read_until(&eng.rx, "readyok", T);
+    assert_only_uci_lines(&ready);
+
+    // position startpos is accepted: no error report, and the engine stays in sync.
+    eng.send("position startpos");
+    eng.send("isready");
+    let after_pos = read_until(&eng.rx, "readyok", T);
+    assert_only_uci_lines(&after_pos);
+    assert!(
+        !after_pos.iter().any(|l| l.contains("error")),
+        "position startpos was rejected: {after_pos:?}"
+    );
+
+    // go depth 2 -> a legal bestmove from the start position.
+    eng.send("go depth 2");
+    let search = read_until_prefix(&eng.rx, "bestmove", T);
+    assert_only_uci_lines(&search);
+    let bm_line = search.last().expect("bestmove line");
+    let mv = bm_line
+        .strip_prefix("bestmove ")
+        .and_then(|rest| rest.split_whitespace().next())
+        .expect("bestmove has a move token");
+    let legal = legal_uci_moves_from_startpos();
+    assert!(
+        legal.iter().any(|m| m == mv),
+        "bestmove {mv} is not legal from startpos; legal = {legal:?}"
+    );
+
+    // quit -> clean exit with status 0.
+    eng.send("quit");
+    let status = eng.wait_exit(Duration::from_secs(10));
+    assert!(status.success(), "quit: nonzero exit status {status:?}");
+    assert_eq!(status.code(), Some(0), "quit: exit code must be 0");
+}
+
+/// Zero-argument and explicit `uci` launches must produce byte-identical handshakes.
+#[test]
+fn no_arguments_and_explicit_uci_produce_identical_handshake() {
+    let mut no_args = Engine::spawn(&[]);
+    let mut explicit = Engine::spawn(&["uci"]);
+    no_args.send("uci");
+    explicit.send("uci");
+    let a = read_until(&no_args.rx, "uciok", T);
+    let b = read_until(&explicit.rx, "uciok", T);
+    assert_eq!(
+        a, b,
+        "handshake differs between no-argument and `uci` launch"
+    );
+    no_args.send("quit");
+    explicit.send("quit");
+    assert!(no_args.wait_exit(Duration::from_secs(10)).success());
+    assert!(explicit.wait_exit(Duration::from_secs(10)).success());
+}
+
+/// With no arguments, closing stdin is a clean shutdown: exit 0, no hang.
+#[test]
+fn no_arguments_exits_cleanly_on_stdin_eof() {
+    let mut eng = Engine::spawn(&[]);
+    eng.send("uci");
+    let _ = read_until(&eng.rx, "uciok", T);
+    // Drop our write end of stdin to deliver EOF.
+    drop(eng.child.stdin.take());
+    let status = eng.wait_exit(Duration::from_secs(10));
+    assert_eq!(status.code(), Some(0), "EOF on stdin: exit code {status:?}");
+}
+
+/// Run a CLI invocation with stdin closed (so nothing can block on input), drain
+/// both pipes on threads (so a chatty child cannot deadlock), and bound the wait.
+/// Returns (exit code, stdout, stderr).
+fn run_cli(args: &[&str]) -> (Option<i32>, String, String) {
+    use std::io::Read;
+    let bin = env!("CARGO_BIN_EXE_flawless");
+    let mut child = Command::new(bin)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn flawless");
+    let mut out_pipe = child.stdout.take().expect("stdout piped");
+    let mut err_pipe = child.stderr.take().expect("stderr piped");
+    let out_thread = thread::spawn(move || {
+        let mut s = String::new();
+        let _ = out_pipe.read_to_string(&mut s);
+        s
+    });
+    let err_thread = thread::spawn(move || {
+        let mut s = String::new();
+        let _ = err_pipe.read_to_string(&mut s);
+        s
+    });
+    let start = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                if start.elapsed() > Duration::from_secs(60) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("`flawless {args:?}` did not finish within 60s");
+                }
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => panic!("failed to poll flawless: {e}"),
+        }
+    };
+    let stdout = out_thread.join().expect("stdout reader");
+    let stderr = err_thread.join().expect("stderr reader");
+    (status.code(), stdout, stderr)
+}
+
+/// `--version` / `--help` / `-h` are explicit requests: stdout, exit 0.
+#[test]
+fn cli_version_and_help_are_explicit_and_exit_zero() {
+    let (code, out, err) = run_cli(&["--version"]);
+    assert_eq!(code, Some(0));
+    assert_eq!(
+        out.trim(),
+        format!("Flawless {}", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(err.is_empty(), "--version wrote to stderr: {err:?}");
+
+    for flag in ["--help", "-h"] {
+        let (code, out, err) = run_cli(&[flag]);
+        assert_eq!(code, Some(0), "{flag} exit code");
+        assert!(out.contains("usage:"), "{flag} stdout: {out:?}");
+        assert!(out.contains("UCI mode"), "{flag} stdout: {out:?}");
+        assert!(err.is_empty(), "{flag} wrote to stderr: {err:?}");
+    }
+}
+
+/// Existing subcommands keep their behaviour and output.
+#[test]
+fn cli_existing_subcommands_still_work() {
+    let (code, out, _) = run_cli(&["perft", "3"]);
+    assert_eq!(code, Some(0));
+    assert!(out.contains("perft(3) = 8902"), "perft 3: {out:?}");
+
+    let (code, out, _) = run_cli(&["divide", "1"]);
+    assert_eq!(code, Some(0));
+    assert!(out.contains("total = 20"), "divide 1: {out:?}");
+
+    let (code, out, _) = run_cli(&["eval"]);
+    assert_eq!(code, Some(0));
+    assert!(out.contains("total"), "eval: {out:?}");
+
+    let (code, out, _) = run_cli(&["hash"]);
+    assert_eq!(code, Some(0), "hash with empty stdin should exit 0");
+    assert!(out.is_empty(), "hash with no input printed: {out:?}");
+}
+
+/// An unknown command is a user error: exit 2, message on stderr, nothing on stdout.
+#[test]
+fn cli_unknown_command_is_an_error_on_stderr() {
+    let (code, out, err) = run_cli(&["definitely-not-a-command"]);
+    assert_eq!(code, Some(2));
+    assert!(out.is_empty(), "unknown command wrote to stdout: {out:?}");
+    assert!(
+        err.contains("unknown command: definitely-not-a-command"),
+        "stderr: {err:?}"
+    );
 }

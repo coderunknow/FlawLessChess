@@ -11,25 +11,50 @@ const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(|s| s.as_str()) {
-        None => {
-            eprintln!("{ENGINE_NAME} {ENGINE_VERSION} — UCI chess engine");
-            eprintln!("usage: {ENGINE_NAME} [uci|perft <depth> [fen]|divide <depth> [fen]|bench|eval [fen]|bench_eval]");
-            std::process::exit(2);
-        }
+        // Conventional UCI GUIs (e.g. CrispChess Extended) start a custom engine with
+        // no command-line arguments and then speak UCI over stdin/stdout. A missing
+        // argument therefore means "UCI mode", not "print usage and exit".
+        None => flawless::uci::run_uci(),
+        Some("uci") => flawless::uci::run_uci(),
+        Some("-h") | Some("--help") => print_help(),
         Some("perft") => cmd_perft(&args[2..]),
         Some("divide") => cmd_divide(&args[2..]),
         Some("bench") => cmd_bench(),
-        Some("uci") => flawless::uci::run_uci(),
         Some("eval") => cmd_eval(&args[2..]),
         Some("bench_eval") => cmd_bench_eval(),
         Some("moves") => cmd_moves(&args[2..]),
         Some("hash") => cmd_hash(&args[2..]),
-        Some("--version") | Some("version") => println!("{ENGINE_NAME} {ENGINE_VERSION}"),
+        Some("--version") | Some("version") => {
+            flawless::out_line!("{ENGINE_NAME} {ENGINE_VERSION}")
+        }
         Some(other) => {
-            eprintln!("unknown command: {other}");
+            flawless::err_line!("unknown command: {other}");
+            flawless::err_line!("run `{ENGINE_NAME} --help` for the list of commands");
             std::process::exit(2);
         }
     }
+}
+
+/// Explicit help (requested with `-h` / `--help`) goes to stdout, exit 0.
+fn print_help() {
+    flawless::out_line!("{ENGINE_NAME} {ENGINE_VERSION} — UCI chess engine");
+    flawless::out_line!();
+    flawless::out_line!(
+        "With no arguments, {ENGINE_NAME} starts the UCI protocol loop on stdin/stdout."
+    );
+    flawless::out_line!();
+    flawless::out_line!("usage: {ENGINE_NAME} [command]");
+    flawless::out_line!("  (no command)              UCI mode (same as `uci`)");
+    flawless::out_line!("  uci                       UCI mode");
+    flawless::out_line!("  perft <depth> [fen]       count leaf nodes of the legal-move tree");
+    flawless::out_line!("  divide <depth> [fen]      perft split by root move");
+    flawless::out_line!("  bench                     fixed-depth search benchmark + signature");
+    flawless::out_line!("  eval [fen]                static evaluation breakdown");
+    flawless::out_line!("  bench_eval                evaluation timing benchmark");
+    flawless::out_line!("  moves                     read FENs on stdin, print legal moves");
+    flawless::out_line!("  hash [fen]                print Zobrist hash (FEN arg or stdin)");
+    flawless::out_line!("  version | --version       print the engine version");
+    flawless::out_line!("  -h | --help               print this help");
 }
 
 fn cmd_perft(args: &[String]) {
@@ -37,7 +62,7 @@ fn cmd_perft(args: &[String]) {
         .first()
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| {
-            eprintln!("usage: perft <depth> [fen]");
+            flawless::err_line!("usage: perft <depth> [fen]");
             std::process::exit(2);
         });
     let fen = args.get(1).map(|s| s.as_str());
@@ -45,18 +70,18 @@ fn cmd_perft(args: &[String]) {
         Some(f) => match Position::from_fen(f) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("error: {e}");
+                flawless::err_line!("error: {e}");
                 std::process::exit(1);
             }
         },
         None => Position::startpos(),
     };
     flawless::attack::init_attacks();
-    eprintln!("magic sliders active: {}", flawless::attack::magic_ready());
+    flawless::err_line!("magic sliders active: {}", flawless::attack::magic_ready());
     let t = Instant::now();
     let nodes = movegen::perft(&mut pos, depth);
     let dt = t.elapsed();
-    println!(
+    flawless::out_line!(
         "perft({depth}) = {nodes}  ({:.3}s, {:.2}M nodes/s)",
         dt.as_secs_f64(),
         nodes as f64 / dt.as_secs_f64() / 1e6
@@ -64,17 +89,20 @@ fn cmd_perft(args: &[String]) {
 }
 
 fn cmd_divide(args: &[String]) {
+    // Depth 0 is refused (F-36): `perft_divide` gives each root move `perft(0) = 1`, so the total
+    // (the number of root moves) would contradict `perft 0` = 1. A divide needs at least one ply.
     let depth: u32 = args
         .first()
         .and_then(|s| s.parse().ok())
+        .filter(|&d| d >= 1)
         .unwrap_or_else(|| {
-            eprintln!("usage: divide <depth> [fen]");
+            flawless::err_line!("usage: divide <depth >= 1> [fen]");
             std::process::exit(2);
         });
     let fen = args.get(1).map(|s| s.as_str());
     let mut pos = match fen {
         Some(f) => Position::from_fen(f).unwrap_or_else(|e| {
-            eprintln!("error: {e}");
+            flawless::err_line!("error: {e}");
             std::process::exit(1);
         }),
         None => Position::startpos(),
@@ -84,12 +112,12 @@ fn cmd_divide(args: &[String]) {
     let total: u64 = movegen::perft_divide(&mut pos, depth)
         .iter()
         .map(|(m, n)| {
-            println!("{m}: {n}");
+            flawless::out_line!("{m}: {n}");
             n
         })
         .sum();
     let dt = t.elapsed();
-    println!("total = {total}  ({:.3}s)", dt.as_secs_f64());
+    flawless::out_line!("total = {total}  ({:.3}s)", dt.as_secs_f64());
 }
 
 /// Fixed-depth search benchmark over a fixed set of positions.
@@ -133,7 +161,7 @@ fn cmd_bench() {
 
     for (i, fen) in positions.iter().enumerate() {
         let mut pos = Position::from_fen(fen).unwrap_or_else(|e| {
-            eprintln!("bench FEN {i} invalid: {e}");
+            flawless::err_line!("bench FEN {i} invalid: {e}");
             std::process::exit(1);
         });
         let stop = Arc::new(AtomicBool::new(false));
@@ -144,6 +172,8 @@ fn cmd_bench() {
             hard_ms: u64::MAX,
             infinite: false,
             ponder: false,
+            fixed_time: false,
+            clock_origin: None,
         }));
         let mut tt = TranspositionTable::new(16);
         let result =
@@ -155,7 +185,7 @@ fn cmd_bench() {
         fnv(&DEPTH.to_le_bytes());
         fnv(bm.as_bytes());
         fnv(b"\n");
-        println!(
+        flawless::out_line!(
             "bench [{i:2}]: depth {} score {:6} nodes {} pv {}",
             result.depth,
             result.score_cp,
@@ -170,8 +200,8 @@ fn cmd_bench() {
     }
 
     let dt = t.elapsed().as_secs_f64();
-    println!("bench signature: {signature:016x}");
-    println!(
+    flawless::out_line!("bench signature: {signature:016x}");
+    flawless::out_line!(
         "bench: {} positions at depth {} — {} nodes in {:.2}s ({} nps)",
         positions.len(),
         DEPTH,
@@ -182,20 +212,42 @@ fn cmd_bench() {
 }
 
 /// Batch mode: read FENs (one per line) from stdin; print the engine's legal moves for each.
-fn cmd_moves(_args: &[String]) {
-    use std::io::{BufRead, Write};
+/// Longest accepted batch line for `moves` and `hash`. A FEN is under 100 bytes.
+const MAX_BATCH_LINE_BYTES: usize = 64 * 1024;
+
+/// Calls `f` once per stdin line, in order. `Some(text)` is a valid UTF-8 line; `None` is a line
+/// that is not valid UTF-8 or is longer than `MAX_BATCH_LINE_BYTES`. Such a line does not end the
+/// batch: the caller answers it and reading continues (audit finding F-12).
+fn for_each_stdin_line(mut f: impl FnMut(Option<String>)) {
+    use flawless::uci::{read_bounded_line, LineRead};
     let stdin = std::io::stdin();
+    let mut reader = stdin.lock();
+    let mut buf: Vec<u8> = Vec::new();
+    loop {
+        match read_bounded_line(&mut reader, &mut buf, MAX_BATCH_LINE_BYTES) {
+            Ok(LineRead::Eof) | Err(_) => break,
+            Ok(LineRead::TooLong) => f(None),
+            Ok(LineRead::Line) => match std::str::from_utf8(&buf) {
+                Ok(text) => f(Some(text.to_string())),
+                Err(_) => f(None),
+            },
+        }
+    }
+}
+
+fn cmd_moves(_args: &[String]) {
+    use std::io::Write;
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     flawless::attack::init_attacks();
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => break,
+    for_each_stdin_line(|line| {
+        let Some(line) = line else {
+            let _ = writeln!(out, "error input line is not valid UTF-8 or too long");
+            return;
         };
         let fen = line.trim();
         if fen.is_empty() || fen.starts_with('#') {
-            continue;
+            return;
         }
         match Position::from_fen(fen) {
             Ok(mut pos) => {
@@ -208,34 +260,33 @@ fn cmd_moves(_args: &[String]) {
                 let _ = writeln!(out, "error {e}");
             }
         }
-    }
+    });
 }
 
 /// Print the Zobrist hash of the given FEN (or stdin FENs, one per line).
 fn cmd_hash(args: &[String]) {
-    use std::io::{BufRead, Write};
+    use std::io::Write;
     flawless::attack::init_attacks();
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     if let Some(fen) = args.first() {
         match Position::from_fen(fen) {
-            Ok(pos) => println!("{:016x}", pos.hash),
+            Ok(pos) => flawless::out_line!("{:016x}", pos.hash),
             Err(e) => {
-                eprintln!("error: {e}");
+                flawless::err_line!("error: {e}");
                 std::process::exit(1);
             }
         }
         return;
     }
-    let stdin = std::io::stdin();
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => break,
+    for_each_stdin_line(|line| {
+        let Some(line) = line else {
+            let _ = writeln!(out, "error input line is not valid UTF-8 or too long");
+            return;
         };
         let fen = line.trim();
         if fen.is_empty() {
-            continue;
+            return;
         }
         match Position::from_fen(fen) {
             Ok(pos) => {
@@ -245,14 +296,14 @@ fn cmd_hash(args: &[String]) {
                 let _ = writeln!(out, "error {fen}");
             }
         }
-    }
+    });
 }
 
 fn cmd_eval(args: &[String]) {
     let fen = args.first().map(|s| s.as_str());
     let pos = match fen {
         Some(f) => Position::from_fen(f).unwrap_or_else(|e| {
-            eprintln!("error: {e}");
+            flawless::err_line!("error: {e}");
             std::process::exit(1);
         }),
         None => Position::startpos(),
@@ -260,15 +311,15 @@ fn cmd_eval(args: &[String]) {
     flawless::attack::init_attacks();
     let mut eval = ClassicalEvaluator;
     let b = eval.breakdown(&pos);
-    println!("total      {:>6} cp", b.total);
-    println!("material   {:>6}", b.material);
-    println!("pst        {:>6}", b.pst);
-    println!("mobility   {:>6}", b.mobility);
-    println!("pawns      {:>6}", b.pawns);
-    println!("king_safety{:>6}", b.king_safety);
-    println!("bishop_pair{:>6}", b.bishop_pair);
-    println!("rook_file  {:>6}", b.rook_file);
-    println!("tempo      {:>6}", b.tempo);
+    flawless::out_line!("total      {:>6} cp", b.total);
+    flawless::out_line!("material   {:>6}", b.material);
+    flawless::out_line!("pst        {:>6}", b.pst);
+    flawless::out_line!("mobility   {:>6}", b.mobility);
+    flawless::out_line!("pawns      {:>6}", b.pawns);
+    flawless::out_line!("king_safety{:>6}", b.king_safety);
+    flawless::out_line!("bishop_pair{:>6}", b.bishop_pair);
+    flawless::out_line!("rook_file  {:>6}", b.rook_file);
+    flawless::out_line!("tempo      {:>6}", b.tempo);
 }
 
 fn cmd_bench_eval() {
@@ -288,7 +339,7 @@ fn cmd_bench_eval() {
         for _ in 0..n {
             acc = acc.saturating_add(eval.evaluate(&pos));
         }
-        println!(
+        flawless::out_line!(
             "{:>6} cp  avg over {} evals in {:.3}s ({} ns/eval, checksum {})",
             acc / n,
             n,

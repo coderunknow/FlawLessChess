@@ -338,6 +338,8 @@ fn search_score(
         hard_ms: u64::MAX,
         infinite: false,
         ponder: false,
+        fixed_time: false,
+        clock_origin: None,
     }));
     let mut tt = TranspositionTable::new(4);
     let moves = searchmoves.map(|v| {
@@ -380,6 +382,8 @@ fn mate_beats_repetition_rule() {
         hard_ms: u64::MAX,
         infinite: false,
         ponder: false,
+        fixed_time: false,
+        clock_origin: None,
     }));
     let mut tt = flawless::tt::TranspositionTable::new(4);
     let result = flawless::search::Searcher::new(&mut tt, &stop, limits).search_root(
@@ -468,4 +472,365 @@ fn clock_limits_never_panics_at_zero_time() {
     // normal case: soft < hard and hard within the budget
     let (soft, hard) = clock_limits(WHITE, 60_000, 60_000, 1_000, 1_000, None);
     assert!(soft <= hard && hard <= 60_000 - 30 + 1);
+}
+
+// ---------- Perft reference matrix (Chess Programming Wiki "Perft Results") ----------
+// Node counts are the published CPW values. Release-mode gates (perft is slow in debug builds).
+
+fn perft_of(fen: Option<&str>, depth: u32) -> u64 {
+    let mut pos = match fen {
+        Some(f) => Position::from_fen(f).expect("reference FEN"),
+        None => Position::startpos(),
+    };
+    movegen::perft(&mut pos, depth)
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "perft gate: run with --release")]
+fn perft_startpos_reference() {
+    assert_eq!(perft_of(None, 1), 20);
+    assert_eq!(perft_of(None, 2), 400);
+    assert_eq!(perft_of(None, 3), 8_902);
+    assert_eq!(perft_of(None, 4), 197_281);
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "perft gate: run with --release")]
+fn perft_kiwipete_reference() {
+    let f = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+    assert_eq!(perft_of(Some(f), 1), 48);
+    assert_eq!(perft_of(Some(f), 2), 2_039);
+    assert_eq!(perft_of(Some(f), 3), 97_862);
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "perft gate: run with --release")]
+fn perft_cpw_position_3_reference() {
+    // Pawn/en-passant/discovered-check heavy endgame.
+    let f = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
+    assert_eq!(perft_of(Some(f), 1), 14);
+    assert_eq!(perft_of(Some(f), 2), 191);
+    assert_eq!(perft_of(Some(f), 3), 2_812);
+    assert_eq!(perft_of(Some(f), 4), 43_238);
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "perft gate: run with --release")]
+fn perft_cpw_position_4_reference() {
+    // Promotions, castling through/into check, and pins.
+    let f = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
+    assert_eq!(perft_of(Some(f), 1), 6);
+    assert_eq!(perft_of(Some(f), 2), 264);
+    assert_eq!(perft_of(Some(f), 3), 9_467);
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "perft gate: run with --release")]
+fn perft_cpw_position_5_reference() {
+    let f = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+    assert_eq!(perft_of(Some(f), 1), 44);
+    assert_eq!(perft_of(Some(f), 2), 1_486);
+    assert_eq!(perft_of(Some(f), 3), 62_379);
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "perft gate: run with --release")]
+fn perft_cpw_position_6_reference() {
+    let f = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+    assert_eq!(perft_of(Some(f), 1), 46);
+    assert_eq!(perft_of(Some(f), 2), 2_079);
+    assert_eq!(perft_of(Some(f), 3), 89_890);
+}
+
+// ---------- Material limits (AUDIT-FEN-01) ----------
+
+#[test]
+fn fen_rejects_material_that_no_game_can_reach() {
+    // 22 queens + 2 rooks + 2 bishops + king: 27 white pieces, far above the 16-piece limit.
+    let too_many = "KQQQQQBk/Q5RB/Q6Q/Q6Q/Q6Q/Q6Q/Q1QQ3Q/QR3QQQ w - - 0 1";
+    let err = Position::from_fen(too_many)
+        .err()
+        .expect("27 white pieces were not rejected");
+    assert!(err.contains("impossible material"), "{err}");
+    // 9 white pawns.
+    let err = Position::from_fen("4k3/PPPPPPPP/P7/8/8/8/8/4K3 w - - 0 1")
+        .err()
+        .expect("9 pawns");
+    assert!(err.contains("impossible material"), "{err}");
+    // 9 queens with one pawn: eight promotions are needed but only seven pawns are missing.
+    let err = Position::from_fen("4k3/8/8/QQQQQQQQ/Q7/8/P7/K7 w - - 0 1")
+        .err()
+        .expect("nine queens with one pawn accepted");
+    assert!(err.contains("impossible material"), "{err}");
+}
+
+#[test]
+fn fen_accepts_promoted_piece_counts_that_are_reachable() {
+    // Three extra queens with seven missing pawns: reachable.
+    assert!(Position::from_fen("4k3/8/8/8/8/8/P7/QQQQ1K2 w - - 0 1").is_ok());
+    // Nine queens and no pawns: all eight pawns promoted.
+    let nine = "k7/8/8/8/8/8/QQQQQQQQ/K6Q b - - 0 1";
+    let pos = Position::from_fen(nine).expect("nine queens reachable by promotion");
+    assert_eq!(pos.pieces[WHITE * 6 + QUEEN].count_ones(), 9);
+    assert_eq!(pos.pieces[WHITE * 6 + PAWN], 0);
+}
+
+#[test]
+fn move_list_capacity_covers_maximum_mobility_of_accepted_positions() {
+    // A high-mobility position accepted by the material rules: 211 pseudo-legal moves for White.
+    let fen = "rR5Q/k1N1Q3/b1Q3Q1/3Q4/5Q2/R6Q/4Q3/BQ1NB1K1 w - - 0 1";
+    let pos = Position::from_fen(fen).expect("accepted high-mobility position");
+    let n = movegen::generate_pseudo_legal(&pos).len;
+    assert!(n > 200, "test position lost its mobility: {n}");
+    assert!(n < MOVE_LIST_CAPACITY, "{n} pseudo-legal moves");
+    let mut p = pos.clone();
+    assert!(movegen::generate_legal(&mut p).len <= n);
+}
+
+// ---------- Castling rights vs. placement (AUDIT-FEN-02) ----------
+// The FEN castling field is not cross-checked against the placement. These tests pin the
+// observable contract: stale rights never produce a castling move, and correct rights do.
+
+fn castle_moves_for(fen: &str) -> Vec<String> {
+    let mut pos = Position::from_fen(fen).expect("fen accepted");
+    movegen::generate_legal(&mut pos)
+        .iter()
+        .map(|m| m.to_uci())
+        .filter(|u| u == "e1g1" || u == "e1c1" || u == "e8g8" || u == "e8c8")
+        .collect()
+}
+
+#[test]
+fn stale_castling_rights_without_rooks_generate_no_castling() {
+    assert!(castle_moves_for("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 1").is_empty());
+    assert!(castle_moves_for("4k3/8/8/8/8/8/8/R3K3 w KQ - 0 1")
+        .iter()
+        .all(|m| m != "e1g1"));
+    assert!(castle_moves_for("4k3/8/8/8/8/8/8/R3K3 w Q - 0 1").contains(&"e1c1".to_string()));
+}
+
+#[test]
+fn castling_rights_with_rooks_generate_exactly_the_castles() {
+    let both = castle_moves_for("4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1");
+    assert!(both.contains(&"e1g1".to_string()) && both.contains(&"e1c1".to_string()));
+    assert_eq!(
+        castle_moves_for("4k3/8/8/8/8/8/8/R3K2R w K - 0 1"),
+        vec!["e1g1".to_string()]
+    );
+    assert_eq!(
+        castle_moves_for("4k3/8/8/8/8/8/8/R3K2R w Q - 0 1"),
+        vec!["e1c1".to_string()]
+    );
+    assert!(castle_moves_for("4k3/8/8/8/8/8/8/R3K2R w - - 0 1").is_empty());
+}
+
+#[test]
+fn castling_right_is_ignored_when_king_is_off_its_home_square() {
+    // King on f1 with a K right: no castling move may be generated from f1.
+    let moves = castle_moves_for("4k3/8/8/8/8/8/8/R4K1R w K - 0 1");
+    assert!(moves.is_empty(), "{moves:?}");
+}
+
+// ---------- Checkers against the side to move (AUDIT-FEN-03) ----------
+// Found by differential fuzzing against python-chess: the engine accepted positions in which the
+// side to move was in check from two sliders on one line with its king between them, and from
+// three pieces. Neither can occur in a legal game.
+
+#[test]
+fn fen_rejects_two_checkers_on_one_line_through_the_king() {
+    // Black queens on d5 and h1 both check Kf3 along the d5-h1 diagonal.
+    let err = Position::from_fen("1b4NQ/8/7R/3q4/3P1bn1/3k1K1P/3p4/2B1bN1q w - - 0 1")
+        .err()
+        .expect("aligned double check accepted");
+    assert!(err.contains("two checkers on one line"), "{err}");
+}
+
+#[test]
+fn fen_rejects_more_than_two_checkers() {
+    let err = Position::from_fen("3Q1N1R/NK5q/p7/nq6/R4rQ1/6Q1/1N4Qr/1k6 w - - 0 1")
+        .err()
+        .expect("three checkers accepted");
+    assert!(err.contains("more than two checkers"), "{err}");
+}
+
+#[test]
+fn fen_accepts_a_legal_double_check_from_knight_and_queen() {
+    // Queen d2 and knight g2 both check Ke1 (checkers d2 and g2, not on one line through the king).
+    let mut pos =
+        Position::from_fen("4k3/8/8/8/8/8/3q2n1/4K3 w - - 0 1").expect("legal double check");
+    let legal = movegen::generate_legal(&mut pos);
+    let mut moves: Vec<String> = legal.iter().map(|m| m.to_uci()).collect();
+    moves.sort();
+    assert_eq!(moves, vec!["e1d2", "e1f1"]);
+}
+
+// ---------- Evaluation colour symmetry (AUDIT-EVAL-01) ----------
+// The static evaluation, seen from the side to move, must be identical for a position and its
+// colour mirror (ranks flipped, colours and side swapped). tests/data/eval_symmetry_fens.tsv holds
+// 303 such pairs generated with python-chess `Board.mirror()`; the last two are positions where a
+// depth-4 search scored a mirror pair differently (the search is not symmetric by design: null
+// move, LMR and move-order ties; the static evaluation must still be).
+
+#[test]
+fn static_evaluation_is_colour_symmetric() {
+    use flawless::eval::{ClassicalEvaluator, Evaluator};
+    let data = include_str!("data/eval_symmetry_fens.tsv");
+    let mut ev = ClassicalEvaluator;
+    let mut pairs = 0;
+    for line in data
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+    {
+        let (fen, mirror) = line.split_once('\t').expect("tab-separated pair");
+        let a = Position::from_fen(fen).expect("fen");
+        let b = Position::from_fen(mirror).expect("mirror fen");
+        let (ea, eb) = (ev.evaluate(&a), ev.evaluate(&b));
+        assert_eq!(
+            ea, eb,
+            "eval asymmetry: {fen} -> {ea}, mirror {mirror} -> {eb}"
+        );
+        pairs += 1;
+    }
+    assert!(pairs >= 300, "only {pairs} pairs checked");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Search regressions (S-08 node cap, S-14 colour symmetry). Library-level, deterministic.
+// ---------------------------------------------------------------------------------------------
+
+/// Runs one fresh search (new table, new searcher) and returns (score, nodes spent).
+fn fresh_search(fen: &str, max_depth: i32, max_nodes: u64) -> (i32, u64, Move) {
+    use flawless::search::{SearchLimits, Searcher};
+    use flawless::tt::TranspositionTable;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{Arc, Mutex};
+    attack::init_attacks();
+    let mut pos = Position::from_fen(fen).expect("fen");
+    let mut tt = TranspositionTable::new(16);
+    let stop = AtomicBool::new(false);
+    let limits = SearchLimits {
+        max_depth,
+        max_nodes,
+        ..SearchLimits::default()
+    };
+    let mut s = Searcher::new(&mut tt, &stop, Arc::new(Mutex::new(limits)));
+    let r = s.search_root(&mut pos, None, 1, &mut |_| {});
+    (r.score_cp, s.nodes(), r.best_move)
+}
+
+/// Regression (S-14): a position and its colour mirror must search to the same score. Before the
+/// colour-relative move ordering, these 11 recorded pairs differed (6 of 120 positions at depth 4
+/// with seed 2026; 5 of 60 at depth 5 with seed 2027). Each mirror was checked with python-chess.
+#[test]
+fn search_scores_are_colour_symmetric_on_recorded_pairs() {
+    let data = include_str!("data/search_symmetry_pairs.tsv");
+    let mut pairs = 0;
+    for line in data
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+    {
+        let cols: Vec<&str> = line.split('\t').collect();
+        assert_eq!(cols.len(), 3, "malformed fixture row: {line}");
+        let depth: i32 = cols[0].parse().expect("depth");
+        let (a, _, _) = fresh_search(cols[1], depth, u64::MAX);
+        let (b, _, _) = fresh_search(cols[2], depth, u64::MAX);
+        assert_eq!(
+            a, b,
+            "search asymmetry at depth {depth}: {} -> {a}, mirror {} -> {b}",
+            cols[1], cols[2]
+        );
+        pairs += 1;
+    }
+    assert_eq!(pairs, 11, "fixture must hold the 11 recorded pairs");
+}
+
+/// Regression (S-08): the node cap is spent exactly. The cap used to be checked every 1024
+/// nodes, so `go nodes 1` searched 1024 nodes and small caps overshot. The count returned
+/// by the searcher must equal the cap for every cap that the search can reach.
+#[test]
+fn node_cap_is_spent_exactly() {
+    for &cap in &[1u64, 2, 100, 1000, 5000, 20000] {
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        ] {
+            let (_, nodes, best) = fresh_search(fen, 64, cap);
+            assert_eq!(nodes, cap, "cap {cap} on {fen}: searched {nodes} nodes");
+            assert_ne!(best, Move::NULL, "cap {cap}: no move returned on {fen}");
+        }
+    }
+}
+
+/// Invariant sweep for the piece bitboards. `Position::piece_on` ends in `unreachable!` if the
+/// occupancy bitboards and the per-piece bitboards disagree, so this walks random legal games
+/// (make and unmake) and checks, on every ply, that each occupied square has exactly one piece,
+/// that `occ` and `occ_all` agree with `pieces`, and that `piece_on` answers for every square.
+#[test]
+fn piece_bitboards_stay_in_sync_over_random_games() {
+    fn check(pos: &Position) {
+        let mut union = 0u64;
+        for c in 0..2 {
+            let mut side = 0u64;
+            for p in 0..6 {
+                let bb = pos.pieces[c * 6 + p];
+                assert_eq!(side & bb, 0, "two pieces of one colour share a square");
+                side |= bb;
+            }
+            assert_eq!(side, pos.occ[c], "occ[{c}] differs from its piece boards");
+            assert_eq!(union & side, 0, "both colours occupy one square");
+            union |= side;
+        }
+        assert_eq!(
+            union, pos.occ_all,
+            "occ_all differs from occ[WHITE] | occ[BLACK]"
+        );
+        for sq in 0..64u8 {
+            let b = 1u64 << sq;
+            let found = pos.piece_on(sq);
+            match found {
+                None => assert_eq!(pos.occ_all & b, 0, "empty answer on occupied square {sq}"),
+                Some((c, p)) => assert_ne!(pos.pieces[c * 6 + p] & b, 0, "piece_on lies at {sq}"),
+            }
+        }
+    }
+
+    let starts = [
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+    ];
+    let mut seed = 0x5EED_1234_u64;
+    let mut plies = 0usize;
+    for fen in starts {
+        for _ in 0..40 {
+            let mut pos = Position::from_fen(fen).expect("fixture FEN");
+            let mut history = Vec::new();
+            for _ in 0..120 {
+                check(&pos);
+                let legal = movegen::generate_legal(&mut pos);
+                if legal.as_slice().is_empty() {
+                    break;
+                }
+                let m = legal.as_slice()[(rng(&mut seed) % legal.as_slice().len() as u64) as usize];
+                let undo = pos.make_move(m);
+                check(&pos);
+                history.push((m, undo));
+                plies += 1;
+            }
+            while let Some((m, undo)) = history.pop() {
+                pos.unmake_move(m, &undo);
+                check(&pos);
+            }
+            assert_eq!(
+                pos.to_fen(),
+                fen,
+                "unmake did not restore the start position"
+            );
+        }
+    }
+    assert!(
+        plies > 5_000,
+        "sweep too short to mean anything: {plies} plies"
+    );
 }

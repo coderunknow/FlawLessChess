@@ -68,7 +68,8 @@ pin/mask scissors is a later optimization if profiling justifies it.
 
 ## 3. Transposition table
 
-- Zobrist keyed, fixed size from `Hash` option (MiB, default 64 MiB — safe on 8 GB reference machine),
+- Zobrist keyed, fixed size from `Hash` option (MiB, default 64 MiB — safe on 8 GB reference machine;
+  range 1–1024 MiB, the table is capped at 2^27 entries = 1 GiB),
   power-of-two bucket count, 1 entry/bucket (V1), 8-byte entries packed:
   `key16 | move16 | score16 (i16, cp, side-to-move-relative, mated-in-1 offset) | depth8 | gen8 | bound8(2 bits used)`.
 - Depth-preferred replacement + generation counter for aging across `ucinewgame`.
@@ -94,7 +95,8 @@ Iterative deepening driver from the root, with:
 - Mate score handling with ply offset; TB-free.
 - Time management: soft/hard limits from `wtime/btime/winc/binc/movestogo`, plus `movetime`, `depth`,
   `nodes`, `infinite`; `stop` and ponder handling with a shared atomic stop flag; node counter checked
-  every 1024 nodes. Stop must be responsive (<50 ms).
+  every 1024 nodes for time and stop; the `nodes` limit is checked on every node, so `go nodes N` spends exactly N
+  nodes. Stop must be responsive (<50 ms).
 - MultiPV: root-level — each iteration records scores for the top-N root moves; aspiration disabled;
   MultiPV=1 path identical to normal search.
 - **Threads**: option exposed, hard-capped at `max 1` in V1 and reported as such; search state is

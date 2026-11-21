@@ -11,6 +11,37 @@ use crate::attack;
 use crate::types::*;
 use std::sync::LazyLock;
 
+/// Necessary condition for a side's material to occur in a real game: at most 16 pieces including
+/// the king, at most 8 pawns, and every piece beyond the starting set (queens above one, rooks,
+/// bishops and knights above two) must come from a promoted pawn, so the total excess is at most the
+/// number of missing pawns.
+/// True when squares `a` and `b` lie on one rank, file or diagonal and `k` lies strictly on the
+/// segment between them. Coordinates are (file, rank) with a1 = 0.
+fn king_between_aligned(a: Square, b: Square, k: Square) -> bool {
+    let (fa, ra) = (file_of(a) as i32, rank_of(a) as i32);
+    let (fb, rb) = (file_of(b) as i32, rank_of(b) as i32);
+    let (fk, rk) = (file_of(k) as i32, rank_of(k) as i32);
+    let (df, dr) = (fb - fa, rb - ra);
+    let aligned = df == 0 || dr == 0 || df.abs() == dr.abs();
+    if !aligned {
+        return false;
+    }
+    let collinear = (rk - ra) * df == (fk - fa) * dr;
+    let within = fk >= fa.min(fb) && fk <= fa.max(fb) && rk >= ra.min(rb) && rk <= ra.max(rb);
+    collinear && within && (fk, rk) != (fa, ra) && (fk, rk) != (fb, rb)
+}
+
+fn material_is_reachable(pos: &Position, color: usize) -> bool {
+    let count = |piece: usize| popcount(pos.pieces[color * 6 + piece]) as i32;
+    let pawns = count(PAWN);
+    let total: i32 = (0..6).map(count).sum();
+    let excess = (count(QUEEN) - 1).max(0)
+        + (count(ROOK) - 2).max(0)
+        + (count(BISHOP) - 2).max(0)
+        + (count(KNIGHT) - 2).max(0);
+    total <= 16 && pawns <= 8 && excess <= 8 - pawns
+}
+
 // ---------------- Zobrist ----------------
 
 pub struct Zobrist {
@@ -195,6 +226,13 @@ impl Position {
                 fields.len()
             ));
         }
+        // A FEN has at most six fields (F-25): a seventh is garbage, not a silent extra.
+        if fields.len() > 6 {
+            return Err(format!(
+                "fen: expected at most 6 fields, got {}",
+                fields.len()
+            ));
+        }
         let mut pos = Position::empty();
         // piece placement
         let ranks: Vec<&str> = fields[0].split('/').collect();
@@ -253,13 +291,17 @@ impl Position {
         pos.castling = 0;
         if fields[2] != "-" {
             for ch in fields[2].chars() {
-                pos.castling |= match ch {
+                let bit = match ch {
                     'K' => CASTLE_WK,
                     'Q' => CASTLE_WQ,
                     'k' => CASTLE_BK,
                     'q' => CASTLE_BQ,
                     _ => return Err(format!("fen: invalid castling char {ch:?}")),
                 };
+                if pos.castling & bit != 0 {
+                    return Err(format!("fen: duplicate castling letter {ch:?}"));
+                }
+                pos.castling |= bit;
             }
         }
         // en passant
@@ -329,12 +371,39 @@ impl Position {
         {
             return Err("fen: kings adjacent".to_string());
         }
+        // Material must be reachable in a real game. Move generation and the fixed-size move list
+        // rely on these limits (see `types::MOVE_LIST_CAPACITY`); arbitrary piece counts are rejected.
+        for color in [WHITE, BLACK] {
+            if !material_is_reachable(&pos, color) {
+                return Err(format!(
+                    "fen: impossible material for {} (at most 16 pieces, 8 pawns, and no more promoted pieces than missing pawns)",
+                    if color == WHITE { "white" } else { "black" }
+                ));
+            }
+        }
         // Illegal position: the side to move may never be giving check to the opponent's king
         // (that would mean the opponent failed to respond to check). Reject — move generation
         // assumes the opponent's king is never en prise (it may emit moves capturing it).
         let opp_king_sq = lsb(pos.pieces[(1 - pos.side) * 6 + KING]);
         if pos.is_attacked(opp_king_sq, pos.side) {
             return Err("fen: side to move is attacking the opponent's king".to_string());
+        }
+        // Checks against the side to move: a legal position has at most two checkers, and two
+        // checkers may not lie on one line with the king between them (that would need a piece
+        // to move from one side of the king to the other). Found by differential testing against
+        // python-chess (`chess.STATUS_IMPOSSIBLE_CHECK`).
+        let our_king_sq = lsb(pos.pieces[pos.side * 6 + KING]);
+        let checkers = pos.attackers_to(our_king_sq, pos.occ_all, 1 - pos.side);
+        if popcount(checkers) > 2 {
+            return Err("fen: impossible check (more than two checkers)".to_string());
+        }
+        if popcount(checkers) == 2 {
+            let (a, b) = (lsb(checkers), (63 - checkers.leading_zeros()) as Square);
+            if king_between_aligned(a, b, our_king_sq) {
+                return Err(
+                    "fen: impossible check (two checkers on one line through the king)".to_string(),
+                );
+            }
         }
         pos.ep_included = pos.ep >= 0 && pos.hash_ep().is_some();
         pos.hash = pos.zobrist_full();
@@ -570,7 +639,8 @@ impl Position {
             self.halfmove = self.halfmove.saturating_add(1);
         }
         if us == BLACK {
-            self.fullmove += 1;
+            // Saturating (F-29): a FEN may give any u32; a debug build panicked here at u32::MAX.
+            self.fullmove = self.fullmove.saturating_add(1);
         }
 
         // Side to move.
@@ -945,5 +1015,74 @@ mod ep_legality_tests {
             walk(&mut pos, 3, &mut checked);
         }
         assert!(checked > 1000, "too few ep positions exercised: {checked}");
+    }
+
+    #[test]
+    fn castling_letters_are_checked_for_form() {
+        // Valid rights (incl. the classic all-rights start) are accepted.
+        for fen in [
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            "4k3/8/8/8/8/8/8/R3K3 w Q - 0 1",
+            "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+        ] {
+            assert!(
+                Position::from_fen(fen).is_ok(),
+                "rejected valid rights: {fen}"
+            );
+        }
+        // A duplicated letter is malformed (F-25). Stale rights (no rook, king off its square) are
+        // NOT refused: tests/correctness.rs pins that they never produce a castling move (AUDIT-FEN-02).
+        assert!(Position::from_fen("4k3/8/8/8/8/8/8/4K3 w KK - 0 1").is_err());
+    }
+
+    #[test]
+    fn fen_with_extra_trailing_field_is_refused() {
+        assert!(Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").is_ok());
+        assert!(Position::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1 extra").is_err());
+    }
+
+    #[test]
+    fn insufficient_material_matches_the_fide_dead_positions() {
+        // FIDE dead positions: no pawns, rooks or queens, and either one minor piece at most, or
+        // only bishops that all stand on one colour. Square colour = (file + rank) % 2 with a1 = 0:
+        // c1 = 0, d1 = 1, b8 = 0, c8 = 1, e3 = 0.
+        let dead = [
+            "4k3/8/8/8/8/8/8/4K3 w - - 0 1",     // K v K
+            "4k3/8/8/8/8/8/8/3NK3 w - - 0 1",    // K+N v K
+            "4k3/8/8/8/8/8/8/3BK3 w - - 0 1",    // K+B v K
+            "4kb2/8/8/8/8/8/8/4K3 w - - 0 1",    // K v K+B
+            "1b2k3/8/8/8/8/8/8/2B1K3 w - - 0 1", // K+B v K+B, both bishops on colour 0
+            "4k3/8/8/8/8/4B3/8/2B1K3 w - - 0 1", // K+2B v K, both bishops on colour 0
+        ];
+        let live = [
+            "2b1k3/8/8/8/8/8/8/2B1K3 w - - 0 1", // K+B v K+B, opposite colours (c1 = 0, c8 = 1)
+            "4k3/8/8/8/8/8/8/2BBK3 w - - 0 1",   // K+2B v K, opposite colours (c1 = 0, d1 = 1)
+            "1n2k3/8/8/8/8/8/8/3NK3 w - - 0 1",  // K+N v K+N
+            "4k3/8/8/8/8/8/8/2NBK3 w - - 0 1",   // K+N+B v K
+            "4k3/8/8/8/8/8/8/3QK3 w - - 0 1",    // K+Q v K
+            "4k3/8/8/8/8/8/P7/4K3 w - - 0 1",    // K+P v K
+            "4k3/8/8/8/8/8/8/R3K3 w - - 0 1",    // K+R v K
+        ];
+        for fen in dead {
+            let p = Position::from_fen(fen).expect("fen");
+            assert!(p.insufficient_material(), "should be dead: {fen}");
+        }
+        for fen in live {
+            let p = Position::from_fen(fen).expect("fen");
+            assert!(!p.insufficient_material(), "should not be dead: {fen}");
+        }
+    }
+
+    #[test]
+    fn fullmove_counter_saturates_instead_of_overflowing() {
+        // F-29: `fullmove += 1` panicked in a debug build when a FEN had the largest u32 and a
+        // black move followed. The counter now saturates, as the halfmove clock does.
+        let mut p = Position::from_fen("8/8/8/8/8/8/7k/K7 b - - 0 4294967295").expect("fen");
+        let legal = crate::movegen::generate_legal(&mut p);
+        let m = legal.iter().copied().next().expect("a legal black move");
+        let undo = p.make_move(m);
+        assert_eq!(p.fullmove, u32::MAX);
+        p.unmake_move(m, &undo);
+        assert_eq!(p.fullmove, u32::MAX);
     }
 }

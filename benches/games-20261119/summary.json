@@ -1,0 +1,38 @@
+[
+ {
+  "opening": "startpos",
+  "plies": 155,
+  "termination": "GAME_OVER: CHECKMATE result=1-0",
+  "wall_s": 9.6
+ },
+ {
+  "opening": "kiwipete",
+  "plies": 144,
+  "termination": "GAME_OVER: CHECKMATE result=0-1",
+  "wall_s": 9.7
+ },
+ {
+  "opening": "promo-race",
+  "plies": 23,
+  "termination": "GAME_OVER: CHECKMATE result=1-0",
+  "wall_s": 1.6
+ },
+ {
+  "opening": "castle-both",
+  "plies": 15,
+  "termination": "GAME_OVER: CHECKMATE result=1-0",
+  "wall_s": 0.9
+ },
+ {
+  "opening": "stalemate-trap",
+  "plies": 0,
+  "termination": "GAME_OVER: STALEMATE result=1/2-1/2",
+  "wall_s": 0.1
+ },
+ {
+  "opening": "ep-setup",
+  "plies": 100,
+  "termination": "GAME_OVER: THREEFOLD_REPETITION result=1/2-1/2",
+  "wall_s": 7.7
+ }
+]

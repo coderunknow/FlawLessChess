@@ -151,7 +151,7 @@ jobs:
           echo "$OUT" | tail -4
           SIG=$(echo "$OUT" | grep -oE "signature[ =:]+[0-9a-f]{16}" | grep -oE "[0-9a-f]{16}" | tail -1)
           echo "signature=$SIG"
-          [ "$SIG" = "141943aa23b3fc68" ] || { echo "::error::bench signature mismatch: got $SIG want 141943aa23b3fc68"; exit 7; }
+          [ "$SIG" = "849a85bf7e8e1eba" ] || { echo "::error::bench signature mismatch: got $SIG want 849a85bf7e8e1eba"; exit 7; }
           SHA=$(sha256sum "./$BIN" | cut -d' ' -f1)
           echo "binary_sha256=$SHA"
           {

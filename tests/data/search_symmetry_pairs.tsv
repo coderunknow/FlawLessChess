@@ -1,0 +1,15 @@
+# Search colour-symmetry regression pairs (S-14). Each pair was a SEARCH-MISMATCH of
+# scripts/eval_symmetry_probe.py on the engine before the colour-relative move ordering
+# (seed 2026 depth 4: 6 of 120 positions; seed 2027 depth 5: 5 of 60). Each mirror is
+# checked with python-chess chess.Board.mirror(). Format: depth<TAB>fen<TAB>mirror.
+4	3r1rn1/pb2kpp1/Bppp4/3p2pP/P2KP1P1/1RQ2N2/1bP2P2/7R w - - 0 27	7r/1Bp2p2/1rq2n2/p2kp1p1/3P2Pp/bPPP4/PB2KPP1/3R1RN1 b - - 0 27
+4	1q3bnr/r5p1/n1k2p1p/p1p1pQ2/1BN5/2P2bPP/p2P1KR1/3R2N1 b - - 3 27	3r2n1/P2p1kr1/2p2Bpp/1bn5/P1P1Pq2/N1K2P1P/R5P1/1Q3BNR w - - 3 27
+4	rnbqk2r/p1pp1p2/1p2p3/1Bb2np1/6Kp/4PN2/PPPP2PP/RNB2Q1R w kq - 0 11	rnb2q1r/pppp2pp/4pn2/6kP/1bB2NP1/1P2P3/P1PP1P2/RNBQK2R b KQ - 0 11
+4	r1bk4/ppp1b3/B1q1pp1n/3pN2p/P1QP1PPp/N1P5/2K5/R1B4R w - - 5 30	r1b4r/2k5/n1p5/p1qp1ppP/3Pn2P/b1Q1PP1N/PPP1B3/R1BK4 b - - 5 30
+4	rnbqkb1r/1p2pppp/2p5/3p1n2/pPPP2PP/N3P2N/P3QP2/R1B1KB1R b KQ - 1 9	r1b1kb1r/p3qp2/n3p2n/Pppp2pp/3P1N2/2P5/1P2PPPP/RNBQKB1R w kq - 1 9
+4	r1b2bnr/pp1pkp1p/4n1pq/2p1p3/P1P1P2P/NP3N2/R2PKPP1/2BQ1B1R w - - 0 13	2bq1b1r/r2pkpp1/np3n2/p1p1p2p/2P1P3/4N1PQ/PP1PKP1P/R1B2BNR b - - 0 13
+5	r1bqkbnr/p1ppp1pp/5p2/1p6/n3PP2/3P3N/PPPQB1PP/RNBK3R w kq - 7 8	rnbk3r/pppqb1pp/3p3n/N3pp2/1P6/5P2/P1PPP1PP/R1BQKBNR b KQ - 7 8
+5	rnbqkb1r/1ppppppp/p7/8/1nP4P/2N2N2/PP1PPPP1/1RBQKB1R b Kkq - 3 5	1rbqkb1r/pp1pppp1/2n2n2/1Np4p/8/P7/1PPPPPPP/RNBQKB1R w KQk - 3 5
+5	r3kbnr/pppb1ppp/2np4/2q1p3/P7/N1P1P1P1/RP1P1P1P/2BQKBNR w Kkq - 1 7	2bqkbnr/rp1p1p1p/n1p1p1p1/p7/2Q1P3/2NP4/PPPB1PPP/R3KBNR b KQk - 1 7
+5	1rbq2nr/ppk4p/n2b4/3pppp1/1QP3P1/PP1B1N2/3P1P1P/RNB1R1K1 b - - 1 13	rnb1r1k1/3p1p1p/pp1b1n2/1qp3p1/3PPPP1/N2B4/PPK4P/1RBQ2NR w - - 1 13
+5	rn1k3r/p1q2pb1/1pp2n2/3Pp3/2PN3p/1P1P1PPp/P6P/R1B2BKR w - - 1 23	r1b2bkr/p6p/1p1p1ppP/2pn3P/3pP3/1PP2N2/P1Q2PB1/RN1K3R b - - 1 23

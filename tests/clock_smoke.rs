@@ -90,7 +90,7 @@ fn clock_command_returns_bestmove_within_budget() {
         &mut child,
         "uci\nisready\nposition startpos\ngo wtime 3000 btime 3000 winc 0 binc 0 movestogo 40\n",
     );
-    // clock_limits: soft = 3000/40 = 75 ms, hard = min(450, 2970) = 450 ms.
+    // clock_limits (ENGINE-1): reserve 300 ms, usable 2700, soft = 2700/40 = 67 ms, hard = 4*soft = 268 ms.
     let (best, elapsed) = wait_for_bestmove(&rx, Duration::from_secs(3));
     assert_bestmove_format(&best);
     assert!(
@@ -108,7 +108,7 @@ fn tight_clock_returns_quickly() {
         &mut child,
         "uci\nisready\nposition startpos\ngo wtime 250 btime 250 winc 0 binc 0 movestogo 40\n",
     );
-    // clock_limits: soft = clamp(250/40)=20 ms, hard = min(120, 220) = 120 ms.
+    // clock_limits (CLOCK-1 floor): reserve 300 ms exceeds 250 ms, usable 0, soft = the 1 ms per-move floor, hard = 1 ms.
     let (best, elapsed) = wait_for_bestmove(&rx, Duration::from_secs(3));
     assert_bestmove_format(&best);
     assert!(
@@ -126,7 +126,7 @@ fn clock_with_increment_and_movestogo() {
         &mut child,
         "uci\nisready\nposition startpos moves e2e4 e7e5\ngo wtime 2000 btime 2000 winc 100 binc 100 movestogo 10\n",
     );
-    // clock_limits: soft = 2000/10 + 50 = 250 ms, hard = min(1500, 1970) = 1500 ms.
+    // clock_limits (ENGINE-1): reserve 300 ms, usable 1700, soft = 1700/10 + 100/2 = 220 ms, hard = min(880, 850) = 850 ms.
     let (best, elapsed) = wait_for_bestmove(&rx, Duration::from_secs(5));
     assert_bestmove_format(&best);
     assert!(

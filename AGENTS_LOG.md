@@ -412,3 +412,138 @@
 - CI 44067826990: Ubuntu passed; Windows failed during power-report smoke because the raw SCREEN-2 games file was checked out as CRLF while its manifest merged_sha256 was generated from LF on Ubuntu.
 - The game records were unchanged; this was cross-platform Git newline conversion. Added a logical-JSONL SHA helper that canonicalizes line endings only, preserving every record, order and content. Added exact LF attributes for the two SCREEN-2 evidence files, plus regression tests simulating CRLF checkout and record tampering.
 - No evidence was changed and no rating games launched. Power report remains ENGINE-1-specific and BLOCKED. Rerun exact-head CI.
+
+
+## 2026-11-19 — UCI no-argument startup compatibility (arena session)
+
+- **Scope:** fix the UCI startup failure reported in `diagnostic-report.zip` and deliver a verified Windows x64 executable as a CI artifact. No rating, search or engine-strength work.
+- **Branch and base:** `arena/2d2d30b4-flawlesschess` from `main` at `5e36b06` (PR #1 merge). PR #2 belongs to another branch and was not touched. The mission's "prefer main" instruction was not applied because the session branch is fixed by Arena.
+- **Toolchain:** Rust 1.99.0 installed from npm `@toolchain-bin/*` into `/home/user/.toolchain/sysroot`. Rust 1.80 is not published under that scope and rustup is blocked, so the MSRV compile is delegated to CI.
+- **Reproduction:** before changes, no arguments → exit 2 with usage; `uci` → handshake. Baseline gates: fmt, clippy, `cargo test --release --locked` green; perft(3)=8902; bench signature `141943aa23b3fc68`.
+- **Changes:** `src/main.rs` (no-argument UCI mode; `-h`/`--help`); `tests/uci_smoke.rs` (real-process no-argument lifecycle, handshake parity, EOF exit, CLI regressions; `Engine` guard kills children on drop); `scripts/windows_artifact.py` (PE x86-64 check, smoke tests on the exact exe, SHA256SUMS and BUILD-MANIFEST); `.github/workflows/ci.yml` (`windows-x64-artifact` job, no `continue-on-error`); README, CHANGELOG, STATUS, DESIGN_LOG, FAILURE_LEDGER, `docs/audit/2026-11-19-uci-no-args-compatibility.md`.
+- **Negative control:** the three new no-argument tests fail against the pre-change `src/main.rs` ("engine exited before receiving any command") and pass after the fix.
+- **Tooling check:** the artifact script rejects a Linux ELF, and on a stubbed-PE local run it passes the smoke tests, writes checksums, and `sha256sum -c` verifies them. The real PE check runs only in CI.
+- **Push policy:** only the session branch is pushed. No tags, releases, merges, force-pushes, or PR creation without authorization. Exact-head CI is dispatched with `gh workflow run ci.yml --ref <branch>`, because the CI push trigger is limited to `main`.
+
+## 2026-11-19 — correction to the push-policy note above
+
+- The entry above says exact-head CI is dispatched with `gh workflow run ci.yml --ref <branch>`. That was attempted and refused with HTTP 403 (`Resource not accessible by integration`). Exact-head CI for this branch ran via draft PR #3 (`pull_request` trigger), with the operator's approval. No workflow file or trigger was changed for this.
+
+## 2026-11-19 — CodeRabbit review on a7b7eda (3 findings, all valid, fixed)
+
+- Handshake aliasing: `hs` was the live transcript list, so the no-args vs `uci` comparison included later search output. Now a snapshot.
+- Post-quit stdout was not checked: `finish()` now drains stdout through EOF before validation.
+- The "no stdout before any command" check was dead code (it read `s.lines` before any drain). It now runs after `finish()`.
+- Regression tests added to `scripts/test_windows_artifact.py` using a fake engine through the real `Session` (15/15 pass).
+- Artifact download for `a7b7eda` still fails with blob-storage EOF; the artifact remains NOT VERIFIED.
+
+## 2026-11-19 — full-release validation pass (see docs/audit/2026-11-19-release-validation.md)
+
+- Perft: 22/22 standard positions (d1–d4) and deeper counts match python-chess and CPW; diftest 2,321/0.
+- Full games: 6 engine-vs-engine games with python-chess referee and clocks (benches/games-20261119/); all moves legal on replay; castling and promotions occurred; stalemate and threefold draws detected.
+- UCI probes: 10/10 lifecycle and 37/37 malformed-input cases pass (scripts/uci_protocol_probe.py, scripts/uci_malformed_probe.py).
+- Finding recorded, not changed: `go movetime` returns after 38–100% of budget (search.rs soft-budget rule). Changing it would invalidate rating-evidence timing.
+- No merge, tag, or release performed. Release gates still open: CodeRabbit on final head (rate-limited), artifact verification (download EOF), real GUI test (not possible here), Windows runtime, and the rating/V1 gates.
+
+## 2026-11-19 — v0.1.0 pre-V1 release-candidate remediation (local work)
+
+- Version `0.1.0` (`Cargo.toml`, `Cargo.lock`). Package stays `flawless` (decision pending; the approved name `Flawless-Chess-Engine` does not match the repository).
+- movetime fix: `fixed_time` flag; tests `tests/movetime_smoke.rs` (8 tests). Old rule re-inserted in a scratch copy: 2 tests fail. Restored: all pass.
+- Self-review of the full Rust diff (not independent review): `ponderhit` now clears `fixed_time` with the clock recalculation; checked `ponderhit` after 400 ms ponder returns immediately (correct, the budget is already spent).
+- Probes added to CI (both OSes): `scripts/uci_protocol_probe.py`, `scripts/uci_malformed_probe.py`, `scripts/selfplay_games.py` (python-chess 1.11.2 referee).
+- `scripts/windows_artifact.py`: manifest now records `product`, `package_version`, `engine_version_output`; the exe must report `Flawless <Cargo version>`.
+- Gates run locally on this tree: fmt, clippy `--all-targets -D warnings`, `cargo test --release --locked` (all suites green), build, bench `141943aa23b3fc68`, perft d3 8902 / d4 197281, diftest 2321/0, 6 full games (all legal), 10/10 UCI probes, 37/37 malformed, Python harness suites (test_match 111/0, estimator 65/0, etc.).
+- Not done: merge, tag, release, asset upload; independent AI review (pending the user's decision).
+
+## 2026-11-19 — audit fixes on the release-candidate tree (uncommitted at time of writing)
+
+- src/uci.rs: `ponderhit` budget collapse after `go ponder movetime N` (regression test added; fails on the previous uci.rs).
+- scripts/uci_malformed_probe.py: `go` lines now wait for `bestmove` before `quit`; unlimited searches (unparseable limits) are ended by `stop` and labelled as such.
+- scripts/windows_artifact.py: git identity check fails closed; release profile read from Cargo.toml; version read from the [package] table only. Unit tests added (one caught a dropped hyphenated key before it shipped).
+- scripts/uci_protocol_probe.py: python-chess required; stderr drained; dead code and stale comment removed.
+- tests/movetime_smoke.rs: timing tests serialised with a static mutex.
+
+## 2026-11-20 — CodeRabbit review of 4bc9ff3 (10 actionable comments): triage
+
+Review text read from PR #3 (review posted 05:54:53Z). Each item checked against the code before acting.
+
+- selfplay_games.py: exit status not checked after quit → FIXED (`returncode` must be 0; BAD_EXIT recorded). Verified with a fake engine that exits 3: script exits 1.
+- selfplay_games.py: no client-side deadline around play → FIXED (play runs in a thread; deadline = clock + 5 s). Verified with a fake engine that never answers: TIMEOUT after 8 s, exit 1.
+- selfplay_games.py: failing outcomes did not fail the run → FIXED (non-zero exit on ENGINE_TERMINATED, ILLEGAL_OR_NULL_MOVE, FLAG_FALL, TIMEOUT, BAD_EXIT, PLY_CAP).
+- resource_probe.py: peak started at 0 and was sampled only on idle → FIXED (baseline included; sampled every loop). Deadline and cleanup added. Verified with fake engine (ok and hang paths).
+- uci_protocol_probe.py: no cleanup after a failed check → FIXED (registry kills and reaps every engine after each check). Verified: no leftover processes after a run against the fake engine.
+- uci_protocol_probe.py: lines before uciok not validated → FIXED (all stdout is checked at close; unknown lines fail). Fake-engine run exercised this path.
+- windows_artifact.py: depth-2 check accepted output after bestmove → FIXED (only lines before the first bestmove count). Covered by the next remote run only (needs a Windows binary).
+- tests/movetime_smoke.rs: pre-stop check ignored output in the channel → FIXED (`drain()` before each check). Duplicate-bestmove count now follows a readyok. NOT COMPILED LOCALLY: no Rust toolchain in this sandbox after re-provisioning; CI is the first check.
+- WINDOWS_GUI_TEST.md: version check relied on PATH → FIXED (run from the extracted folder).
+- ci.yml wording item: the selfplay step already fails on exit code; the script now sets that exit code.
+
+Environment note: the sandbox was re-provisioned. The local clone was reset to the `main` base with the branch's working tree kept. Rust (1.99 sysroot) and /tmp/chessvenv are gone. Recovered with `git reset --mixed origin/arena/2d2d30b4-flawlesschess`; no commits were lost. A backup of the working tree is in /tmp (not in the repo).
+
+## 2026-11-20 — CodeRabbit review of e029dff (6 findings) and the remaining release checks
+
+Triage (each checked against the code):
+
+- src/uci.rs ponderhit fallback: `go ponder nodes N` kept `infinite` set, so the node cap was never enforced after ponderhit → FIXED (fallback clears `infinite` when a node cap is set). Regression test `ponder_node_cap_is_enforced_after_ponderhit` added. CI-verified only (no Rust toolchain).
+- tests/movetime_smoke.rs drain(): panic marker not checked → FIXED (same assertion as until()).
+- scripts/uci_malformed_probe.py: a bestmove could be consumed while waiting for readyok → FIXED (go lines wait for bestmove before isready). The stderr snapshot now follows the reader join. Output after the final readyok is drained and validated. Each bestmove is checked for legality against the start position (the engine's default, confirmed in src/uci.rs `Position::startpos()`). Mechanics verified with a fake engine: 37/37 with a legal engine, 26/37 with an illegal-move engine (rejected).
+- Resource probe: added to CI on Linux (`if: runner.os == 'Linux'`), since it reads /proc.
+- En passant: `t_en_passant_capture` added to scripts/uci_protocol_probe.py. It forces the engine's root with `go searchmoves` to a single en passant capture (two positions: after 1.e4 a6 2.e5 d5, and the FEN with ep square f6). The test setup is checked with python-chess (both are legal en passant). Fake engine correctly FAILs it.
+
+Still unverified in this session: the Windows GUI test (needs a human and Windows), the Windows artifact (blob EOF on every attempt), and any run of the real engine on this head beyond CI.
+
+## 2026-11-20 — CodeRabbit review of 8db4b09 (3 actionable + 1 nitpick): triage
+
+- tests/movetime_smoke.rs bare `go ponder`: the test never sent ponderhit, so the zero-clock fallback was not covered → FIXED (ponderhit, bounded silence, stop, readyok barrier, exactly one bestmove). CI-verified only.
+- scripts/uci_protocol_probe.py close(): stdin was closed before waiting, so an engine that ignores quit but exits on EOF passed → FIXED (wait for exit first, then close stdin). Fake-engine check: an engine that ignores quit is now caught in 7 cases.
+- scripts/uci_protocol_probe.py movetime: the result was not checked for legality → FIXED (legal_check from the start position).
+- STATUS.md: the linked audit only records results through 07b68a8 → FIXED (wording marks it historical; current-head evidence points to the release-candidate report).
+
+Environment: the sandbox was reset again. /tmp venv and fake-engine harness were rebuilt. The repo working tree was intact. A stray file created by a failed command was removed.
+
+## 2026-11-20 — comprehensive source audit (second pass, head b5fb4f9)
+
+Scope: panic sites in src/, input parsing (go/setoption/position), search root handling, clock formula, option bounds.
+
+- src/search.rs `search_root`: `go searchmoves` naming only illegal moves left `roots` empty and returned `Move::NULL` (`bestmove 0000`) in a position with legal moves → FIXED (keep all legal roots when no named move is legal). Regression test added; CI-verified only (no Rust toolchain).
+- src/uci.rs `searchmoves` unwrap (`Move::from_uci(args[i]).unwrap()`): guarded by `is_some()` in the same loop → safe, left unchanged.
+- src/main.rs `bench_eval` unwrap on a constant FEN, and position.rs `expect`s on constant FENs/test FENs → safe.
+- src/position.rs `char::from_digit(empty, 10).unwrap()` with empty in 1..=8 → safe.
+- `clock_limits`: soft/hard clamped to remaining time; zero and tiny clocks handled by the existing unit test.
+- `setoption`: Hash 1..=4096 MiB, MultiPV 1..=256, Threads ignored (single-threaded build). Hash 4096 MiB can exceed memory on small machines; the advertised maximum is kept, and this is recorded as a limitation, not a bug.
+- Not changed: stderr diagnostics for setoption (`info string` goes to stderr; the UCI protocol does not forbid it).
+
+## 2026-11-20 — CodeRabbit review of 9336913 (3 findings): triage
+
+- scripts/selfplay_games.py `--only`: an unknown name silently ran zero games → FIXED (argparse `choices`). Checked: exit 2 with the valid list.
+- scripts/selfplay_games.py: a protocol-level EngineError escaped play() without a log → FIXED (recorded as ENGINE_ERROR, a failure prefix; completed moves kept).
+- scripts/windows_artifact.py finish(): stdin was closed before waiting after `quit`, so EOF could pass an engine that ignores quit → FIXED (quit callers use finish(eof=False); the EOF test keeps eof=True). Fake-engine regression test `test_engine_ignoring_quit_is_not_passed_by_eof` added; the local suite passes 19/19 (about 3 s).
+
+## 2026-11-20 — Final audit execution (branch arena/f668bde4-flawlesschess)
+
+- Fixes committed in 49fdecf: FEN material limits, bounded UCI line reader, single-side clock, Hash max 1024, stdout option messages, saturating clock math, 16 MiB search stack, MoveList capacity 512.
+- Tests added: correctness (CPW perft references, material limits, castling rights), protocol_regressions (7 process tests), uci unit tests (clock saturation, line reader).
+- Local gates run: `cargo fmt --all -- --check`, `cargo clippy --release --all-targets -- -D warnings`, `cargo test --release --locked`, Python suites (test_match, test_rating_estimator, test_reduced_sample, test_make_batch_dispatch, test_power_analysis, test_merge_batch_runs, test_windows_artifact, test_aggregate_60, test_recover_download), probes (uci_bestmove_smoke, uci_protocol_probe, uci_malformed_probe, selfplay_games, resource_probe), perft d3 = 8902, bench signature 141943aa23b3fc68.
+- Not run locally: MSRV 1.80 (toolchain not available from the mirror), Windows x64 build (CI job is the check of record).
+- Policy kept: append-only logs were extended, not edited. The older AGENTS_LOG entry that calls Hash 4096 a limitation is historical.
+
+## 2026-11-20 — FINAL AUDIT batch 2 (checker validation and verification)
+
+- Differential fuzzing (`scripts/fuzz_legal_differential.py`, seeds 1–6, 157k+ positions) found F-08 (checker rule). Fixed; differential rerun shows 0 mismatches and 0 accepted oracle-invalid positions.
+- UCI grammar fuzzing (`scripts/fuzz_uci_grammar.py`, 1,350 sessions): 0 failures.
+- Full-game en passant probe added (`scripts/fullgame_en_passant_probe.py`) and wired into CI after selfplay.
+- Static evaluation colour-symmetry test added (303 pairs). The search-level probe `scripts/eval_symmetry_probe.py` is informational only (2 of 40 depth-4 mismatches; see FINAL_AUDIT_PROGRESS.md S-14).
+- The CI `persist-credentials: false` nitpick fixed on the `test` and `msrv` checkouts.
+- Naming decision (ADR 0002) stands: the Cargo package is `flawless`.
+
+## 2026-11-20 — PR #4 CodeRabbit triage (12 inline comments, 1 nitpick)
+
+- All comments are addressed. Details and evidence are in FINAL_AUDIT_PROGRESS.md, "Phase E".
+- The one Major item (fuzz final readiness) and the CI-relevant one (malformed bestmove in the Windows artifact checker) were real defects in my or in pre-existing harness code, and both are now covered by tests or self-tests.
+- Qodo (billing-blocked), Kilo (out of credits) and CodeRabbit's walkthrough are not counted as passed reviews. CodeRabbit's inline review is addressed; a re-review of the new head is requested.
+
+## 2026-11-20 — correction to the batch-1 gate entry (L522–528)
+
+- That entry said clippy was run as `cargo clippy --release --all-targets -- -D warnings`. That is the only clippy line it records. The debug invocation `cargo clippy --all-targets -- -D warnings` was run in the same session but is not in that entry. The release and debug logs are in `/tmp/gates/` (clippy_release.log, clippy_debug.log); both are re-run on the final commit.
+- That entry says `protocol_regressions (7 process tests)`. The count at 49fdecf was 6 (`#[test]` count at the commit); 8 at 3a280df; 9 after the searchmoves control test. Counts are taken from `#[test]` attributes, not from the entry.
+- Historical entries are left as written.

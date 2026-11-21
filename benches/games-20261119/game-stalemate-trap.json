@@ -1,0 +1,10 @@
+{
+ "opening": "stalemate-trap",
+ "fen0": "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+ "moves": [],
+ "termination": "GAME_OVER: STALEMATE result=1/2-1/2",
+ "events": [],
+ "final_fen": "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+ "ply_count": 0,
+ "exit": "quit ok"
+}

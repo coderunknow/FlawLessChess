@@ -408,3 +408,199 @@ DRAFT ONLY — no code changes under this entry.
 - CI run 44067826990 passed Ubuntu but failed Windows in the power-analysis smoke when checking the committed SCREEN-2 games.jsonl against merged_sha256. Git for Windows checked out LF JSONL as CRLF, while the evidence aggregator computed manifest hashes on Linux LF bytes.
 - The power analyzer now hashes logical UTF-8 JSONL content after canonicalizing only line endings to LF. Record content, ordering, whitespace and record boundaries remain covered by SHA-256. Exact LF attributes were added for the two source evidence files, plus tests for CRLF portability and actual record tampering.
 - No evidence was modified or rewritten; no confirmatory game ran. The power report remains ENGINE-1-specific and BLOCKED. Full exact-head CI is required.
+
+
+## 2026-11-19 — UCI startup contract: no arguments means UCI mode
+
+- **Decision:** the engine's default startup is the UCI protocol loop. Conventional UCI GUIs (for example CrispChess Extended's generic launcher, `Process.start(profile.path, [])`) start the executable with no arguments and then send `uci` on stdin. A missing argument is therefore a valid launch, not a usage error.
+- **Evidence:** user diagnostic bundle `diagnostic-report.zip` (Google Drive, 2026-11-19): `engine.process.lost` 41 ms after start, then `initialize.failed` with `Engine "flawlessv1 patch2.exe" exited while searching (exit code 2)` and the usage text on stderr. Reproduced locally on the pre-change binary: no arguments → exit 2; `uci` → full handshake.
+- **Implementation:** `src/main.rs` dispatches `None` and `Some("uci")` to `flawless::uci::run_uci()`. `-h`/`--help` print help to stdout (exit 0). Unknown commands keep exit 2 with the diagnostic on stderr. No banner or other text is written to stdout in UCI mode; diagnostics stay on stderr.
+- **Rejected alternative:** matching the executable filename or special-casing the GUI. The contract is the engine's own default, so the fix applies to every launcher that follows the UCI convention.
+- **Dependency and search impact:** none. Zero external dependencies; no search, evaluation or move-generation code changed. Bench signature `141943aa23b3fc68` is unchanged.
+- **Identity impact:** the release binary changes, so ENGINE-2 hash pins in the rating documents do not describe this build. No rating evidence is reused.
+- **Verification boundary:** local Linux results and exact-head CI (Linux, Windows, MSRV, Windows x64 artifact) are recorded in `docs/audit/2026-11-19-uci-no-args-compatibility.md`.
+
+## 2026-11-19 — movetime soft-budget behaviour (observed, deliberately unchanged)
+
+- Observation: `go movetime N` returns after roughly 38–100% of N (interactive, startpos/kiwipete/pos3). Cause: iterative deepening stops when the predicted next iteration (3× the last iteration time) would exceed the soft limit (`src/search.rs`).
+- Decision: keep the current behaviour. Changing it alters the timing under which the rating evidence was collected. Any change needs its own evidence and a preregistration note.
+
+## 2026-11-19 — REVERSAL of the movetime "keep current behaviour" entry above
+
+- The earlier entry decided to keep the soft-budget early stop for `go movetime`. The user then authorised a fix. The earlier entry is kept unchanged as history.
+- Decision now: `SearchLimits.fixed_time` is set only for `go movetime`. For such searches the growth-prediction stop is disabled; the hard deadline (= N) ends the search, so the search runs to about N (measured 100–101% at 300/1000/3000 ms).
+- Clock-based searches (`wtime`/`btime`) keep the prediction rule. `ponderhit` clears `fixed_time` when it recalculates clock limits.
+- Known consequence: a fixed-time search can still stop early at `MAX_DEPTH`/`max_depth` 64, or on a forced single-move root, which is legal UCI behaviour.
+- Evidence: `tests/movetime_smoke.rs` (fails when the old rule is restored, verified by mutation in a scratch copy); `benches/movetime-20261119/movetime-after-fix.txt`; bench signature `141943aa23b3fc68` unchanged (fixed depth).
+
+## 2026-11-19 — naming decision (user answer)
+
+- The Cargo package stays `flawless` (binary `flawless`). The user declined a rename because it would break crate imports and CI paths.
+- `Cargo.toml` `repository` now points to the verified remote `https://github.com/coderunknow/FlawLessChess`. The earlier `Flawless-Chess-Engine` URL is recorded as historical and was not used by CI.
+- The product name remains FlawLessChess.
+
+## 2026-11-20 — Audit remediation decisions
+
+- Hash: the advertised maximum is lowered from 4096 to 1024 MiB to match the real 1 GiB TT ceiling (`MAX_HASH_MB`). Raising it needs a TT change and a memory test first.
+- MoveList: capacity 512, not 256. The bound is 335 pseudo-legal moves (reachable positions under the FEN material limits: at most 16 pieces and 8 pawns per side); the hard check in `push` makes any future violation a panic in debug and release, never silent corruption.
+- FEN material limits: >16 pieces per side, >8 pawns per side, or promoted pieces exceeding the missing pawns are rejected. Such positions cannot arise from a legal game from startpos. Positions from other sources may be rejected, which is the intended trade-off.
+- Naming: the Cargo package stays `flawless` (ADR 0002). The GitHub repository and product name are `FlawLessChess` / `Flawless-Chess-Engine`. This is not a rename.
+- Threads: stays a single-threaded build. The option is advertised as 1..1 and non-1 values are reported on stdout. No multithreaded search is claimed.
+
+## 2026-11-20 — searchmoves with no legal named move (PR #4 Codex P2)
+
+- Question: `go searchmoves` names only illegal moves. Options were (a) return `bestmove 0000` (the defect the mission lists), (b) refuse the request, (c) search all legal moves.
+- Decision: (c). A null move answers nothing in a position that has legal moves. Refusing leaves the GUI with no move. Widening keeps the engine playing, and the widening is announced on stdout with `info string searchmoves names no legal move in this position; searching all legal moves` before the search starts.
+- Known departure: the UCI text says `searchmoves` restricts the search. In this one case it does not. The departure is documented in README (Known limitations) and tested: `illegal_only_searchmoves_still_returns_a_legal_move` asserts the notice; `legal_searchmoves_are_respected_without_widening_notice` is the control.
+- Revisit if a GUI reports a problem with widening; the alternative is option (b).
+
+## 2026-11-20 — Output on a closed stdout ends quietly; search node cap is exact
+
+- Question: when the GUI or reader closes stdout, should the engine panic (Rust `println!` default) or exit?
+- Decision: exit with status 0 and no panic message. The `out_line!` macro is the only output path for protocol
+  and CLI text. A GUI that has closed the pipe no longer needs the engine, so a panic adds only a nonzero exit
+  and noise on stderr. Errors and diagnostics still go to stderr through `eprintln!`, which is unchanged.
+- Question: should `go nodes N` spend exactly N nodes, or stop at the 1024-node check cadence?
+- Decision: exactly N. The cap is checked on every node in search and quiescence, so UCI output and the bench
+  reflect the requested limit. The cost is one comparison per node, and the bench change (`849a85bf7e8e1eba`) includes it.
+- Related: S-14 colour symmetry fixed by a colour-relative move tie-break, not by disabling LMR (LMR off costs 18× the nodes).
+
+## 2026-11-20 (late) — Batch input, stderr writes, root search with insufficient material, lock poisoning
+
+- Question: what should `flawless moves` and `flawless hash` do with a stdin line that is not UTF-8 or is too long?
+- Decision: answer that line with one `error` line and keep reading. A batch of FENs is a list of independent requests;
+  one bad line must not drop the replies to the rest. Same bounded reader and 64 KiB cap as the UCI loop.
+- Question: should a failed write to stderr end the process?
+- Decision: no. Diagnostics go through `err_line!`, which ignores write errors, the same policy as `out_line!` for
+  stdout (F-10). A failed diagnostic must never change the protocol outcome.
+- Question: with insufficient material at the root, should single-PV search return at once?
+- Decision: no. The root is searched like any other position, so the PV and `bestmove` come from the search. Only
+  interior nodes take the insufficient-material draw (`ply > 0`). This mirrors the repetition rule, which already
+  exempts the root (R-02a). Cost: the bench node total changes by 30 (2,311,437); the signature does not change.
+- Question: what should a poisoned stdout-ordering mutex do?
+- Decision: recover and continue. The lock guards only the order of stdout writes and holds no data. A panic elsewhere
+  must not turn into a second panic at the next print.
+- Note on the ponder clock (not changed): `go ponder movetime N` counts the movetime from `go`, so `ponderhit` does not
+  restart it. Recorded in FAILURE_LEDGER as an open GUI-conformance question.
+
+## 2026-11-20 (late, stretch 2) — Negative time values mean "no time left"
+
+- Question: what should `go wtime -1000` (or `go movetime -5`) do?
+- Decision: answer at once, as `wtime 0` does. A negative time is how a GUI reports that the clock has run out; treating
+  it as "no limit" would search forever and lose on time. Overflow above `u64::MAX` saturates to a huge limit.
+- Not changed: `go mate N` is parsed and ignored (see FAILURE_LEDGER). Unparseable values are still dropped.
+
+## 2026-11-20 (late, stretch 3) — Memory refusal is reported, not fatal
+
+- Question: when the allocator refuses the transposition table, or the OS refuses the search thread, should the engine
+  abort?
+- Decision: no. A refused table keeps the previous table (for `setoption`) or halves until the allocator accepts it (at
+  start-up and in fallbacks). A refused search thread answers with the first legal move, with a stdout notice. The engine
+  must stay usable for a GUI on a small machine. The notices go on stdout so a GUI can see them.
+- Question: how to make a fallible allocation without `unsafe`?
+- Decision: reserve the size with `try_reserve_exact` and release it, then allocate normally. The allocation that
+  follows is the same size in a single-threaded process, so it normally succeeds; the lazy zeroing is kept.
+  A `std::alloc::alloc_zeroed` path would be fallible too, but needs `unsafe` and a benchmark, and was not needed.
+
+## 2026-11-21 (stretch 4) — F-20: one fallible zeroed allocation for the table (supersedes the probe decision above)
+
+- Problem: the probe-then-allocate pattern in `try_resize` (reserve, release, then `vec![0; n]`) left a window in which
+  the second allocation could be refused and abort the process. CodeRabbit and Codex both flagged it (F-20).
+- Decision: `zeroed_entries` (`src/tt.rs`) calls `std::alloc::alloc_zeroed` once, checks for null, and wraps the result in
+  `Box<[u64]>`. This is the only `unsafe` in `src/`. Its invariants, tests, fallback, and benchmark are written out at the
+  function (see its doc comment) and in BENCHMARKING.md.
+- The table is still lazily zeroed by the OS. The old `clear()` call on resize wrote every entry; it is no longer
+  used, so laziness no longer depends on the compiler removing a `memset` after `calloc`. The counters are reset
+  explicitly.
+- Rejected alternative: eager `try_reserve` plus `resize(n, 0)`. Fallible, but it writes every page at resize (about
+  1 GiB resident at Hash 1024 at the first search). That is a resource change that needs an owner's decision.
+
+## 2026-11-21 (stretch 5) — F-23: the increment never widens the planned spend past the usable clock
+
+- Question: with an increment larger than the remaining clock, should the engine spend the whole clock?
+- Decision: no. The planned spend (soft, and hard) stays within `t - reserve`, whatever the increment. The increment
+  share (`inc/2`) still counts toward the plan, but only inside the usable clock. The reserve is what protects against
+  per-move overhead and a flag; spending the whole clock on one move gives the GUI nothing to absorb it.
+- Effect: only when `usable/movestogo + inc/2 > usable`, i.e. `movestogo` 1 or a very large increment. Normal
+  schedules (for example 40 moves in 15 minutes) are unchanged; the existing expected values still pass.
+- Evidence: unit regression `clock_limits_never_plan_past_the_usable_clock_with_large_increment`; process timing in
+  FAILURE_LEDGER F-23.
+
+## 2026-11-21 (stretch 6) — F-24: a clock slice granted at ponderhit counts from the hit
+
+- Question: when the GUI sends `ponderhit`, does our clock slice start at `go` or at the hit?
+- Decision: at the hit. Our clock runs only during our own turn, so the time spent pondering is the opponent's time. The
+  slice (`clock_limits`) is counted from `ponderhit` through `SearchLimits.clock_origin`. The code already said so
+  ("the budget becomes a clock slice now"); the elapsed time was measured from `go`, so the slice was used up at once.
+- Not changed: `go ponder movetime N` still counts from `go` (the open conformance question recorded before; the test
+  `ponder_movetime_ponderhit_keeps_the_movetime_deadline` pins it). A fixed movetime is not our clock.
+- Known behaviour: an iteration already running at the hit is not cut at soft; it ends at its own completion or at the
+  hard limit (completed iterations are always kept). For a 20 s clock the answer after the hit took about 1.9 s (hard),
+  not 0.47 s (soft). Within our clock and the designed hard limit. The owner may want the soft limit applied to that
+  iteration; that would change search completion, so it is recorded here, not changed.
+
+## 2026-11-21 (stretch 7) — FEN form: duplicated castling letters and trailing fields are refused; stale castling rights are kept
+
+- Question: what should `position fen` do with `KK`, a seventh field, or a castling right with no rook (or the king off
+  its home square)?
+- Decision: refuse a duplicated castling letter and more than six FEN fields (malformed input, no contract conflicts).
+- Decision kept: stale castling rights are accepted, as the contract in `tests/correctness.rs` (AUDIT-FEN-02) requires:
+  they are ignored for castling, and no castling move is generated. Movegen was checked against python-chess on the
+  stale and boundary cases (identical move sets). The stricter rule (refuse stale rights, as python-chess does, and as
+  the en-passant check does here) is a real option; it changes AUDIT-FEN-02 and needs the owner's decision.
+
+## 2026-11-21 (stretch 8) — Rejected or ignored UCI input is visible on stdout (F-26)
+
+- Question: which silent UCI input cases should become visible? Rule applied: input the engine does not act on is
+  reported on stdout as an `info string` (F-06), and the existing behaviour is otherwise kept.
+- Decisions: (a) `position startpos` followed by tokens other than `moves` is refused (all-or-nothing, R-07), because
+  the start position is not what the GUI asked for; (b) an unknown option gets an `info string`, always, on stdout;
+  (c) a `go` limit with a missing or unparseable value is reported and ignored (the search is unbounded, as before), and
+  a keyword is never consumed as a value. Unknown `go` tokens were already reported on stderr only; they are unchanged
+  (UCI says to ignore them, and GUIs send harmless extras).
+- Not changed: `go depth` with a bad value remains an unbounded search (until `stop`), not a refusal. A refusal would
+  need a new `bestmove` rule; the owner may prefer it.
+
+## 2026-11-21 (stretch 9) — The engine never blocks on stderr (F-30); UCI notices are on stdout
+
+- Question: the engine wrote every refused `position` to stderr as well as stdout, unconditionally. A GUI that does not
+  read the engine's stderr fills the pipe after a few hundred refusals, and the engine then blocks on the write and stops
+  answering (reproduced: 300 refusals answered, 1,000 hung). Which channel carries UCI diagnostics?
+- Decision: stdout is the channel the GUI always reads, so every notice the GUI needs is an `info string` on stdout.
+  stderr carries a copy only after `debug on` (the same rule as unknown commands). The search-panic line keeps its
+  stdout copy only; startup/allocation messages (table refused, fatal no memory) became stdout `info string` lines.
+  The CLI one-shot commands (`perft`, `divide`, `eval`, `bench`) are unchanged: they write a bounded number of lines.
+- Not changed: `debug on` still writes to stderr, so a GUI that enables debug and never drains stderr can still stall;
+  that is the price of diagnostics the GUI asked for. Owner may prefer a bounded or non-blocking debug channel.
+- Tests: `refused_positions_do_not_block_when_stderr_is_not_drained` (1,500 refusals, stderr piped and never read), and the
+  F-13 stderr write-failure test now sends `debug on` first, so its stderr path still runs.
+
+## 2026-11-21 — CLOCK-1: per-move floor in clock_limits (F-32 fix, owner-approved)
+
+- Decision: owner selected "Amend ENGINE-1 and fix" for F-32 (sudden-death flags under the fixed 20 ms soft floor).
+- Change: soft floor `20 ms` → `clamp(t / (4·movestogo), 1 ms, 20 ms)`. Nothing else in the budget formula changes. Hard limit, reserve, and increment cap are unchanged.
+- Evidence and scope: PREREGISTRATION.md, entry CLOCK-1 (2026-11-21). Grid: 1,776 of 25,680 points changed, all with `t ≤ 1495 ms`; the 40/15 point and every `t ≥ 3200 ms` at movestogo 40 are unchanged.
+- Accepted cost: shorter thinking time on clocks of 300 ms to about 1 s (about 1 ms to 17 ms per move). Strength at those clocks is expected to fall. Not measured in Elo.
+- Frozen-evidence rule: the engine binary changes, so ENGINE-1 (`9663697d…`) and SEE-candidate (`168dc0ab…`) hashes no longer describe the head. No rating or screening is authorized by this entry. A new hash must be frozen and re-screened before rating use.
+- Pinned test value `clock_limits_respect_remaining_time` changed from `(20, 20)` to `(1, 1)` at 250 ms. This is the owner-approved expectation change, recorded here and in the test comment. The test was not weakened.
+
+## 2026-11-21 — audit: `go ponder movetime N` measured again (decision still open; not changed)
+- Measured on release (`ad000f1`-era, reader-thread harness): `go ponder movetime 1000` with no `ponderhit` for 4 s: no bestmove (the engine does not exit in ponder mode, as the UCI spec requires). After `ponderhit`: bestmove after 0.0 s (`b1c3 ponder b8c6`), because the 1000 ms budget was spent while pondering.
+- The UCI spec (wbec-ridderkerk.nl UCIProtocol, `ponder`) requires no exit in ponder mode. It does not say when a `movetime` budget starts. So this is not clearly a violation.
+- Decision: unchanged. The existing decision (2026-11-21 F-24 entry) and the test `ponder_movetime_ponderhit_keeps_the_movetime_deadline` pin the current rule. Changing it would change a pinned expectation, so it is escalated to the owner in the final report instead.
+- Effect on play: a GUI that ponders with `movetime` gets no extra thinking after `ponderhit`. Clock-based ponder (`wtime`/`btime`) is unaffected (F-24).
+
+## 2026-11-21 — F-39: out-of-range `go depth` / `go nodes` values saturate (were ignored → unlimited)
+- Found by audit (`go depth 4294967296` on the release binary printed `info string go depth: ... ignored` and then searched until `stop`, while `go depth 100` stops at 64). Cause: `depth` parsed as `i32` and `nodes` as a plain `u64` parse, so a digit-only overflow or a negative value failed and was dropped. With no depth, no nodes and no clock, `cmd_go` sets `infinite`.
+- Decision: the rule already used for time values applies to these two as well. A digit-only value beyond the type saturates (depth to `i32::MAX`, then clamped to 64; nodes to `u64::MAX`). A negative depth saturates to `i32::MIN` (clamped to 1, as `-1` already was). A negative node count is 0, as a negative time is 0 (answers at once).
+- Not changed: `go movestogo` (parsed as `u64`, overflow already saturates through the parser; it is not `Option<u32>`), `setoption` values, and the `go ponder movetime` decision above.
+- Tests: `out_of_range_go_depth_and_nodes_saturate_instead_of_being_ignored`, `negative_go_depth_and_nodes_answer_at_once` (tests/protocol_regressions.rs). Both time out (20 s) on the pre-fix source and pass on the fix.
+
+## 2026-11-21 — F-40: Hash sizes round down to a power of two (the table never exceeds the request)
+- Found by audit: `try_resize` rounded the entry count up, so a non-power-of-two Hash allocated up to 2× the requested size (`Hash 513` → 1 GiB). The engine reported the requested size.
+- Decision: round down. The table is at least half the requested size and never more; the 1 GiB cap and the 1024-entry floor are unchanged. Power-of-two sizes are unchanged, so the bench signature `849a85bf7e8e1eba` is unchanged.
+- Cost: `Hash 100` now gives 64 MiB, not 128 MiB. A user who wants the full 100 MiB gets 64 MiB; the info string on the reduction path is not printed for this (the table is smaller than requested by design, not refused).
+
+## 2026-11-21 — F-41: futility pruning is off while alpha is a mate score; LMR mate misses left for the owner
+- Fixed: futility pruning at depth <= 2 now requires `alpha.abs() < MATE_BOUND` (as reverse futility and null-move already did). Before, a mate-in-3 alpha pruned the quiet mate in two. The bench signature (fen, depth, bestmove) is unchanged.
+- Not changed, owner decision: LMR can reduce a quiet move that is the only mating move to a child at depth 0 or 1, where the mate is invisible (quiescence does not search quiet checks). Evidence and examples: FAILURE_LEDGER F-41 OPEN entry. A fix changes bestmoves and therefore the pinned bench signature `849a85bf7e8e1eba` (anchor-verify.yml). Options for the owner: (a) never reduce checking moves; (b) child depth >= 2 for reduced moves; (c) keep as is and document the depth-limited mate blindness. This is a search-strength change, not a legality issue; the engine's moves stay legal.

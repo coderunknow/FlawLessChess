@@ -1,11 +1,11 @@
 [package]
 name = "flawless"
-version = "0.1.0-dev.1"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Flawless — an independent chess engine written in Rust (not a Stockfish derivative)"
 license = "Apache-2.0"
-repository = "https://github.com/coderunknow/Flawless-Chess-Engine"
+repository = "https://github.com/coderunknow/FlawLessChess"
 publish = false
 
 [dependencies]
