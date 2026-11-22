@@ -120,6 +120,18 @@ def oracle_valid(fen):
     castling = fen.split()[2] if len(fen.split()) > 2 else "-"
     if castling != "-" and (len(set(castling)) != len(castling) or not set(castling) <= set("KQkq")):
         return False
+    # An en-passant target exists only right after a double pawn push: the pawn's origin square is
+    # empty and the halfmove clock is 0 (the push resets it). python-chess checks neither; the
+    # engine refuses both (F-52), so the oracle must agree with the engine here too.
+    fields = fen.split()
+    if len(fields) >= 4 and fields[3] != "-":
+        if len(fields) >= 5 and fields[4] != "0":
+            return False
+        ep = chess.parse_square(fields[3])
+        # White to move: a black pawn pushed from ep+8 (rank 7); black to move: a white pawn from ep-8.
+        origin = ep + 8 if b.turn == chess.WHITE else ep - 8
+        if b.piece_at(origin) is not None:
+            return False
     # python-chess does not check promotion counts against missing pawns; the engine does (FIDE
     # reachability), so such positions are not "valid" for this comparison.
     return b.is_valid() and not b.is_game_over() and reachable_material(b)
