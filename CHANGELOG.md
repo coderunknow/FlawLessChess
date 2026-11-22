@@ -4,6 +4,7 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 
 ## [Unreleased] — independent audit remediation (2026-11-20)
 
+- **Fixed (LOW, F-51): a refused search thread held `go ponder` until `stop`, even with a clock, movetime, depth or node limit.** `ponderhit` now releases that answer, because a limited ponder has no search left to wait for. A bare `go ponder` is still held until `stop`. Regression test `refused_thread_answers_go_ponder_with_clock_at_ponderhit`.
 - **Fixed (MEDIUM, F-49): time checks ran only every 1024 nodes.** At small budgets (a 300 ms sudden-death clock, where the planned budget is the 1 ms floor), one move could overrun by up to ~5 ms, and a long game could run out of time. The clock is now checked every 128 nodes; the measured worst-case overrun at a 1 ms budget fell from about 5 ms to about 2.5 ms. The time-budget policy and the bench signature are unchanged.
 
 - **Changed (owner decision 2026-11-22, F-46): `go searchmoves` is strict.** When no named move is legal, the engine

@@ -1170,3 +1170,19 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - Evidence after the fix: real release engine 37/37 rc 0 (`/tmp/malformed_real_566.log`). Widening fake: rc 1, `STRICT_SEARCHMOVES_VIOLATION e2e4 ... 'go searchmoves zzzz'` (`/tmp/malformed_widen_566.log`).
 - Not changed: `scripts/test_mate_proof_classify.py` still needs the venv interpreter, because it imports `mate_proof_probe`, which imports `chess` at module load. A CodeRabbit suggestion to use system `python3` for that test was rejected for this reason (`TESTING.md` unchanged).
 - The full `final_gate.sh` was not rerun for this probe-only change. The engine binary and the `bench` signature are unchanged from `696e665`.
+
+## F-51 — refused search thread held `go ponder` (with a clock, movetime, depth or node limit) until `stop` (2026-11-21, independent review)
+
+- Symptom: when the OS refuses the search thread, the fallback answer for `go ponder wtime ... btime ...` was held until `stop`, as for `go infinite`. A clock-limited ponder has no search to wait for after `ponderhit`, so the GUI waited for a `bestmove` that did not come.
+- Reproduced on `3e40b0e` (release, `ulimit -v 50000`, the same limit as the existing refusal test): `go ponder wtime 60000 btime 60000`, then `ponderhit`, no `bestmove` for 4 s; `bestmove a2a3` only after `stop`. The `go infinite` and `go depth 3` cases were correct.
+- Fix (`src/uci.rs`): `pending_due_on_hit` is set when the refused search is a `go ponder` with a movetime, clock, depth or node limit. `ponderhit` then releases the held answer. A bare `go ponder` (no limit) is still held until `stop`, which is the normal behaviour. The flag is cleared whenever the held answer is consumed.
+- Regression: `tests/protocol_regressions.rs` `refused_thread_answers_go_ponder_with_clock_at_ponderhit`. It fails on the previous `src/uci.rs` (no `bestmove` after `ponderhit`) and passes after the fix. The existing `refused_thread_holds_bestmove_for_go_infinite_until_stop` still passes.
+- Verification: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --release` (all suites) and `cargo test` pass. Bench signature `849a85bf7e8e1eba`, 4135406 nodes, unchanged.
+
+## OBSERVATION (not a confirmed defect) — TT clock-safety is decided at store time only
+
+- `TranspositionTable::store` marks an entry clock-safe when `halfmove + depth < 100` at the storing node. `probe` returns the score for any clock-safe entry, whatever the probing halfmove. The comment at `search.rs` ~L550 says such a score is "valid in ANY clock context", which is not proven.
+- Differential test (`/tmp/rev/tt50ctl.py`, scratch, not committed): 30 random endgames, warm search at halfmove 0 with depth 5, compared with fresh searches at halfmove 96 and 98. 0 score differences in 60 comparisons. Earlier differences came from warm searches at depth 6, which store deeper entries, and are legitimate.
+- Status: not reproduced. Not changed. A probe-side halfmove check would be the fix if a reproduction is found.
+
+- Probe checks in this pass (scratch copies of the engine: silent, exits at once, always `bestmove 0000`, always `bestmove e2e4`): `mate1_probe`, `clock_sweep_probe`, `uci_bestmove_smoke` all exit 1 against each broken engine. `mate1_probe` and `clock_sweep_probe` report with a traceback rather than a classified message against the zero and widening fakes (cosmetic).

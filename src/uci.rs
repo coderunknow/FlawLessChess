@@ -48,6 +48,9 @@ pub struct UciEngine {
     /// protocol holds until `stop` (`go infinite`, `go ponder`, bare `go`). Printed by
     /// `stop_and_join`, so `stop`, `quit`, EOF, and the next `go` all deliver it exactly once.
     pending_answer: Option<Option<Move>>,
+    /// True when the held answer is for a `go ponder` that is finite after `ponderhit` (a clock,
+    /// movetime, depth or node limit was given). Such an answer is due at `ponderhit`, not at `stop`.
+    pending_due_on_hit: bool,
     last_clocks: Option<(u64, u64, u64, u64, Option<u64>)>, // wtime btime winc binc movestogo
     stderr_log: bool,
 }
@@ -277,6 +280,7 @@ impl UciEngine {
             multi_pv: 1,
             worker: None,
             pending_answer: None,
+            pending_due_on_hit: false,
             last_clocks: None,
             stderr_log: false,
         }
@@ -728,7 +732,14 @@ impl UciEngine {
                 if limits.infinite {
                     // `go infinite`, `go ponder`, and bare `go` hold bestmove until `stop` (UCI).
                     // Answering now would send a bestmove before the GUI asked for one (F-22).
+                    // A `go ponder` with a limit is finite after `ponderhit`: its answer is due
+                    // at `ponderhit` (no search is running to wait for), so it is not held to `stop`.
                     self.pending_answer = Some(fallback_move);
+                    self.pending_due_on_hit = ponder
+                        && (movetime.is_some()
+                            || own_clock.is_some()
+                            || depth.is_some()
+                            || nodes.is_some());
                 } else {
                     match fallback_move {
                         Some(m) => crate::out_line!("bestmove {m}"),
@@ -754,6 +765,17 @@ impl UciEngine {
     }
 
     fn cmd_ponderhit(&mut self) {
+        if self.worker.is_none() && self.pending_due_on_hit {
+            // The refused ponder search is over at the hit: release the held answer now.
+            self.pending_due_on_hit = false;
+            if let Some(answer) = self.pending_answer.take() {
+                match answer {
+                    Some(m) => crate::out_line!("bestmove {m}"),
+                    None => crate::out_line!("bestmove 0000"),
+                }
+                let _ = std::io::stdout().flush();
+            }
+        }
         if let Some(worker) = self.worker.as_ref() {
             if let Ok(mut lim) = worker.limits.lock() {
                 if lim.ponder {
@@ -906,6 +928,7 @@ impl UciEngine {
     fn stop_and_join(&mut self) {
         if let Some(answer) = self.pending_answer.take() {
             // A held answer for a search that never started (see `cmd_go`, F-22).
+            self.pending_due_on_hit = false;
             match answer {
                 Some(m) => crate::out_line!("bestmove {m}"),
                 None => crate::out_line!("bestmove 0000"),

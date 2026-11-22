@@ -919,6 +919,88 @@ fn refused_thread_holds_bestmove_for_go_infinite_until_stop() {
     stdin.flush().expect("flush");
 }
 
+/// Regression (F-50 follow-up, 2026-11-21): when the OS refuses the search thread, a clock-limited
+/// `go ponder` has no search to wait for. Its fallback answer must come at `ponderhit`, not at
+/// `stop`: the GUI sends `ponderhit` and then waits for a `bestmove`. A bare `go ponder` (no limit)
+/// keeps holding until `stop`, as the normal search does.
+#[cfg(target_os = "linux")]
+#[test]
+fn refused_thread_answers_go_ponder_with_clock_at_ponderhit() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::sync::mpsc::RecvTimeoutError;
+
+    let child = Command::new("sh")
+        .arg("-c")
+        .arg("ulimit -v 50000 && exec \"$0\" uci")
+        .arg(env!("CARGO_BIN_EXE_flawless"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn flawless under a 50 MB address limit");
+    let mut child = KillOnDrop(child);
+    let mut stdin = child.0.stdin.take().expect("stdin piped");
+    let stdout = child.0.stdout.take().expect("stdout piped");
+    let (tx, rx) = channel::<String>();
+    thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            match line {
+                Ok(l) => {
+                    if tx.send(l).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    let wait_for = |prefix: &str, limit: Duration| -> Option<String> {
+        let end = Instant::now() + limit;
+        loop {
+            let left = end.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(l) if l.starts_with(prefix) => return Some(l),
+                Ok(_) => {}
+                Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) => {
+                    return None
+                }
+            }
+        }
+    };
+    let send = |stdin: &mut std::process::ChildStdin, text: &str| {
+        stdin.write_all(text.as_bytes()).expect("write");
+        stdin.flush().expect("flush");
+    };
+    send(
+        &mut stdin,
+        "uci\nisready\nposition startpos\ngo ponder wtime 60000 btime 60000\n",
+    );
+    assert!(
+        wait_for("readyok", Duration::from_secs(10)).is_some(),
+        "no readyok under the limit"
+    );
+    assert!(
+        wait_for(
+            "info string search thread unavailable",
+            Duration::from_secs(10)
+        )
+        .is_some(),
+        "refused thread was not announced on stdout after go ponder"
+    );
+    let early = wait_for("bestmove", Duration::from_millis(500));
+    assert!(
+        early.is_none(),
+        "bestmove printed before ponderhit during go ponder: {early:?}"
+    );
+    send(&mut stdin, "ponderhit\n");
+    let answer = wait_for("bestmove", Duration::from_secs(10));
+    assert!(
+        answer.is_some(),
+        "no bestmove after ponderhit with the search thread refused (clock-limited ponder)"
+    );
+    send(&mut stdin, "quit\n");
+}
+
 /// Regression (F-26): `position startpos e2e4` (a missing `moves`) used to search the start
 /// position and drop `e2e4` without a notice. It is refused like any other bad `position`: a
 /// visible `info string position error`, and `go` answers `bestmove 0000` until a valid position.
