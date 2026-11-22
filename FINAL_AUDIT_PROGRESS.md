@@ -368,3 +368,8 @@ Scope of this phase: continue the audit after the CLOCK-1 gate, look for bugs by
 - F-47 (`table_entries` overflow before clamp, library only): fixed, unit-tested.
 - F-48 (probe silent passes and unbounded waits): fixed; `scripts/failure_mode_probe.py` 51/51 pairs as expected; real-engine runs of the changed probes pass; the mate-proof probe is INCONCLUSIVE (exit 3) on seed 42 for seven claims beyond its limit.
 - Still open, unchanged: G2 (CodeRabbit on the final head: not triaged), G3 (Windows artifact: not verified), CLOCK-1 (not frozen), F-41 LMR quiet-mate options (owner decision), `go ponder movetime` (owner decision). No release readiness is claimed.
+
+## Correction (2026-11-22, second): searchmoves wording in this file
+
+- Earlier entries that describe `go searchmoves` widening as a decision still open (around L112, L146, L193, L205 and L278 in this file) are history. The owner's strict direction of 2026-11-22 (F-46, DESIGN_LOG.md) governs: a named list with no legal move answers `bestmove 0000` and announces it on stdout. Do not read the older lines as the current decision.
+- F-52 (external review of `bf026f8`): ponder node cap counted from `ponderhit`, `movestogo` overflow saturation, en-passant FEN checks, and the `(none)` probe gap are fixed (`14b411e`, gate 46/46, `FAILS=0`). Release blockers are unchanged: G2, G3, CLOCK-1.
