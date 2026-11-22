@@ -289,12 +289,10 @@ impl<'a> Searcher<'a> {
         // Root order is the tie-break order for equal scores (S-14): use the colour-relative key.
         roots.sort_by_key(|&m| relative_move_key(pos.side, m));
         if let Some(ref only) = root_moves {
-            // `searchmoves` restricts the search. If none of the named moves is legal, keep all
-            // legal moves: answering a null move in a position with legal moves is never useful.
-            let filtered: Vec<Move> = roots.iter().copied().filter(|m| only.contains(m)).collect();
-            if !filtered.is_empty() {
-                roots = filtered;
-            }
+            // `searchmoves` is strict (owner decision, 2026-11-22): the root set is exactly the legal
+            // moves that the list names. If that intersection is empty, the root set is empty and
+            // the search returns `Move::NULL` below. It never widens to all legal moves.
+            roots.retain(|m| only.contains(m));
         }
         self.root_moves = if root_moves.is_some() {
             Some(roots.clone())
@@ -1102,10 +1100,12 @@ mod draw_rule_tests {
         s.search_root(pos, None, 1, &mut |_| {})
     }
 
-    /// Regression: `go searchmoves` naming only illegal moves used to leave no root moves and
-    /// answer `bestmove 0000` in a position with legal moves. It must search the legal moves.
+    /// Regression (owner decision, 2026-11-22, strict `searchmoves`): a list that names only illegal
+    /// moves has an empty intersection with the legal moves. The search must not widen to the legal
+    /// moves; it returns `Move::NULL` and searches nothing. The previous widening (2026-11-20) is
+    /// superseded.
     #[test]
-    fn searchmoves_with_no_legal_move_still_searches_the_position() {
+    fn searchmoves_with_no_legal_move_searches_nothing() {
         let mut pos = Position::startpos();
         let mut tt = TranspositionTable::new(4);
         let stop = AtomicBool::new(false);
@@ -1116,15 +1116,36 @@ mod draw_rule_tests {
         let mut s = Searcher::new(&mut tt, &stop, limits);
         let illegal = Move::from_uci("e2e5").expect("parse");
         let r = s.search_root(&mut pos, Some(vec![illegal]), 1, &mut |_| {});
-        assert_ne!(
+        assert_eq!(
             r.best_move,
             Move::NULL,
-            "null bestmove in a position with legal moves"
+            "an empty legal intersection must give no move, not a widened search"
         );
-        let legal = generate_legal(&mut pos);
+        assert_eq!(
+            r.nodes, 0,
+            "no node may be searched outside the requested root set"
+        );
+    }
+
+    /// Strict `searchmoves`: the returned move always lies in the requested set (never outside it).
+    #[test]
+    fn searchmoves_result_is_always_inside_the_requested_set() {
+        let mut pos = Position::startpos();
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 3,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let named = vec![
+            Move::from_uci("a2a3").expect("parse"),
+            Move::from_uci("h2h4").expect("parse"),
+        ];
+        let r = s.search_root(&mut pos, Some(named.clone()), 1, &mut |_| {});
         assert!(
-            legal.iter().any(|m| *m == r.best_move),
-            "bestmove {:?} is not legal",
+            named.contains(&r.best_move),
+            "bestmove {:?} is outside searchmoves",
             r.best_move
         );
     }

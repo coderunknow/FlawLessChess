@@ -4,6 +4,16 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 
 ## [Unreleased] — independent audit remediation (2026-11-20)
 
+- **Changed (owner decision 2026-11-22, F-46): `go searchmoves` is strict.** When no named move is legal, the engine
+  answers `bestmove 0000` and prints `info string searchmoves names no legal move in this position; no move searched`
+  on stdout (it used to search all legal moves). Malformed tokens are reported on stdout, and the list runs to the next
+  `go` keyword. This supersedes the F-09 widening. Tests: `protocol_regressions` searchmoves (4), search unit tests (2).
+- **Fixed (LOW, F-47): `table_entries` multiplied before clamping.** Library callers with a huge size overflowed; the
+  size is now clamped to 1..=1024 MiB first. Test: `tt::size_tests_f40::table_entries_clamp_before_multiplying`.
+- **Fixed (test tooling, F-48): probes could pass silently or wait without limit.** The mate-proof probe now classifies
+  every position (unverified claims exit 3, not 0); the FEN fuzzer checks enough legal positions; the UCI probes stop at
+  the first handshake stall; new `scripts/failure_mode_probe.py` runs every engine probe against broken engines
+  (51/51 pairs as expected). Not an engine change.
 - **Fixed (LOW, F-45): `setoption name Hash` rounded the size down without saying so.** `Hash 100` allocated 64 MiB
   silently. The engine now stores and reports the size it allocates (`info string option Hash 100 MiB allocates 64 MiB …`).
   The size rule has one definition (`tt::effective_table_mib`). Tests: `tt::size_tests_f40::effective_table_mib_matches_the_allocation`,

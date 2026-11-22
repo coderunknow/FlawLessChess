@@ -604,3 +604,15 @@ DRAFT ONLY — no code changes under this entry.
 ## 2026-11-21 — F-41: futility pruning is off while alpha is a mate score; LMR mate misses left for the owner
 - Fixed: futility pruning at depth <= 2 now requires `alpha.abs() < MATE_BOUND` (as reverse futility and null-move already did). Before, a mate-in-3 alpha pruned the quiet mate in two. The bench signature (fen, depth, bestmove) is unchanged.
 - Not changed, owner decision: LMR can reduce a quiet move that is the only mating move to a child at depth 0 or 1, where the mate is invisible (quiescence does not search quiet checks). Evidence and examples: FAILURE_LEDGER F-41 OPEN entry. A fix changes bestmoves and therefore the pinned bench signature `849a85bf7e8e1eba` (anchor-verify.yml). Options for the owner: (a) never reduce checking moves; (b) child depth >= 2 for reduced moves; (c) keep as is and document the depth-limited mate blindness. This is a search-strength change, not a legality issue; the engine's moves stay legal.
+
+## 2026-11-22 — `go searchmoves` is strict (owner decision; supersedes the F-09 widening decision of 2026-11-20)
+- Decision (owner, 2026-11-22): a restricted search must not widen. A named list with no legal move answers `bestmove 0000` and prints `info string searchmoves names no legal move in this position; no move searched` on stdout before the bestmove. Malformed tokens are reported on stdout. A bare `searchmoves` keeps the all-moves search and is announced.
+- Consequence: a restricted search returns only a move from the named legal set. Nothing outside the list is ever returned.
+- Superseded: the F-09 decision of 2026-11-20 (widening to all legal moves). The F-09 entries in FAILURE_LEDGER.md stay as history; the correction is F-46.
+- Frozen-evidence rule (applies): the engine binary changed (the `searchmoves` parser and root filter; `table_entries`). Only restricted-search behaviour and the table-size clamp changed; the bench signature `849a85bf7e8e1eba` and its node count are unchanged. The frozen ENGINE-1 and SEE-candidate hashes in PREREGISTRATION.md do not describe this binary. No rating or screening is authorized by this entry. A new hash must be frozen and appended to PREREGISTRATION.md before any rating use.
+
+## 2026-11-22 — Probe policy: a verdict other than verified is not a pass; a dead engine stops the run
+- Decision: every probe that drives an engine must fail (non-zero exit) within its bound against broken engines. A protocol- or robustness-only probe must instead pass against a null-move engine (it has no move-quality check). The check for this is `scripts/failure_mode_probe.py` (manual; about 15 min).
+- A mate claim the oracle cannot reach within `--limit` is INCONCLUSIVE (exit 3). It is neither a pass nor a defect; the report must say so.
+- A dead or unresponsive engine ends the probe run at the first stall, not after one timeout per case.
+- Not changed: committed gate deadlines (bench, time budgets, the 60 s per-position search wait). Changed only probe-internal handshake waits (`eval_symmetry_probe.py`: 120 s → 10 s). The `go ponder movetime` decision remains open and unchanged.

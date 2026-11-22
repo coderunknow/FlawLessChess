@@ -123,13 +123,18 @@ def run(line):
                 return finish("EMPTY_BESTMOVE")
             mv = parts[1]
             if mv in ("0000", "(none)"):
-                return finish(f"NULL_BESTMOVE {mv} from the start position")
-            try:
-                legal = chess.Move.from_uci(mv) in chess.Board().legal_moves
-            except ValueError:
-                legal = False
-            if not legal:
-                return finish(f"ILLEGAL_BESTMOVE {mv} from the start position")
+                # Strict searchmoves (owner direction 2026-11-22): when no named move is legal the
+                # answer is 0000, and stdout must announce it. Any other null answer is a failure.
+                announced = any(l.startswith("info string searchmoves") and "no legal move" in l for l in out_lines)
+                if not (line.startswith("go searchmoves") and announced):
+                    return finish(f"NULL_BESTMOVE {mv} from the start position")
+            else:
+                try:
+                    legal = chess.Move.from_uci(mv) in chess.Board().legal_moves
+                except ValueError:
+                    legal = False
+                if not legal:
+                    return finish(f"ILLEGAL_BESTMOVE {mv} from the start position")
         send("isready")
         if until(lambda l: l == "readyok", 10) is None:
             return finish("NO_READYOK")
@@ -138,6 +143,9 @@ def run(line):
             code = p.wait(timeout=10)
         except subprocess.TimeoutExpired:
             return finish("HANG")
+    except OSError:
+        # stdin closed under us: the engine exited during this case (a crash or an early exit)
+        return finish("ENGINE_EXITED")
     finally:
         if p.poll() is None:
             p.kill()
@@ -169,15 +177,24 @@ def run(line):
         return f"NON_UCI_STDOUT {bad[:2]}", out, err
     return "OK", out, err
 
+# A handshake or readiness stall means the engine is unresponsive; every later case would wait the
+# same 10 s again, so the run stops at the first one (the same rule as the other probes, see F-37).
+STALLS = ("NO_UCIOK", "NO_READYOK")
+
 fails = 0
+ran = 0
 for c in CASES:
     t = time.monotonic()
     status, out, err = run(c)
     dt = time.monotonic() - t
+    ran += 1
     flag = "" if status == "OK" else "  <-- "
     if status != "OK": fails += 1
     print(f"{status:24s} {dt:5.2f}s  {c[:70]!r}{flag}")
     if status not in ("OK",) and err.strip():
         print("      stderr:", err.strip().splitlines()[0][:160])
-print(f"{len(CASES)-fails}/{len(CASES)} OK")
-sys.exit(1 if fails else 0)
+    if status in STALLS:
+        print(f"stopping: engine unresponsive ({status}); {len(CASES)-ran} cases not run")
+        break
+print(f"{ran-fails}/{len(CASES)} OK" + ("" if ran == len(CASES) else " (run aborted)"))
+sys.exit(1 if fails or ran != len(CASES) else 0)

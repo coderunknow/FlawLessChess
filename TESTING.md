@@ -68,6 +68,10 @@ FAILURE_LEDGER 2026-11-14). Run them as scripts (CI does exactly this):
 ```
 python3 scripts/test_match.py            # 104 checks
 python3 scripts/test_rating_estimator.py # 53 checks
+/home/user/.venv/bin/python3 scripts/test_mate_proof_classify.py # 10 checks: mate-proof verdicts (F-48)
+# Manual, about 15 min: every engine-driving probe against silent, exit-after and null-move fake engines.
+# Each pair must fail in bounded time (protocol-only probes must pass the null-move engine). Expect 51/51.
+/home/user/.venv/bin/python3 scripts/failure_mode_probe.py --bound 120
 ```
 
 Rust: `cargo test --release` (lib 6 + clock_smoke 3 + correctness 21 + uci_smoke 4).

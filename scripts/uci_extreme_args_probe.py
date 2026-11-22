@@ -102,12 +102,21 @@ def run_session(lines, wait_for, timeout=60):
                 return line.rstrip()
 
     send("uci")
-    until("uciok", 10)
+    if until("uciok", 10) != "uciok":
+        p.kill()
+        p.wait(timeout=10)
+        return "NO_UCIOK", 0.0, p.returncode, "", out
     send("isready")
-    until("readyok", 10)
+    if until("readyok", 10) != "readyok":
+        p.kill()
+        p.wait(timeout=10)
+        return "NO_READYOK", 0.0, p.returncode, "", out
     send(f"position fen {START}")
     send("isready")
-    until("readyok", 10)
+    if until("readyok", 10) != "readyok":
+        p.kill()
+        p.wait(timeout=10)
+        return "NO_READYOK", 0.0, p.returncode, "", out
     t0 = time.monotonic()
     for ln in lines:
         send(ln)
@@ -128,10 +137,20 @@ def run_session(lines, wait_for, timeout=60):
     return reply, elapsed, rc, err, out
 
 
+# A handshake stall means the engine is unresponsive; every later case would wait the same time
+# again, so the run stops at the first one (the same rule as the other probes, F-37).
+STALLS = ("NO_UCIOK", "NO_READYOK")
+
 failures = []
+aborted = None
 for case in GO_CASES:
     reply, elapsed, rc, err, out = run_session([case], "bestmove", timeout=3)
     bad = []
+    if reply in STALLS:
+        aborted = reply
+        failures.append((case, [reply]))
+        print(f"FAIL {case[:70]:70s} {reply}; run aborted", flush=True)
+        break
     if reply in (None, "TIMEOUT") or reply.startswith("STOP->TIMEOUT"):
         bad.append("no bestmove, even after stop")
     elif reply.startswith("STOP->"):
@@ -143,6 +162,9 @@ for case in GO_CASES:
         bad.append(f"rc={rc}")
     if "panicked" in err or "panic" in err.lower():
         bad.append("panic text on stderr")
+    if rc == "HUNG":
+        # the engine answered but did not exit after quit; one such hang fails the run (no 20 s per case)
+        aborted = "HUNG after quit"
     # a go with an explicit short limit must not run for many seconds
     if case.startswith("go movetime 1 ") or case == "go movetime 1":
         if elapsed > 2.0:
@@ -151,23 +173,36 @@ for case in GO_CASES:
     print(f"{status:4s} {case[:70]:70s} reply={reply!s:22.22s} t={elapsed:7.3f}s rc={rc} {'; '.join(bad)}", flush=True)
     if bad:
         failures.append((case, bad))
+    if aborted:
+        print(f"run aborted: {aborted}", flush=True)
+        break
 
 for case in SET_CASES:
     reply, elapsed, rc, err, out = run_session([case, "isready"], "readyok", timeout=30)
     bad = []
+    if reply in STALLS:
+        aborted = reply
+        failures.append((case, [reply]))
+        print(f"FAIL {case[:70]:70s} {reply}; run aborted", flush=True)
+        break
     if reply in (None, "TIMEOUT"):
         bad.append("no readyok")
     if rc != 0:
         bad.append(f"rc={rc}")
     if "panicked" in err:
         bad.append("panic text on stderr")
+    if rc == "HUNG":
+        aborted = "HUNG after quit"
     info = [l for l in out if l.startswith("info string")]
     status = "FAIL" if bad else "ok"
     print(f"{status:4s} {case[:70]:70s} rc={rc} info={info[-1][:60] if info else '-'} {'; '.join(bad)}", flush=True)
     if bad:
         failures.append((case, bad))
+    if aborted:
+        print(f"run aborted: {aborted}", flush=True)
+        break
 
-print("FAILURES:", len(failures))
+print("FAILURES:", len(failures), "(run aborted: %s)" % aborted if aborted else "")
 for f in failures:
     print("  ", f)
 sys.exit(1 if failures else 0)

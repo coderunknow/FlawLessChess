@@ -157,6 +157,26 @@ fn allocate_tt(mb: usize) -> (TranspositionTable, usize) {
 /// parses; a missing or bad value (or another keyword, as in `go depth wtime 1000`) is reported on
 /// stdout and only the keyword is skipped, so the next keyword is not lost. Returns the value and
 /// the number of tokens consumed (1 or 2).
+/// The keywords that can follow `go` (and end a `searchmoves` list).
+fn is_go_keyword(token: &str) -> bool {
+    matches!(
+        token,
+        "searchmoves"
+            | "ponder"
+            | "infinite"
+            | "wtime"
+            | "btime"
+            | "winc"
+            | "binc"
+            | "movestogo"
+            | "depth"
+            | "nodes"
+            | "movetime"
+            | "mate"
+            | "perft"
+    )
+}
+
 fn take_go_value<T>(
     args: &[&str],
     i: usize,
@@ -449,18 +469,36 @@ impl UciEngine {
         while i < args.len() {
             match args[i] {
                 "searchmoves" => {
-                    let mut list = Vec::new();
+                    // UCI: the move list runs until the next `go` keyword. Every token up to that
+                    // keyword belongs to the list; a malformed token is reported and dropped, and
+                    // it never ends the list early (which used to leak it into `other`).
                     i += 1;
-                    while i < args.len() && Move::from_uci(args[i]).is_some() {
-                        list.push(Move::from_uci(args[i]).unwrap());
+                    let mut named = 0usize;
+                    let mut list = Vec::new();
+                    while i < args.len() && !is_go_keyword(args[i]) {
+                        named += 1;
+                        match Move::from_uci(args[i]) {
+                            Some(m) => list.push(m),
+                            None => crate::out_line!(
+                                "info string searchmoves: malformed move {:?} ignored",
+                                args[i]
+                            ),
+                        }
                         i += 1;
                     }
-                    if list.is_empty() {
+                    if named == 0 {
+                        // A bare keyword names no move. That is a protocol ambiguity, not an empty
+                        // intersection, so it keeps the unrestricted search and says so.
                         crate::out_line!(
                             "info string searchmoves names no move; searching all legal moves"
                         );
+                        search_moves = None;
+                    } else {
+                        // Strict (owner decision, 2026-11-22): the search is restricted to the
+                        // legal moves in this list. An empty list (nothing legal or parseable)
+                        // means no legal root; it is never widened to all legal moves.
+                        search_moves = Some(list);
                     }
-                    search_moves = if list.is_empty() { None } else { Some(list) };
                     continue;
                 }
                 "ponder" => {
@@ -567,21 +605,31 @@ impl UciEngine {
             clock_origin: None,
         }));
 
-        // Fallback legal move in case the search thread dies unexpectedly —
-        // the GUI must always receive a bestmove.
-        // Prefer a legal move from `searchmoves` (F-21): the search is restricted to it, so the
-        // fallback must be too. If no named move is legal, the search widens to all legal moves
-        // (see below), and so does the fallback.
+        // The root set: every legal move, or (with `searchmoves`) only the legal moves that the list
+        // names (owner decision, strict). An empty intersection never widens (see below).
         let legal_for_fallback = generate_legal(&mut self.pos);
-        let fallback_move = search_moves
-            .as_ref()
-            .and_then(|named| {
-                legal_for_fallback
-                    .iter()
-                    .copied()
-                    .find(|m| named.contains(m))
+        let root_set: Vec<Move> = legal_for_fallback
+            .iter()
+            .copied()
+            .filter(|m| {
+                search_moves
+                    .as_ref()
+                    .map_or(true, |named| named.contains(m))
             })
-            .or_else(|| legal_for_fallback.iter().next().copied());
+            .collect();
+        if search_moves.is_some() && root_set.is_empty() {
+            // `searchmoves` names no legal move here (illegal, malformed, or a stale list). Searching
+            // unrestricted legal moves would return a move the GUI did not ask for, so no search runs.
+            crate::out_line!(
+                "info string searchmoves names no legal move in this position; no move searched"
+            );
+            crate::out_line!("bestmove 0000");
+            let _ = std::io::stdout().flush();
+            return;
+        }
+        // Fallback move for a search thread that dies or cannot be spawned: the first root move, so
+        // it honours `searchmoves` too (F-21). `None` only when the position has no legal move.
+        let fallback_move = root_set.first().copied();
         // go infinite / go ponder / bare go: bestmove is held until stop/ponderhit.
         let hold = Arc::new(AtomicBool::new(limits.infinite));
         let printed = Arc::new(AtomicBool::new(false));
@@ -597,16 +645,6 @@ impl UciEngine {
             }
         };
         let mut pos = self.pos.clone();
-        // `searchmoves` that names no legal move: the search widens to all legal moves (see
-        // `Searcher::search_root`). That is a deliberate choice (a null move is never useful here),
-        // so it is reported on stdout rather than done silently.
-        if let Some(ref named) = search_moves {
-            let mut probe = self.pos.clone();
-            let legal = generate_legal(&mut probe);
-            if legal.len > 0 && !legal.iter().any(|m| named.contains(m)) {
-                crate::out_line!("info string searchmoves names no legal move in this position; searching all legal moves");
-            }
-        }
         let stop_for_search = stop.clone();
         let multi_pv = self.multi_pv;
         let start_instant = Instant::now();

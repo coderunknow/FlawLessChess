@@ -275,39 +275,104 @@ fn impossible_material_fen_is_rejected_without_crashing() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
-/// `go searchmoves` naming only illegal moves must still search the legal moves (never `0000`).
+/// Strict `searchmoves` (owner decision, 2026-11-22): a list that names only illegal moves has an
+/// empty intersection with the legal moves. The engine must not search unrestricted legal moves. It
+/// answers `bestmove 0000`, says so on stdout, and prints no `info depth` line (no search ran).
 #[test]
-fn illegal_only_searchmoves_still_returns_a_legal_move() {
+fn illegal_only_searchmoves_returns_null_without_searching() {
     let mut e = Engine::start();
     e.send("uci");
     e.read_until("uciok", Duration::from_secs(10));
     e.send("position startpos");
     e.send("go depth 2 searchmoves e2e5 d2d9");
     let lines = e.read_until("bestmove", Duration::from_secs(20));
-    let bm = bestmove_line(&lines);
-    assert_ne!(
-        bm, "bestmove 0000",
-        "illegal-only searchmoves gave a null move"
-    );
-    // The widening is a documented choice, so it must be announced on stdout, not silent.
+    assert_eq!(bestmove_line(&lines), "bestmove 0000", "{lines:?}");
     assert!(
         lines
             .iter()
             .any(|l| l.starts_with("info string searchmoves names no legal move")),
-        "illegal-only searchmoves widened the search without an info string: {lines:?}"
+        "empty intersection not announced: {lines:?}"
     );
-    let mv = bm
-        .trim_start_matches("bestmove ")
-        .split(' ')
-        .next()
-        .unwrap();
-    const START_LEGAL: [&str; 20] = [
-        "a2a3", "a2a4", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4", "e2e3", "e2e4", "f2f3",
-        "f2f4", "g2g3", "g2g4", "h2h3", "h2h4", "b1a3", "b1c3", "g1f3", "g1h3",
-    ];
     assert!(
-        START_LEGAL.contains(&mv),
-        "bestmove {mv} is not a legal start move"
+        !lines.iter().any(|l| l.starts_with("info depth")),
+        "a search ran outside the requested set: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
+/// Strict `searchmoves`: the returned move is always inside the requested set. Covers duplicate
+/// names, a mix of legal and illegal names, malformed tokens, and an ordinary valid request.
+#[test]
+fn searchmoves_never_returns_a_move_outside_the_requested_set() {
+    let cases: [(&str, &[&str]); 4] = [
+        ("e2e4 e2e4 e2e4", &["e2e4"]),
+        ("e2e5 e2e4 zzzz d2d9", &["e2e4"]),
+        ("g1f3 b1c3", &["g1f3", "b1c3"]),
+        ("a2a3", &["a2a3"]),
+    ];
+    for (named, allowed) in cases {
+        let mut e = Engine::start();
+        e.send("uci");
+        e.read_until("uciok", Duration::from_secs(10));
+        e.send("position startpos");
+        e.send(&format!("go depth 3 searchmoves {named}"));
+        let lines = e.read_until("bestmove", Duration::from_secs(20));
+        let bm = bestmove_line(&lines)
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("")
+            .to_string();
+        assert!(
+            allowed.contains(&bm.as_str()),
+            "searchmoves {named:?} returned {bm}, which is outside {allowed:?}: {lines:?}"
+        );
+        e.quit_and_expect_exit(Duration::from_secs(10));
+    }
+}
+
+/// Strict `searchmoves`: a list that is only malformed tokens names no legal move, so the answer is
+/// `bestmove 0000`, and the malformed token is reported on stdout.
+#[test]
+fn malformed_only_searchmoves_returns_null_and_reports_the_token() {
+    let mut e = Engine::start();
+    e.send("uci");
+    e.read_until("uciok", Duration::from_secs(10));
+    e.send("position startpos");
+    e.send("go depth 2 searchmoves zzzz");
+    let lines = e.read_until("bestmove", Duration::from_secs(20));
+    assert_eq!(bestmove_line(&lines), "bestmove 0000", "{lines:?}");
+    assert!(
+        lines.iter().any(|l| l.contains("malformed move \"zzzz\"")),
+        "malformed searchmoves token not reported: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
+/// Strict `searchmoves`: the list ends at the next `go` keyword, so `depth` after the list still
+/// limits the search (the list is not swallowed and the depth is not lost).
+#[test]
+fn searchmoves_list_ends_at_the_next_go_keyword() {
+    let mut e = Engine::start();
+    e.send("uci");
+    e.read_until("uciok", Duration::from_secs(10));
+    e.send("position startpos");
+    e.send("go searchmoves e2e4 g1f3 depth 2");
+    let lines = e.read_until("bestmove", Duration::from_secs(20));
+    assert!(
+        lines.iter().any(|l| l.starts_with("info depth 2 ")),
+        "depth after searchmoves was not honoured: {lines:?}"
+    );
+    assert!(
+        !lines.iter().any(|l| l.starts_with("info depth 3 ")),
+        "search ran past depth 2: {lines:?}"
+    );
+    let mv = bestmove_line(&lines)
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or("");
+    assert!(
+        mv == "e2e4" || mv == "g1f3",
+        "bestmove {mv} is outside searchmoves: {lines:?}"
     );
     e.quit_and_expect_exit(Duration::from_secs(10));
 }

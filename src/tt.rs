@@ -98,8 +98,12 @@ fn prev_power_of_two(n: usize) -> usize {
 /// rounded DOWN so the table never holds more than the request (F-40: rounding up made `Hash 65`
 /// allocate 128 MiB and `Hash 513` allocate 1 GiB), and clamped to 2^27 entries (1 GiB).
 fn table_entries(size_mb: usize) -> usize {
-    let want_entries = size_mb.max(1) * 1024 * 1024 / 8;
-    prev_power_of_two(want_entries.clamp(1024, 1 << 27))
+    // Clamp the MiB count BEFORE multiplying: 1 MiB is 2^17 eight-byte entries, and the 1 GiB cap is
+    // 2^27 entries = 1024 MiB. On a 32-bit `usize`, `size_mb * 1024 * 1024` overflowed for requests of
+    // 4096 MiB and above; the clamped product (at most 2^27) always fits. Requests of 0 MiB count as 1.
+    const MAX_MIB: usize = 1024;
+    let mib = size_mb.clamp(1, MAX_MIB);
+    prev_power_of_two(mib << 17)
 }
 
 /// The table size, in MiB, that a requested `Hash` value really allocates. `Hash 100` allocates
@@ -582,6 +586,23 @@ mod size_tests_f40 {
             tt.try_resize(mb).expect("resize");
             assert_eq!(tt.entries.len() * 8, mb * 1024 * 1024, "{mb} MiB");
         }
+    }
+
+    /// Arithmetic bounds (review, 2026-11-22): extreme requests must not overflow before the cap.
+    /// `usize::MAX` MiB is far beyond any `usize` byte count, so an unclamped product would panic in
+    /// debug builds on every platform; the clamped count is the 1 GiB cap.
+    #[test]
+    fn table_entries_clamp_before_multiplying() {
+        assert_eq!(table_entries(usize::MAX), 1 << 27);
+        assert_eq!(table_entries(4096), 1 << 27);
+        assert_eq!(table_entries(1024), 1 << 27);
+        assert_eq!(table_entries(0), 1 << 17);
+        assert_eq!(effective_table_mib(usize::MAX), 1024);
+        // Boundary values around the largest power of two that is at most the request.
+        // 3 MiB = 3 * 2^17 entries; the largest power of two below it is 2^18 (2 MiB).
+        assert_eq!(table_entries(3), 1 << 18);
+        // 1023 MiB rounds down to 512 MiB.
+        assert_eq!(table_entries(1023), 1 << 26);
     }
 
     /// F-45: the size the engine reports is the size it allocates. `Hash 100` is 64 MiB, and the

@@ -447,8 +447,9 @@ fn searchmoves_restricts_root_search() {
 }
 
 #[test]
-fn searchmoves_empty_falls_back_to_all_legal() {
-    // Some(empty) is normalized by the UCI layer; the API's None means "all legal moves".
+fn searchmoves_none_means_no_restriction() {
+    // No searchmoves at all (API None) is unrestricted: the root searches every legal move. A named
+    // list with no legal move is different: the UCI layer answers 0000 (strict, owner direction 2026-11-22).
     let result = search_score(
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         1,

@@ -82,3 +82,9 @@ cargo build --release
 
 Raw outputs of the sandbox run were kept in scratch space (`/tmp/audit4/`), which is not part of the
 repository; the results above are the record. Scratch files may not survive a sandbox reset.
+
+## Correction (2026-11-22)
+
+- The `searchmoves` item above ("the `searchmoves` widening (owner decision)") is superseded. The owner direction of 2026-11-22 makes `go searchmoves` strict: a named list with no legal move answers `bestmove 0000` and announces it on stdout, with no widening. See DESIGN_LOG.md (2026-11-22) and FAILURE_LEDGER.md F-46. The F-09 entry stays as history.
+- The probe-stability results above were produced before F-48 (2026-11-22). Several probes passed silently or waited without limit against broken engines; those defects are fixed and listed in FAILURE_LEDGER.md F-48. The real-engine results for the changed probes are recorded there.
+- Release state is unchanged: G2 (CodeRabbit on the final head), G3 (Windows artifact) and CLOCK-1 are still blockers. This correction does not claim release readiness.

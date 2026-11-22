@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """searchmoves restriction probe: with `go searchmoves <subset>`, `bestmove` and the first move of
 every `info ... multipv N ... pv` line must be in the subset (when the subset names a legal move).
-Each named move is checked with python-chess; a subset with no legal move must widen (announced).
+Each named move is checked with python-chess. Strict policy (owner decision, 2026-11-22): a list with
+no legal move in the position must answer `bestmove 0000` and search nothing (no `info depth` line).
 Usage: searchmoves_probe.py <engine> <positions> <seed> [multipv]
 Exit status 0 when there are no failures.
 """
@@ -42,6 +43,19 @@ try:
         b = random_board()
         legal = list(b.legal_moves)
         if not legal or b.is_game_over():
+            continue
+        if random.random() < 0.2:
+            # Illegal-only list: an empty legal intersection must give 0000 and no search.
+            legal_set = {m.uci() for m in legal}
+            bogus = [u for u in ("a1a8", "h8h1", "e4e4", "a2a5") if u not in legal_set] or ["e4e4"]
+            names = " ".join(bogus[:2])
+            eng.send(f"position fen {b.fen()}"); eng.send(f"go depth 3 searchmoves {names}")
+            lines = eng.read_until("bestmove", 60)
+            checked += 1
+            if lines[-1] != "bestmove 0000":
+                fails.append(f"illegal-only searchmoves {names} gave {lines[-1]} in {b.fen()}")
+            if any(l.startswith("info depth") for l in lines):
+                fails.append(f"illegal-only searchmoves {names} searched in {b.fen()}")
             continue
         k = random.randint(1, min(4, len(legal)))
         subset = random.sample(legal, k)

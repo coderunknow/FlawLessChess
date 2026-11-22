@@ -205,14 +205,17 @@ def t_en_passant_capture():
         e.send("quit"); assert e.close() == 0
 
 def t_searchmoves_only_illegal_moves():
-    """`go searchmoves` naming only illegal moves must still answer with a legal move.
-    Regression: the engine used to print `bestmove 0000` here."""
+    """`go searchmoves` naming only illegal moves answers `bestmove 0000` and says so on stdout.
+    Strict policy (owner direction 2026-11-22): the restricted search must not widen to other legal
+    moves. The notice must come before the bestmove."""
     e = Eng(); e.send("uci"); e.until(lambda l: l == "uciok", 10, "uciok")
     e.send("position startpos"); e.send("go depth 2 searchmoves e2e5")
     lines = e.until(lambda l: l.startswith("bestmove"), 20, "bestmove")
     mv = bestmove_of(lines)
-    assert mv != "0000", "null bestmove although the start position has legal moves"
-    legal_check([], mv)
+    assert mv == "0000", f"searchmoves named no legal move; expected bestmove 0000, got {mv}"
+    notice = [i for i, l in enumerate(lines) if l.startswith("info string searchmoves") and "no legal move" in l]
+    assert notice, "no stdout notice that searchmoves named no legal move"
+    assert notice[-1] < len(lines) - 1 and lines[-1].startswith("bestmove"), "notice must precede bestmove"
     e.send("quit"); assert e.close() == 0
 
 def t_stalemate_position_no_legal_move():
@@ -236,6 +239,11 @@ for name, fn in [("handshake", t_handshake), ("no banner", t_no_banner_on_stdout
                  ("en passant capture", t_en_passant_capture),
                  ("searchmoves illegal only", t_searchmoves_only_illegal_moves)]:
     check(name, fn)
+    if name == "handshake" and results[-1][1] != "PASS" and results[-1][2].startswith(("timeout waiting for uciok", "EOF waiting for uciok")):
+        # No `uciok` means the engine is unresponsive; every later check would wait the same 10 s
+        # again, so the run stops here and reports the handshake as the failure (F-37 rule).
+        results.append(("remaining checks", "FAIL", "not run: the engine never answered uciok"))
+        break
 
 for n, s, d in results:
     print(f"{s:6s} {n}" + (f"  -- {d}" if d else ""))

@@ -361,3 +361,10 @@ Scope of this phase: continue the audit after the CLOCK-1 gate, look for bugs by
 - F-41 (search, MEDIUM, FIXED): futility pruning ignored a mate-score alpha, so a quiet mate in two was pruned (depth 6 reported mate 3). Fixed with a mate-bound guard; regression test; bench signature unchanged. OPEN, owner decision: LMR can hide quiet mates (examples and options in FAILURE_LEDGER F-41 and DESIGN_LOG 2026-11-21 F-41).
 - F-39 (UCI, LOW-MEDIUM, FIXED): out-of-range `go depth` / `go nodes` values were ignored, so the search ran until `stop`.
 
+
+## Correction and progress (2026-11-22, release audit segment)
+
+- F-09 (`go searchmoves` widening, 2026-11-20) is SUPERSEDED for the current work by the owner's strict direction of 2026-11-22 (F-46, DESIGN_LOG.md). A named list with no legal move answers `bestmove 0000` with a stdout notice. Earlier "searchmoves widening" text in this file is history, not the current policy.
+- F-47 (`table_entries` overflow before clamp, library only): fixed, unit-tested.
+- F-48 (probe silent passes and unbounded waits): fixed; `scripts/failure_mode_probe.py` 51/51 pairs as expected; real-engine runs of the changed probes pass; the mate-proof probe is INCONCLUSIVE (exit 3) on seed 42 for seven claims beyond its limit.
+- Still open, unchanged: G2 (CodeRabbit on the final head: not triaged), G3 (Windows artifact: not verified), CLOCK-1 (not frozen), F-41 LMR quiet-mate options (owner decision), `go ponder movetime` (owner decision). No release readiness is claimed.

@@ -68,14 +68,31 @@ def mutate(fen):
     return " ".join(f)
 
 
+def playout_fen():
+    """A legal position reached by a random playout from the start: always oracle-valid before mutation."""
+    b = chess.Board()
+    for _ in range(random.randrange(0, 80)):
+        moves = list(b.legal_moves)
+        if not moves or b.is_game_over():
+            break
+        b.push(random.choice(moves))
+    return b.fen()
+
+
 def make_fens(n):
+    # Half the cases come from legal playouts (valid, so the legal-bestmove oracle runs on them);
+    # the other half are sparse/dense random boards that are mostly invalid (refusal coverage).
+    # Without the playouts only ~5% of cases were oracle-valid and a small run checked nothing.
     out = []
     while len(out) < n:
-        b = random_board()
-        if random.random() < 0.3:
-            b.turn = random.choice([chess.WHITE, chess.BLACK])
-        fen = b.fen()
-        out.append(mutate(fen))
+        if random.random() < 0.5:
+            fen = playout_fen()
+            out.append(mutate(fen) if random.random() < 0.3 else fen)
+        else:
+            b = random_board()
+            if random.random() < 0.3:
+                b.turn = random.choice([chess.WHITE, chess.BLACK])
+            out.append(mutate(b.fen()))
     return out
 
 
@@ -97,6 +114,11 @@ def oracle_valid(fen):
     try:
         b = chess.Board(fen)
     except ValueError:
+        return False
+    # python-chess accepts a castling field such as `KK`; the FEN grammar does not (each of KQkq at
+    # most once), and the engine refuses it. The oracle must agree with the grammar, not the library.
+    castling = fen.split()[2] if len(fen.split()) > 2 else "-"
+    if castling != "-" and (len(set(castling)) != len(castling) or not set(castling) <= set("KQkq")):
         return False
     # python-chess does not check promotion counts against missing pawns; the engine does (FIDE
     # reachability), so such positions are not "valid" for this comparison.
@@ -128,6 +150,7 @@ def start():
 
 
 fails = []
+valid_checked = 0
 fens = make_fens(cases)
 p = start()
 trace = os.environ.get("FEN_FUZZ_TRACE")
@@ -154,6 +177,7 @@ for i, fen in enumerate(fens):
     if not in_engine_domain(fen):
         continue
     valid = oracle_valid(fen)
+    valid_checked += valid
     if refused:
         if valid:
             fails.append(("engine refused a position python-chess accepts", fen, lines[:2]))
@@ -166,6 +190,9 @@ for i, fen in enumerate(fens):
     if valid:
         if chess.Move.from_uci(best) not in chess.Board(fen).legal_moves:
             fails.append(("illegal bestmove", fen, best))
+# coverage floor: a run whose legal-move oracle checked too few positions proves little (F-29 class)
+if cases >= 10 and valid_checked < cases // 5:
+    fails.append((f"coverage: only {valid_checked} of {cases} positions were oracle-valid", "-", None))
 # stderr panic check after quit (close() waits for the process and its stderr to finish)
 rc = p.close()
 if rc != 0:
@@ -175,5 +202,5 @@ if "panicked" in err:
     fails.append(("panic on stderr", "-", err[:300]))
 for f in fails[:20]:
     print("FAIL", f)
-print(f"seed={seed} cases={cases} failures={len(fails)}")
+print(f"seed={seed} cases={cases} oracle_valid={valid_checked} failures={len(fails)}")
 sys.exit(1 if fails else 0)

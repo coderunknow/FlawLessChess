@@ -41,9 +41,9 @@ class Searcher:
         self.reader.start()
         try:
             self.send("uci")
-            self.wait_for("uciok")
+            self.wait_for("uciok", 10)  # handshake: a silent engine fails in 10 s, not 120 s
             self.send("isready")
-            self.wait_for("readyok")
+            self.wait_for("readyok", 10)
         except BaseException:
             self.kill()
             raise
@@ -77,7 +77,7 @@ class Searcher:
     def score(self, fen, depth):
         self.send("ucinewgame")
         self.send("isready")
-        self.wait_for("readyok")
+        self.wait_for("readyok", 10)
         self.send(f"position fen {fen}")
         self.send(f"go depth {depth}")
         lines = self.wait_for("bestmove")

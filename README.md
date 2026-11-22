@@ -65,7 +65,7 @@ opponents; do not present them as official ratings).
 - Single-threaded search (`Threads` is fixed at 1).
 - `Hash` accepts 1–1024 MiB. The transposition table is capped at 1 GiB (2^27 entries), so larger values are rejected with an `info string` on stdout. The table size is a power of two, so a request is rounded down (`Hash 100` allocates 64 MiB); the engine prints an `info string` that states the size it allocated.
 - A `setoption` sent while a search is running ends that search (its `bestmove` is printed) before the option is applied. UCI expects GUIs to send options only when idle.
-- `go searchmoves` that names only illegal moves does not return `bestmove 0000`. The search considers all legal moves and prints an `info string` saying so. This departs from the UCI wording ("restrict the search"); see DESIGN_LOG 2026-11-20.
+- `go searchmoves` is strict (owner decision, 2026-11-22): the search is restricted to the legal moves the list names. A list with no legal move (illegal, malformed, or stale) answers `bestmove 0000` with an `info string`, and nothing is searched; the engine never widens to other moves. A bare `searchmoves` with no move after it keeps the unrestricted search and is announced. The list ends at the next `go` keyword. The UCI text does not say what an empty intersection means; this is the chosen reading (see DESIGN_LOG 2026-11-22).
 - Classical evaluation only; no opening book; no tablebases.
 - Search strength is not calibrated; no official rating exists.
 - Windows artifact integrity and GUI playability are verified only when the release-candidate
