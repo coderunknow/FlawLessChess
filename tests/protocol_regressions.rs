@@ -1021,7 +1021,7 @@ fn fixed_depth_search_finds_mate_in_one_and_reports_depth_lines() {
         .find(|l| l.starts_with("info depth 4 "))
         .unwrap_or_else(|| panic!("no depth-4 line: {lines:?}"));
     assert!(
-        depth4.contains("score mate 1"),
+        reports_mate_in(depth4, 1),
         "depth 4 did not report the mate: {depth4}"
     );
     assert!(
@@ -1263,7 +1263,7 @@ fn quiet_mate_in_two_is_not_pruned_by_a_mate_alpha() {
         .find(|l| l.starts_with("info depth 6 "))
         .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
     assert!(
-        last.contains("score mate 2"),
+        reports_mate_in(last, 2),
         "the shortest mate is mate in 2 (1. Rg5 Kh3 2. Rh1#): {last}"
     );
     assert!(
@@ -1271,6 +1271,29 @@ fn quiet_mate_in_two_is_not_pruned_by_a_mate_alpha() {
         "the mate in two is c5g5: {lines:?}"
     );
     e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
+/// True when an `info` line reports exactly `score mate <n>`. A substring test is not enough:
+/// `score mate 30` contains `score mate 3`.
+fn reports_mate_in(line: &str, n: i32) -> bool {
+    let mut tokens = line.split_whitespace();
+    while let Some(t) = tokens.next() {
+        if t == "score" {
+            return tokens.next() == Some("mate")
+                && tokens.next().and_then(|v| v.parse::<i32>().ok()) == Some(n);
+        }
+    }
+    false
+}
+
+#[test]
+fn mate_score_is_compared_as_a_whole_token() {
+    assert!(reports_mate_in("info depth 6 score mate 3 pv a1a2", 3));
+    assert!(!reports_mate_in("info depth 6 score mate 30 pv a1a2", 3));
+    assert!(!reports_mate_in("info depth 6 score mate -3 pv a1a2", 3));
+    assert!(!reports_mate_in("info depth 6 score cp 300 pv a1a2", 3));
+    assert!(reports_mate_in("info depth 6 score mate 1", 1));
+    assert!(!reports_mate_in("info depth 6 score mate 10", 1));
 }
 
 /// F-44: in sparse positions the depth-6 search missed quiet mates in three. Every position below
@@ -1296,7 +1319,7 @@ fn sparse_quiet_mate_in_three_is_found_at_depth_six() {
             .find(|l| l.starts_with("info depth 6 "))
             .unwrap_or_else(|| panic!("no depth-6 line for {fen}: {lines:?}"));
         assert!(
-            last.contains("score mate 3"),
+            reports_mate_in(last, 3),
             "{fen}: a forced mate in three exists, the engine must report `score mate 3`: {last}"
         );
         e.quit_and_expect_exit(Duration::from_secs(10));

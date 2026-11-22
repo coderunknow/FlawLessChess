@@ -70,14 +70,16 @@ commit (its `Hash 100` reply was only `readyok`) and passes after the fix.
 ## Reproduce
 
 ```
+# PY: any Python 3 with python-chess==1.11.2 (the sandbox used a venv). Set it for your machine.
+PY=${PY:-python3}
 source /home/user/.toolchain/env
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
 cargo test --release && cargo test
 cargo build --release
 ./target/release/flawless bench                       # signature 849a85bf7e8e1eba
-/home/user/.venv/bin/python3 scripts/uci_protocol_probe.py target/release/flawless
-/home/user/.venv/bin/python3 scripts/uci_malformed_probe.py target/release/flawless
-/home/user/.venv/bin/python3 scripts/selfplay_games.py target/release/flawless /tmp/sp --tc 1000+20
+$PY scripts/uci_protocol_probe.py target/release/flawless
+$PY scripts/uci_malformed_probe.py target/release/flawless
+$PY scripts/selfplay_games.py target/release/flawless /tmp/sp --tc 1000+20
 ```
 
 Raw outputs of the sandbox run were kept in scratch space (`/tmp/audit4/`), which is not part of the
