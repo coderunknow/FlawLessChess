@@ -328,12 +328,17 @@ impl Position {
                     rank_of(sq) == 5
                         && pos.occ_all & (1u64 << sq) == 0
                         && pos.pieces[BLACK * 6 + PAWN] & (1u64 << (sq - 8)) != 0
+                        // The double push came from the pawn's home square (rank 7), which must be
+                        // empty now (F-52: `f6` with a bishop on `f7` was accepted).
+                        && pos.occ_all & (1u64 << (sq + 8)) == 0
                 }
                 _ => {
                     // ep on rank 3 (index 2); the white pawn that just double-pushed sits on rank 4
                     rank_of(sq) == 2
                         && pos.occ_all & (1u64 << sq) == 0
                         && pos.pieces[WHITE * 6 + PAWN] & (1u64 << (sq + 8)) != 0
+                        // The white double push came from rank 2, which must be empty now (F-52).
+                        && pos.occ_all & (1u64 << (sq - 8)) == 0
                 }
             };
             if !valid {
@@ -348,6 +353,14 @@ impl Position {
             pos.halfmove = fields[4]
                 .parse::<u16>()
                 .map_err(|_| "fen: bad halfmove clock".to_string())?;
+        }
+        // An en-passant target exists only right after a double pawn push, and a pawn move resets
+        // the halfmove clock, so the clock must be 0 (F-52: `... f6 100 1` was accepted).
+        if pos.ep >= 0 && pos.halfmove != 0 {
+            return Err(
+                "fen: en passant square requires halfmove clock 0 (a double pawn push resets it)"
+                    .to_string(),
+            );
         }
         // fullmove number
         if fields.len() >= 6 {

@@ -174,6 +174,7 @@ fn cmd_bench() {
             ponder: false,
             fixed_time: false,
             clock_origin: None,
+            rebase_nodes_on_hit: false,
         }));
         let mut tt = TranspositionTable::new(16);
         let result =

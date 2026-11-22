@@ -406,6 +406,45 @@ fn legal_searchmoves_are_respected_without_widening_notice() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// Regression (F-52): the node cap of `go ponder nodes N` counts from `ponderhit` (S-07), even when
+/// the ponder search already ran past N before the hit. The old code kept the cap spent during
+/// pondering, so the search returned at once after the hit. The hit comes only after the search
+/// has passed CAP, so the old code returns at once and the fixed code must spend about CAP more
+/// nodes. The lower time bound is far above the old return time and far below the fixed run time.
+#[test]
+fn ponder_node_cap_counts_from_ponderhit_when_pondering_passed_it() {
+    const CAP: u64 = 100_000;
+    let mut e = Engine::start();
+    e.send("uci");
+    e.read_until("uciok", Duration::from_secs(10));
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send("position startpos");
+    e.send(&format!("go ponder nodes {CAP}"));
+    let mut nodes_before_hit = 0;
+    while nodes_before_hit <= CAP {
+        let lines = e.read_until("info depth", Duration::from_secs(120));
+        if let Some(n) = lines
+            .iter()
+            .rev()
+            .find(|l| l.starts_with("info depth"))
+            .and_then(|l| info_nodes(l))
+        {
+            nodes_before_hit = n;
+        }
+    }
+    let hit = std::time::Instant::now();
+    e.send("ponderhit");
+    e.read_until("bestmove", Duration::from_secs(60));
+    let spent = hit.elapsed();
+    assert!(
+        spent >= Duration::from_millis(50),
+        "node cap was already spent before ponderhit (pondering ran to {nodes_before_hit} nodes): \
+         bestmove came {spent:?} after the hit"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// Regression (AUDIT-SEARCH-03, prior report S-07): after `ponderhit`, `go ponder nodes N` must
 /// end the search (the cap applies from the hit on). The ponder search is unlimited until the
 /// hit, and the hit is processed only after the first `info depth` line, so the search may have

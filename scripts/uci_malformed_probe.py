@@ -140,7 +140,7 @@ def run(line):
                 # No named move is legal: the answer must be 0000 and stdout must announce it.
                 # Any legal move here is a widened search, which is a failure.
                 announced = any(l.startswith("info string searchmoves") and "no legal move" in l for l in out_lines)
-                if mv not in ("0000", "(none)") or not announced:
+                if mv != "0000" or not announced:
                     return finish(f"STRICT_SEARCHMOVES_VIOLATION {mv} (no named move is legal; need 0000 plus notice)")
             elif mv in ("0000", "(none)"):
                 return finish(f"NULL_BESTMOVE {mv} from the start position")

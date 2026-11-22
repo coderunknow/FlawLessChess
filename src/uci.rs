@@ -224,6 +224,14 @@ fn parse_depth(text: &str) -> Option<i32> {
 /// it is 0: the search answers at once. Before this, `-1000` failed to parse and the token was
 /// dropped, so the search had no time limit at all and never answered. A value above `u64::MAX`
 /// saturates. Anything else that is not a number is `None`, as before.
+/// Parses a move count (`go movestogo`). A digit-only value beyond `u64` saturates, as the time
+/// values do (DESIGN_LOG: "overflow already saturates"). Negative or non-numeric text is rejected.
+fn parse_count_saturating(text: &str) -> Option<u64> {
+    text.parse::<u64>().ok().or_else(|| {
+        (!text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())).then_some(u64::MAX)
+    })
+}
+
 fn parse_time_ms(text: &str) -> Option<u64> {
     let digits = text.strip_prefix('-');
     match digits {
@@ -534,7 +542,7 @@ impl UciEngine {
                     i += used;
                 }
                 "movestogo" => {
-                    let (v, used) = take_go_value(args, i, "movestogo", |s| s.parse().ok());
+                    let (v, used) = take_go_value(args, i, "movestogo", parse_count_saturating);
                     movestogo = v;
                     i += used;
                 }
@@ -597,6 +605,7 @@ impl UciEngine {
                     && nodes.is_none()),
             ponder,
             clock_origin: None,
+            rebase_nodes_on_hit: false,
         };
         let shared_limits = Arc::new(Mutex::new(SearchLimits {
             max_depth: limits.max_depth,
@@ -607,6 +616,7 @@ impl UciEngine {
             ponder: limits.ponder,
             fixed_time: limits.fixed_time,
             clock_origin: None,
+            rebase_nodes_on_hit: false,
         }));
 
         // The root set: every legal move, or (with `searchmoves`) only the legal moves that the list
@@ -805,6 +815,10 @@ impl UciEngine {
                                 lim.infinite = false;
                             }
                         }
+                    }
+                    // A node cap on a ponder search counts from the hit in every branch (F-52).
+                    if lim.max_nodes != u64::MAX {
+                        lim.rebase_nodes_on_hit = true;
                     }
                     lim.ponder = false;
                 }
@@ -1059,6 +1073,20 @@ pub fn run_uci() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn movestogo_overflow_saturates_instead_of_falling_back_to_40() {
+        // Regression (F-52): a digit-only `movestogo` beyond u64 was rejected and ignored, so the
+        // clock planner fell back to 40 moves. It must saturate, like the time values.
+        assert_eq!(
+            parse_count_saturating("18446744073709551616"),
+            Some(u64::MAX)
+        );
+        assert_eq!(parse_count_saturating("1"), Some(1));
+        assert_eq!(parse_count_saturating("-1"), None);
+        assert_eq!(parse_count_saturating("abc"), None);
+        assert_eq!(parse_count_saturating(""), None);
+    }
 
     #[test]
     fn clock_limits_never_plan_past_the_usable_clock_with_large_increment() {

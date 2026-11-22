@@ -44,6 +44,10 @@ pub struct SearchLimits {
     /// the time of the hit: the clock slice then counts from the hit, not from `go` (F-24).
     /// Only the budgets (`soft_ms`/`hard_ms`) use it; `info time` keeps the search start.
     pub clock_origin: Option<Instant>,
+    /// Set by `ponderhit` on a node-capped `go ponder`: the cap counts from the hit, so the search
+    /// rebases its node cap to (nodes at the hit + `max_nodes`) on the next node (F-52). The
+    /// search thread does the rebase because only it knows its node count.
+    pub rebase_nodes_on_hit: bool,
 }
 
 impl Default for SearchLimits {
@@ -57,6 +61,7 @@ impl Default for SearchLimits {
             ponder: false,
             fixed_time: false,
             clock_origin: None,
+            rebase_nodes_on_hit: false,
         }
     }
 }
@@ -149,6 +154,7 @@ impl<'a> Searcher<'a> {
         if self.nodes & 127 != 127 {
             return;
         }
+        self.rebase_node_cap_on_hit();
         if self.should_stop_now() {
             self.stop.store(true, Ordering::Relaxed);
         }
@@ -181,11 +187,30 @@ impl<'a> Searcher<'a> {
         if self.nodes < self.node_cap {
             return false;
         }
+        self.rebase_node_cap_on_hit();
+        if self.nodes < self.node_cap {
+            return false;
+        }
         if self.lim().infinite {
             return false;
         }
         self.stop.store(true, Ordering::Relaxed);
         true
+    }
+
+    /// F-52: a node-capped `go ponder` counts its `max_nodes` from `ponderhit`, not from `go`
+    /// (S-07). `ponderhit` sets `rebase_nodes_on_hit`; the search thread, which alone knows its
+    /// node count, rebases here once. Called every 128 nodes and whenever the cap is reached, so
+    /// the rebase lags the hit by at most 127 nodes.
+    fn rebase_node_cap_on_hit(&mut self) {
+        let l = self.lim();
+        if !l.rebase_nodes_on_hit {
+            return;
+        }
+        self.node_cap = self.nodes.saturating_add(l.max_nodes);
+        if let Ok(mut shared) = self.limits.lock() {
+            shared.rebase_nodes_on_hit = false;
+        }
     }
 
     #[inline]

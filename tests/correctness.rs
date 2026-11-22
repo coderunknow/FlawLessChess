@@ -340,6 +340,7 @@ fn search_score(
         ponder: false,
         fixed_time: false,
         clock_origin: None,
+        rebase_nodes_on_hit: false,
     }));
     let mut tt = TranspositionTable::new(4);
     let moves = searchmoves.map(|v| {
@@ -384,6 +385,7 @@ fn mate_beats_repetition_rule() {
         ponder: false,
         fixed_time: false,
         clock_origin: None,
+        rebase_nodes_on_hit: false,
     }));
     let mut tt = flawless::tt::TranspositionTable::new(4);
     let result = flawless::search::Searcher::new(&mut tt, &stop, limits).search_root(
@@ -833,5 +835,34 @@ fn piece_bitboards_stay_in_sync_over_random_games() {
     assert!(
         plies > 5_000,
         "sweep too short to mean anything: {plies} plies"
+    );
+}
+
+// ---------- En passant consistency (F-52) ----------
+// An en-passant target exists only right after a double pawn push: the pawn came from its home
+// square (now empty) and the last move reset the halfmove clock. Both were unchecked.
+
+#[test]
+fn fen_rejects_en_passant_target_whose_pawn_came_from_an_occupied_square() {
+    // f6 with a bishop on f7: the pawn cannot have double-pushed from f7.
+    assert!(Position::from_fen("4k3/5b2/8/4Pp2/8/8/8/4K3 w - f6 0 1").is_err());
+}
+
+#[test]
+fn fen_rejects_en_passant_target_with_nonzero_halfmove_clock() {
+    // A double pawn push resets the halfmove clock, so `f6 100` (or any non-zero clock) is illegal.
+    assert!(Position::from_fen("4k3/8/8/4Pp2/8/8/8/4K3 w - f6 100 1").is_err());
+    assert!(Position::from_fen("4k3/8/8/4Pp2/8/8/8/4K3 w - f6 3 1").is_err());
+}
+
+#[test]
+fn fen_accepts_genuine_en_passant_targets() {
+    // 1.e4 d5 2.e5 f5: the target f6 is backed by a pawn that came from f7 (empty now).
+    assert!(
+        Position::from_fen("rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3").is_ok()
+    );
+    // After ...c7-c5 White may capture en passant on c6: the black pawn came from c7 (empty now).
+    assert!(
+        Position::from_fen("rnbqkbnr/pp1ppppp/8/2pP4/8/8/PPP1PPPP/RNBQKBNR w KQkq c6 0 3").is_ok()
     );
 }
