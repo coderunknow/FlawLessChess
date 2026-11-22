@@ -4,6 +4,8 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 
 ## [Unreleased] — independent audit remediation (2026-11-20)
 
+- **Fixed (MEDIUM, F-49): time checks ran only every 1024 nodes.** At small budgets (a 300 ms sudden-death clock, where the planned budget is the 1 ms floor), one move could overrun by up to ~5 ms, and a long game could run out of time. The clock is now checked every 128 nodes; the measured worst-case overrun at a 1 ms budget fell from about 5 ms to about 2.5 ms. The time-budget policy and the bench signature are unchanged.
+
 - **Changed (owner decision 2026-11-22, F-46): `go searchmoves` is strict.** When no named move is legal, the engine
   answers `bestmove 0000` and prints `info string searchmoves names no legal move in this position; no move searched`
   on stdout (it used to search all legal moves). Malformed tokens are reported on stdout, and the list runs to the next

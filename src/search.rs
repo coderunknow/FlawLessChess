@@ -141,9 +141,12 @@ impl<'a> Searcher<'a> {
         self.nodes
     }
 
+    /// Clock check cadence: every 128 nodes (F-49). At the 1 ms floor budget a 1024-node
+    /// cadence let a single move overrun by up to ~5 ms; 128 nodes bounds the overrun to about
+    /// 2.5 ms at a negligible cost (one `Instant` read per 128 nodes).
     #[inline]
     fn check_time(&mut self) {
-        if self.nodes & 1023 != 1023 {
+        if self.nodes & 127 != 127 {
             return;
         }
         if self.should_stop_now() {
