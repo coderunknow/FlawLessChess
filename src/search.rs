@@ -583,12 +583,11 @@ impl<'a> Searcher<'a> {
         // Transposition table probe first: terminal nodes are deterministic, so a
         // sufficient-depth entry is equally valid there — and this keeps TT-cutoff
         // nodes off the movegen path.
-        // Zobrist excludes the halfmove clock; entries whose stored subtree can reach the
-        // fifty-move horizon are flagged CLOCK-UNSAFE at store time and never provide a
-        // score here, so score cutoffs are always clock-context-compatible. Move ordering
-        // via the TT move is always safe.
+        // Zobrist excludes the halfmove clock. The TT rejects scores unsafe in their store
+        // context and also checks this position's halfmove clock + stored depth before a
+        // score can cut off; the move remains safe for ordering.
         let key = pos.hash;
-        let probe = self.tt.probe(key, ply);
+        let probe = self.tt.probe(key, ply, pos.halfmove);
         let tt_move = probe.best_move;
         if let Some(score) = probe.score {
             if probe.depth >= depth && !is_pv && !fifty_claim {
@@ -1189,6 +1188,39 @@ mod draw_rule_tests {
             named.contains(&r.best_move),
             "bestmove {:?} is outside searchmoves",
             r.best_move
+        );
+    }
+
+    /// A TT score stored away from the fifty-move horizon must not cut off a search of the same
+    /// board at halfmove 98: the clock is absent from the Zobrist key, but the searched subtree
+    /// can now reach a claim. The cached move remains usable; only the score is withheld.
+    #[test]
+    fn tt_score_from_low_clock_context_does_not_cut_off_near_fifty_move_horizon() {
+        let mut pos =
+            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 98 1")
+                .expect("fen");
+        assert_eq!(
+            pos.hash,
+            Position::startpos().hash,
+            "clock must be unhashed"
+        );
+        let mut tt = TranspositionTable::new(4);
+        tt.store(crate::tt::StoreRequest {
+            key: pos.hash,
+            best_move: None,
+            score: 500,
+            depth: 5,
+            bound: BOUND_EXACT,
+            ply: 0,
+            halfmove: 0,
+        });
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut searcher = Searcher::new(&mut tt, &stop, limits);
+        let _ = searcher.search(&mut pos, 2, -100, -99, 1);
+        assert!(
+            searcher.nodes() > 1,
+            "probe-clock-dependent TT score caused an unsafe cutoff"
         );
     }
 

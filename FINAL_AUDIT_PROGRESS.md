@@ -383,3 +383,7 @@ Scope of this phase: continue the audit after the CLOCK-1 gate, look for bugs by
 ### F-53 exact-head closeout (2026-11-22 14:32 UTC)
 
 Commit `c87a185f3a6a92c0d9d1b20f2aa04ad1261c67d8`, tree `05fb02e03926729a6aa19f430704cdf0acb0d7a1`: the clean-tree `scripts/final_gate.sh` completed with `FAILS=0` (all Rust, Python, perft/differential, UCI, fuzz, resource, clock, self-play, and full-game checks passed). Release binary SHA-256: `8edf447d428ff4f21d9337f118c60265493619eb7b77c5473e2eaaec858ef504`. Bench remains `849a85bf7e8e1eba`, 4,135,406 nodes. The full final-gate record is appended in FAILURE_LEDGER.md. This is local validation only; existing release blockers remain unchanged.
+
+## 2026-11-22 — F-54 TT halfmove-context guard
+
+A transposition score stored at halfmove 0 could be reused at halfmove 98 because the Zobrist key omits the clock and the old `CLOCK-UNSAFE` flag only described the store context. That could bypass a claimable fifty-move draw reached in the probe context. `probe` now receives the current halfmove clock and suppresses scores when current clock + stored depth can reach 100, while retaining the move for ordering. Added boundary and search-level regressions; the search-level test fails in a mutation with the probe-time check removed. At this point fmt, clippy (debug/release), and release/debug Rust test suites pass; exact-head full gate is pending. Bench signature and node count remain unchanged.

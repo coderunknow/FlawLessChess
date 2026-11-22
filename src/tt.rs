@@ -4,7 +4,8 @@
 //! - 8-byte entries; power-of-two entry count; aligned u64 access.
 //! - Mate scores are stored ply-relative (added on store, subtracted on load).
 //! - Scores from subtrees that can reach the fifty-move horizon are flagged CLOCK-UNSAFE
-//!   at store time and never reused as bounds; their best move remains usable for ordering.
+//!   at store time and never reused as bounds. Probe-time halfmove + stored-depth checks also
+//!   prevent a low-clock entry from being reused near the horizon; moves remain usable for ordering.
 
 use crate::types::Move;
 
@@ -272,7 +273,10 @@ impl TranspositionTable {
         }
     }
 
-    pub fn probe(&mut self, key: u64, ply: i32) -> ProbeResult {
+    /// Probe a position at `halfmove`. The clock is not in the Zobrist key, so the score bound
+    /// is suppressed if either store-time or probe-time depth can reach the fifty-move horizon.
+    /// The best move remains available for ordering when the score is suppressed.
+    pub fn probe(&mut self, key: u64, ply: i32, halfmove: u16) -> ProbeResult {
         self.probes += 1;
         let e = Self::unpack(self.entries[self.index(key)]);
         if e.bound() == BOUND_NONE || e.key16 != (key >> 48) as u16 {
@@ -291,8 +295,10 @@ impl TranspositionTable {
         };
         ProbeResult {
             best_move,
-            // Clock-unsafe entries never provide a reusable score bound.
-            score: if e.clock_unsafe() {
+            // A score is reusable only when it was clock-safe where stored AND the probe's
+            // own halfmove clock plus the stored depth cannot reach the fifty-move horizon.
+            // The Zobrist key excludes the clock, so both contexts must be checked.
+            score: if e.clock_unsafe() || halfmove as i32 + e.depth_val() >= FIFTY_MOVE_HORIZON {
                 None
             } else {
                 Some(Self::adjust_score_from_tt(e.score, ply))
@@ -323,11 +329,11 @@ impl TranspositionTable {
             halfmove,
         } = req;
         let depth_v = depth.clamp(0, DEPTH_VALUE_MASK as i32);
-        // An entry's score is independent of the halfmove clock iff every position in the
-        // searched subtree stays below the fifty-move horizon; then the score is valid in
-        // ANY clock context. Otherwise the score is never reused as a bound (the clock is
-        // excluded from the Zobrist key, so cross-context reuse would be unsound), but the
-        // entry still carries the best move for ordering.
+        // Mark scores whose searched subtree may reach the fifty-move horizon in the store
+        // context. Such scores are never reused as bounds. For entries safe at store time,
+        // `probe` also checks the probing halfmove clock + stored depth because the clock is
+        // excluded from the Zobrist key; a score safe at halfmove 0 can still be unsafe at 98.
+        // The best move remains available for ordering in either case.
         let clock_safe = (halfmove as i32 + depth_v) < FIFTY_MOVE_HORIZON;
         let depth_field = (depth_v as u8) | if clock_safe { 0 } else { CLOCK_UNSAFE_FLAG };
         let idx = self.index(key);
@@ -367,7 +373,7 @@ mod tests {
             ply: 0,
             halfmove: 0,
         });
-        let p = tt.probe(key, 0);
+        let p = tt.probe(key, 0, 0);
         assert_eq!(p.score, Some(150));
         assert_eq!(p.depth, 7);
         assert_eq!(p.best_move, Some(Move::new(12, 28)));
@@ -386,9 +392,9 @@ mod tests {
             ply: 10,
             halfmove: 0,
         });
-        let p = tt.probe(key, 10);
+        let p = tt.probe(key, 10, 0);
         assert_eq!(p.score, Some(MATE_BOUND + 5));
-        let p_other = tt.probe(key, 3);
+        let p_other = tt.probe(key, 3, 0);
         assert_eq!(p_other.score, Some(MATE_BOUND + 5 + 7));
     }
 
@@ -404,7 +410,7 @@ mod tests {
             ply: 0,
             halfmove: 0,
         });
-        let p = tt.probe(0xBBBBCCCCDDDDEEEEu64, 0);
+        let p = tt.probe(0xBBBBCCCCDDDDEEEEu64, 0, 0);
         assert_eq!(p.score, None);
     }
 
@@ -423,7 +429,7 @@ mod tests {
             ply: 0,
             halfmove: 96,
         });
-        let p = tt.probe(key, 0);
+        let p = tt.probe(key, 0, 0);
         assert_eq!(p.score, None);
         assert_eq!(p.best_move, Some(mv));
         assert_eq!(p.depth, 4);
@@ -438,7 +444,7 @@ mod tests {
             ply: 0,
             halfmove: 94,
         });
-        assert_eq!(tt2.probe(key, 0).score, Some(300));
+        assert_eq!(tt2.probe(key, 0, 0).score, Some(300));
         // Boundary: halfmove 99 + depth 1 = 100 -> unsafe.
         let mut tt3 = TranspositionTable::new(1);
         tt3.store(StoreRequest {
@@ -450,7 +456,34 @@ mod tests {
             ply: 0,
             halfmove: 99,
         });
-        assert_eq!(tt3.probe(key, 0).score, None);
+        assert_eq!(tt3.probe(key, 0, 0).score, None);
+    }
+
+    /// A bound stored early in the fifty-move clock is not portable to a probe near the
+    /// horizon, even when that entry was safe in its original context (F-54).
+    #[test]
+    fn clock_safe_store_is_suppressed_when_probe_clock_can_reach_horizon() {
+        let mut tt = TranspositionTable::new(1);
+        let key = 0xA1B2_C3D4_E5F6_0708u64;
+        let mv = Move::new(12, 28);
+        tt.store(StoreRequest {
+            key,
+            best_move: Some(mv),
+            score: 275,
+            depth: 5,
+            bound: BOUND_EXACT,
+            ply: 0,
+            halfmove: 0,
+        });
+
+        // The entry's stored depth cannot reach 100 from 94, but it can from 95.
+        assert_eq!(tt.probe(key, 0, 94).score, Some(275));
+        for halfmove in [95, 98, 99] {
+            let probe = tt.probe(key, 0, halfmove);
+            assert_eq!(probe.score, None, "unsafe probe clock {halfmove}");
+            assert_eq!(probe.best_move, Some(mv), "move ordering at {halfmove}");
+            assert_eq!(probe.depth, 5);
+        }
     }
 
     #[test]
@@ -475,7 +508,7 @@ mod tests {
             ply: 0,
             halfmove: 0,
         }); // shallower, must not replace
-        let p = tt.probe(key, 0);
+        let p = tt.probe(key, 0, 0);
         assert_eq!(p.score, Some(100));
         tt.store(StoreRequest {
             key,
@@ -486,7 +519,7 @@ mod tests {
             ply: 0,
             halfmove: 0,
         }); // deeper, replaces
-        let p = tt.probe(key, 0);
+        let p = tt.probe(key, 0, 0);
         assert_eq!(p.score, Some(200));
     }
 }
@@ -526,7 +559,7 @@ mod mate_score_range_tests {
             ply: 127,
             halfmove: 0,
         });
-        assert_eq!(tt.probe(key, 127).score, Some(MATE_SCORE - 1));
+        assert_eq!(tt.probe(key, 127, 0).score, Some(MATE_SCORE - 1));
     }
 
     #[test]
