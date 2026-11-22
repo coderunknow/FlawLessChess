@@ -1154,3 +1154,10 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - Probe evidence is weak in both directions. Short 300 ms sudden-death games: 4 games at 128-node cadence (49, 49, 49, 73 plies; min remaining 201 ms) and 4 games at `a722693` (63, 63, 63, 155 plies; min remaining 82 ms). None flagged. The original flagged game was 177 plies, so this sample does not prove the fix. The full gate on the new head is the next evidence.
 - Not changed: the reserve and floor in `clock_limits` (CLOCK-1 scope, owner decision). The remaining fixed cost of about 1.7 ms per `go` above the planned 1 ms was not explained. The flag is a real overspend and its margin is thin for games over about 150 plies at 300 ms sudden death.
 - The F-49 cadence change is an engine time-control behaviour change. It does not touch the bench pin or LMR.
+
+## Provenance and gate record (2026-11-21, release audit on PR #4)
+
+- PROVENANCE F-12 (CodeRabbit thread on `FAILURE_LEDGER.md` 542, review 7065189581): the fix commit is `df6417d` (the F-12 entry above). UTF-8 handling first appears in `49fdecf` (`src/uci.rs`). Raw before/after batch output: UNAVAILABLE in the repo. The regression test is `tests/cli_batch.rs` (present at `696e665`).
+- GATE F-49 (`696e665`, `scripts/final_gate.sh /tmp/gates/final-696e665`; summary may not survive `/tmp`): 46 of 46 steps rc 0, FAILS=0, `head_unchanged_at_end` clean at `696e665`. `selfplay_300_sd` rc 0 (49 plies, min remaining 229 ms). `selfplay_1000_sd` rc 0. Bench signature `849a85bf7e8e1eba`. This replaces the `a722693` FAIL at `selfplay_300_sd` for the same binary family; the `a722693` failure is kept above, not edited.
+- Evidence limit: one passing 300 ms sudden-death game is not proof that the overrun is gone. The original flag was a 177-ply game. Long-game clock margin at 300 ms remains a watch item until more long-game runs are logged.
+- Commits after `696e665` in this push (`FAILURE_LEDGER.md` only, no code change) are append-only records.
