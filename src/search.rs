@@ -106,6 +106,9 @@ pub struct Searcher<'a> {
     /// Best move found at ply 0 in the most recent completed search call. Used for
     /// restricted-root PV construction instead of stale TT entries.
     root_best: Option<Move>,
+    /// Null-move descendants are hypothetical positions, not a legal game path. Repetition
+    /// adjudication must not use the game/search history while this flag is set (F-53).
+    null_move_search: bool,
 }
 
 impl<'a> Searcher<'a> {
@@ -132,6 +135,7 @@ impl<'a> Searcher<'a> {
             start: Instant::now(),
             root_moves: None,
             root_best: None,
+            null_move_search: false,
         }
     }
 
@@ -144,6 +148,13 @@ impl<'a> Searcher<'a> {
 
     pub fn nodes(&self) -> u64 {
         self.nodes
+    }
+
+    /// Null-move search is a selective-search heuristic, not a legal path from the game's
+    /// history. A matching historical hash under it does not constitute a real repetition.
+    #[inline]
+    fn is_repetition(&self, pos: &Position, ply: i32) -> bool {
+        ply > 0 && !self.null_move_search && pos.is_repetition()
     }
 
     /// Clock check cadence: every 128 nodes (F-49). At the 1 ms floor budget a 1024-node
@@ -558,7 +569,7 @@ impl<'a> Searcher<'a> {
         if ply > 0 && pos.insufficient_material() {
             return DRAW_SCORE;
         }
-        if ply > 0 && pos.is_repetition() {
+        if self.is_repetition(pos, ply) {
             if in_chk && generate_legal(pos).len == 0 {
                 return -MATE_SCORE + ply;
             }
@@ -630,7 +641,10 @@ impl<'a> Searcher<'a> {
             let prev_ep_included = pos.ep_included;
             pos.make_null_move();
             let reduction = 2 + depth / 4;
+            let was_null_move_search = self.null_move_search;
+            self.null_move_search = true;
             let score = -self.search(pos, depth - 1 - reduction, -beta, -beta + 1, ply + 1);
+            self.null_move_search = was_null_move_search;
             pos.unmake_null_move(prev_ep, prev_ep_included);
             if self.stop.load(Ordering::Relaxed) {
                 return alpha;
@@ -820,7 +834,7 @@ impl<'a> Searcher<'a> {
         }
         // Certain draws and in-tree repetition (terminal check ran first, so mate cannot be
         // masked here). Fifty-move is a claim handled by the `quiesce` wrapper.
-        if pos.insufficient_material() || (ply > 0 && pos.is_repetition()) {
+        if pos.insufficient_material() || self.is_repetition(pos, ply) {
             return DRAW_SCORE;
         }
 
@@ -1175,6 +1189,37 @@ mod draw_rule_tests {
             named.contains(&r.best_move),
             "bestmove {:?} is outside searchmoves",
             r.best_move
+        );
+    }
+
+    /// A null move is not a real game move, so a position reached by a null-search branch must
+    /// not be treated as repeated merely because that hash exists in the game's history. This
+    /// legal four-ply sequence makes the distinction concrete: after black's two king moves and
+    /// white's rook manoeuvre, a hypothetical null followed by Ra8-f8 recreates the initial hash.
+    #[test]
+    fn null_move_search_does_not_claim_game_history_repetition() {
+        let mut pos = Position::from_fen("5R2/8/8/8/7K/3p4/4P3/6k1 b - - 0 1").expect("fen");
+        for m in ["g1h1", "f8e8", "h1g1", "e8a8"] {
+            play(&mut pos, m);
+        }
+        assert!(!pos.is_repetition());
+
+        pos.make_null_move();
+        play(&mut pos, "a8f8");
+        assert!(
+            pos.is_repetition(),
+            "setup must match the historical position"
+        );
+
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut searcher = Searcher::new(&mut tt, &stop, limits);
+        searcher.null_move_search = true;
+        let _ = searcher.search(&mut pos, 0, -INF_SCORE, INF_SCORE, 1);
+        assert!(
+            searcher.nodes() > 2,
+            "search and quiescence must both ignore historical repetitions under a null move"
         );
     }
 

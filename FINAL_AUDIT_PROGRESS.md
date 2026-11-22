@@ -373,3 +373,9 @@ Scope of this phase: continue the audit after the CLOCK-1 gate, look for bugs by
 
 - Earlier entries that describe `go searchmoves` widening as a decision still open (around L112, L146, L193, L205 and L278 in this file) are history. The owner's strict direction of 2026-11-22 (F-46, DESIGN_LOG.md) governs: a named list with no legal move answers `bestmove 0000` and announces it on stdout. Do not read the older lines as the current decision.
 - F-52 (external review of `bf026f8`): ponder node cap counted from `ponderhit`, `movestogo` overflow saturation, en-passant FEN checks, and the `(none)` probe gap are fixed (`14b411e`, gate 46/46, `FAILS=0`). Release blockers are unchanged: G2, G3, CLOCK-1.
+
+## 2026-11-22 — F-53 null-move repetition fix
+
+- Found a false draw path in null-move search: the artificial pass was not in the position history, but its descendants still consulted real game hashes. A legally reachable four-ply setup proves the collision: after `g1h1 f8e8 h1g1 e8a8`, a null move plus `Ra8-f8` matches the initial hash.
+- Fixed by suppressing repetition adjudication in both search and quiescence during a null-move subtree; nested null branches preserve the marker. Added a regression that requires both layers to continue beyond the historical-hash match.
+- Verification: targeted release regression PASS; full `cargo test --release --locked` and debug `cargo test --locked` PASS; fmt and debug/release clippy with denied warnings PASS. `scripts/final_gate.sh` ran all functional/harness/perft/fuzz/clock/resource probes successfully; its sole failure was the last clean-tree identity check because the change was still uncommitted. Bench remains `849a85bf7e8e1eba`, 4,135,406 nodes. Clean-tree final gate pending.
