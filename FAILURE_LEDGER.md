@@ -1161,3 +1161,12 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - GATE F-49 (`696e665`, `scripts/final_gate.sh /tmp/gates/final-696e665`; summary may not survive `/tmp`): 46 of 46 steps rc 0, FAILS=0, `head_unchanged_at_end` clean at `696e665`. `selfplay_300_sd` rc 0 (49 plies, min remaining 229 ms). `selfplay_1000_sd` rc 0. Bench signature `849a85bf7e8e1eba`. This replaces the `a722693` FAIL at `selfplay_300_sd` for the same binary family; the `a722693` failure is kept above, not edited.
 - Evidence limit: one passing 300 ms sudden-death game is not proof that the overrun is gone. The original flag was a 177-ply game. Long-game clock margin at 300 ms remains a watch item until more long-game runs are logged.
 - Commits after `696e665` in this push (`FAILURE_LEDGER.md` only, no code change) are append-only records.
+
+## F-50 — `uci_malformed_probe` passed a widening engine on `go searchmoves zzzz` (2026-11-21, CodeRabbit 4657194921)
+
+- Defect (probe, LOW-MEDIUM): for an illegal-only `go searchmoves`, the probe accepted any legal reply. Under the strict owner rule (2026-11-22), the required answer is `bestmove 0000` plus the stdout notice. A search that widened to all legal moves would have passed.
+- Evidence before the fix: the probe as committed in `566cc26`'s parent, against a fake engine that answers `bestmove e2e4` to every `go` (`/tmp/widen_fake.py`): rc 0, `OK ... 'go searchmoves zzzz'`, 37/37 OK. That is a vacuous pass.
+- Fix (`scripts/uci_malformed_probe.py`): named moves are read from the `go searchmoves` tokens up to the next go keyword. When no named move is legal, the reply must be `0000` with the notice, else `STRICT_SEARCHMOVES_VIOLATION`. A legal reply outside the named legal moves fails as `OUTSIDE_SEARCHMOVES`. A bare `go searchmoves` (no named moves) stays unrestricted.
+- Evidence after the fix: real release engine 37/37 rc 0 (`/tmp/malformed_real_566.log`). Widening fake: rc 1, `STRICT_SEARCHMOVES_VIOLATION e2e4 ... 'go searchmoves zzzz'` (`/tmp/malformed_widen_566.log`).
+- Not changed: `scripts/test_mate_proof_classify.py` still needs the venv interpreter, because it imports `mate_proof_probe`, which imports `chess` at module load. A CodeRabbit suggestion to use system `python3` for that test was rejected for this reason (`TESTING.md` unchanged).
+- The full `final_gate.sh` was not rerun for this probe-only change. The engine binary and the `bench` signature are unchanged from `696e665`.

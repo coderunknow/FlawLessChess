@@ -8,6 +8,8 @@ within a bounded time, then `quit` (exit 0). A panic shows up as a non-zero exit
 import queue, subprocess, sys, threading, time
 import chess  # referee: every bestmove is checked for legality (python-chess, pinned in CI)
 
+GO_KEYWORDS = {"searchmoves", "ponder", "wtime", "btime", "winc", "binc", "movestogo", "depth", "nodes", "mate", "movetime", "infinite"}
+
 EXE = sys.argv[1]
 CASES = [
     "position fen",
@@ -122,19 +124,31 @@ def run(line):
             if len(parts) < 2:
                 return finish("EMPTY_BESTMOVE")
             mv = parts[1]
-            if mv in ("0000", "(none)"):
-                # Strict searchmoves (owner direction 2026-11-22): when no named move is legal the
-                # answer is 0000, and stdout must announce it. Any other null answer is a failure.
+            start_legal = {m.uci() for m in chess.Board().legal_moves}
+            # `go searchmoves M...` restricts the root set to the named moves (strict, owner direction
+            # 2026-11-22). Named moves are the tokens up to the next go keyword. A bare searchmoves
+            # names nothing and is not restricted.
+            named = []
+            if line.startswith("go searchmoves"):
+                for tok in line.split()[2:]:
+                    if tok in GO_KEYWORDS:
+                        break
+                    named.append(tok)
+            restricted = bool(named)
+            named_legal = [m for m in named if m in start_legal]
+            if restricted and not named_legal:
+                # No named move is legal: the answer must be 0000 and stdout must announce it.
+                # Any legal move here is a widened search, which is a failure.
                 announced = any(l.startswith("info string searchmoves") and "no legal move" in l for l in out_lines)
-                if not (line.startswith("go searchmoves") and announced):
-                    return finish(f"NULL_BESTMOVE {mv} from the start position")
+                if mv not in ("0000", "(none)") or not announced:
+                    return finish(f"STRICT_SEARCHMOVES_VIOLATION {mv} (no named move is legal; need 0000 plus notice)")
+            elif mv in ("0000", "(none)"):
+                return finish(f"NULL_BESTMOVE {mv} from the start position")
             else:
-                try:
-                    legal = chess.Move.from_uci(mv) in chess.Board().legal_moves
-                except ValueError:
-                    legal = False
-                if not legal:
+                if mv not in start_legal:
                     return finish(f"ILLEGAL_BESTMOVE {mv} from the start position")
+                if restricted and mv not in named_legal:
+                    return finish(f"OUTSIDE_SEARCHMOVES {mv} is not one of the named legal moves")
         send("isready")
         if until(lambda l: l == "readyok", 10) is None:
             return finish("NO_READYOK")
