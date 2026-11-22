@@ -824,12 +824,15 @@ impl Position {
         Some(file_of(self.ep as Square))
     }
 
-    /// Count how many times the current hash appears in `history` (excluding the last entry,
-    /// which is the current position).
+    /// Count how many times the current hash appears in the reversible portion of `history`
+    /// (excluding the current position). A pawn move or capture resets `halfmove`, and a position
+    /// before that irreversible move cannot have the same hash, so older entries are irrelevant.
     pub fn repetition_count(&self) -> usize {
         let cur = self.hash;
         self.history
             .iter()
+            .rev()
+            .take((self.halfmove as usize).saturating_add(1))
             .filter(|&&h| h == cur)
             .count()
             .saturating_sub(1)
@@ -1097,5 +1100,61 @@ mod ep_legality_tests {
         assert_eq!(p.fullmove, u32::MAX);
         p.unmake_move(m, &undo);
         assert_eq!(p.fullmove, u32::MAX);
+    }
+}
+
+#[cfg(test)]
+mod repetition_window_tests {
+    use super::*;
+    use crate::movegen::generate_legal;
+
+    fn play(pos: &mut Position, uci: &str) {
+        let legal = generate_legal(pos);
+        let mv = legal
+            .iter()
+            .copied()
+            .find(|m| m.to_string() == uci)
+            .unwrap_or_else(|| panic!("expected legal move {uci}"));
+        pos.make_move(mv);
+    }
+
+    fn assert_matches_full_history(pos: &Position) {
+        let reference = pos
+            .history
+            .iter()
+            .filter(|&&hash| hash == pos.hash)
+            .count()
+            .saturating_sub(1);
+        assert_eq!(pos.repetition_count(), reference, "{}", pos.to_fen());
+    }
+
+    /// The reversible window must retain actual repetitions while excluding positions before a
+    /// pawn move. This also tests a long history with a short current halfmove clock—the case the
+    /// bounded scan is intended to accelerate.
+    #[test]
+    fn bounded_repetition_scan_matches_full_history_across_irreversible_moves() {
+        let mut pos = Position::startpos();
+        for _ in 0..12 {
+            for mv in ["g1f3", "g8f6", "f3g1", "f6g8"] {
+                play(&mut pos, mv);
+                assert_matches_full_history(&pos);
+            }
+        }
+        assert_eq!(pos.repetition_count(), 12);
+
+        play(&mut pos, "e2e4");
+        assert_eq!(pos.halfmove, 0);
+        assert_matches_full_history(&pos);
+        assert_eq!(pos.repetition_count(), 0);
+
+        for _ in 0..20 {
+            for mv in ["g8f6", "g1f3", "f6g8", "f3g1"] {
+                play(&mut pos, mv);
+                assert_matches_full_history(&pos);
+            }
+        }
+        assert_eq!(pos.history.len(), 130);
+        assert_eq!(pos.halfmove, 80);
+        assert_eq!(pos.repetition_count(), 20);
     }
 }
