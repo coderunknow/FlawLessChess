@@ -1156,5 +1156,12 @@ mod repetition_window_tests {
         assert_eq!(pos.history.len(), 130);
         assert_eq!(pos.halfmove, 80);
         assert_eq!(pos.repetition_count(), 20);
+
+        play(&mut pos, "d7d5");
+        assert_eq!(pos.halfmove, 0);
+        play(&mut pos, "e4d5");
+        assert_eq!(pos.halfmove, 0);
+        assert_matches_full_history(&pos);
+        assert_eq!(pos.repetition_count(), 0);
     }
 }
