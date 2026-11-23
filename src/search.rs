@@ -325,6 +325,8 @@ impl<'a> Searcher<'a> {
         }
 
         let legal = generate_legal(pos);
+        let root_fifty_claim = legal.len > 0
+            && (pos.is_fifty_move() || (pos.halfmove == 99 && has_claiming_move(pos, &legal)));
         let mut roots: Vec<Move> = legal.iter().copied().collect();
         // Root order is the tie-break order for equal scores (S-14): use the colour-relative key.
         roots.sort_by_key(|&m| relative_move_key(pos.side, m));
@@ -382,7 +384,8 @@ impl<'a> Searcher<'a> {
             let mut completed = false;
 
             if multi_pv > 1 {
-                let lines = self.multipv_iteration(pos, depth, &roots, multi_pv, cb);
+                let lines =
+                    self.multipv_iteration(pos, depth, &roots, multi_pv, root_fifty_claim, cb);
                 if self.stop.load(Ordering::Relaxed) && depth > 1 {
                     break;
                 }
@@ -474,6 +477,7 @@ impl<'a> Searcher<'a> {
         depth: i32,
         roots: &[Move],
         multi_pv: usize,
+        root_fifty_claim: bool,
         cb: &mut dyn FnMut(&SearchProgress),
     ) -> Vec<(Move, i32)> {
         let mut results: Vec<(Move, i32)> = Vec::with_capacity(roots.len());
@@ -482,8 +486,11 @@ impl<'a> Searcher<'a> {
                 break;
             }
             let undo = pos.make_move(rm);
-            let score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1);
+            let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1);
             pos.unmake_move(rm, &undo);
+            if root_fifty_claim && score < DRAW_SCORE {
+                score = DRAW_SCORE;
+            }
             if self.stop.load(Ordering::Relaxed) {
                 // aborted mid-search: the returned score is garbage; discard it
                 break;
@@ -530,7 +537,7 @@ impl<'a> Searcher<'a> {
                 }
             }
             let key = pos.hash;
-            match self.tt.probe_move(key) {
+            match self.tt.probe_move(key, pos.halfmove) {
                 Some(m) => {
                     let legal = generate_legal(&mut pos);
                     if !legal.iter().any(|&x| x == m) {
@@ -598,9 +605,9 @@ impl<'a> Searcher<'a> {
         // Transposition table probe first: terminal nodes are deterministic, so a
         // sufficient-depth entry is equally valid there — and this keeps TT-cutoff
         // nodes off the movegen path.
-        // Zobrist excludes the halfmove clock. The TT rejects scores unsafe in their store
-        // context and also checks this position's halfmove clock + stored depth before a
-        // score can cut off; the move remains safe for ordering.
+        // Position::hash excludes the halfmove clock because it is also the repetition key.
+        // The TT adds the clock to its own contextual key, so only matching clock contexts can
+        // reuse a score or move; this avoids bounding extensions and quiescence by nominal depth.
         let key = pos.hash;
         let probe = self.tt.probe(key, ply, pos.halfmove);
         let tt_move = probe.best_move;
@@ -1386,11 +1393,52 @@ mod draw_rule_tests {
         assert_eq!(r.score_cp, DRAW_SCORE, "missed intended fifty-move claim");
     }
 
+    /// MultiPV searches each root move separately, so it must carry the unchanged root's
+    /// claim option into the displayed line score even when the selected search move resets
+    /// the clock. `searchmoves a2a3` must not hide White's claim by announcing a quiet king move.
+    #[test]
+    fn multipv_root_claim_survives_restricted_clock_resetting_move() {
+        let mut pos = Position::from_fen("7k/8/8/8/5K2/8/P7/q7 w - - 99 74").expect("fen");
+        let pawn_move = Move::from_uci("a2a3").expect("move");
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 2,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let mut progress = Vec::new();
+        let r = s.search_root(&mut pos, Some(vec![pawn_move]), 2, &mut |p| {
+            progress.push(p.clone());
+        });
+        assert_eq!(r.best_move, pawn_move);
+        assert_eq!(r.score_cp, DRAW_SCORE);
+        assert!(!progress.is_empty());
+        assert!(progress.iter().all(|p| p.score_cp >= DRAW_SCORE));
+    }
+
+    #[test]
+    fn multipv_root_claim_does_not_clamp_a_positive_score_to_draw() {
+        let mut pos = Position::from_fen("r6k/8/2Q5/8/8/8/8/6K1 w - - 99 1").expect("fen");
+        let legal = generate_legal(&mut pos);
+        assert!(has_claiming_move(&pos, &legal));
+
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 1,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let r = s.search_root(&mut pos, None, 2, &mut |_| {});
+        assert!(r.score_cp > DRAW_SCORE, "positive score was lost: {r:?}");
+    }
+
     /// Halfmove 99 is claimable only when a legal quiet non-pawn move can be announced.
     /// In this checked position all four legal moves capture the checking-side queen, so the
     /// clock advances only if the claim condition were incorrectly applied to captures.
     #[test]
-    fn clock_99_without_eligible_quiet_move_is_not_claimable() {
+    fn clock_99_without_eligible_quiet_move_is_not_claimable_in_multipv() {
         let fen = "rnbq1b1r/2pQk2p/5ppn/pp2P3/1P6/P1P1PP2/6PP/RNB1KBNR b KQ - {clock} 40";
         let mut scores = Vec::new();
         for clock in [98, 99] {
@@ -1407,12 +1455,43 @@ mod draw_rule_tests {
             }));
             let mut s = Searcher::new(&mut tt, &stop, limits);
             let capture = Move::from_uci("e7d7").expect("capture");
-            let r = s.search_root(&mut pos, Some(vec![capture]), 1, &mut |_| {});
+            let r = s.search_root(&mut pos, Some(vec![capture]), 2, &mut |_| {});
             assert_eq!(r.best_move, capture);
             scores.push(r.score_cp);
         }
         assert_eq!(scores[0], scores[1]);
         assert!(scores[1] > DRAW_SCORE);
+    }
+
+    /// A clock-0 depth-1 TT bound cannot cut off the same position at clock 97. The non-PV
+    /// mate-bound window disables shallow static pruning while still allowing a TT cutoff; the
+    /// `b4g4` checking line plus quiet evasion reaches the claim boundary through extensions/qsearch.
+    #[test]
+    fn tt_score_does_not_cross_clock_before_extended_quiescence_claim() {
+        let mut pos =
+            Position::from_fen("8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 97 40").expect("fen");
+        let mut tt = TranspositionTable::new(4);
+        tt.store(crate::tt::StoreRequest {
+            key: pos.hash,
+            best_move: Some(Move::from_uci("b4g4").expect("move")),
+            score: -500,
+            depth: 1,
+            bound: BOUND_EXACT,
+            ply: 0,
+            halfmove: 0,
+        });
+        assert_eq!(tt.probe(pos.hash, 0, 97).score, None);
+
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let _ = s.search(&mut pos, 1, MATE_BOUND, MATE_BOUND + 1, 0);
+        assert!(
+            s.nodes() > 1,
+            "search did not explore beyond the root: nodes={}, stop={}",
+            s.nodes(),
+            stop.load(Ordering::Relaxed)
+        );
     }
 
     /// The qsearch boundary must honor intended claims too, without replacing a checkmate

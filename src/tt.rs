@@ -3,10 +3,9 @@
 //! - Zobrist-keyed, depth-preferred replacement with generation aging.
 //! - 8-byte entries; power-of-two entry count; aligned u64 access.
 //! - Mate scores are stored ply-relative (added on store, subtracted on load).
-//! - Scores from subtrees that can reach a fifty-move claim (including announcing a move at
-//!   halfmove 99) are flagged CLOCK-UNSAFE at store time and never reused as bounds. Probe-time
-//!   halfmove + stored-depth checks also prevent low-clock entries being reused near that boundary;
-//!   moves remain usable for ordering.
+//! - The halfmove clock is mixed into the TT key. A bound is therefore reused only for the exact
+//!   clock context in which it was searched, including clocks reached through extensions and
+//!   quiescence; the position's repetition/Zobrist hash remains clock-independent.
 
 use crate::types::Move;
 
@@ -20,17 +19,12 @@ struct Entry {
     key16: u16,
     move16: u16,
     score: i16,
-    /// Search depth 0..=127 in bits 0..=6. Bit 7 is the CLOCK-UNSAFE flag: set when the
-    /// subtree at store time could reach an announced fifty-move claim (store-time halfmove +
-    /// remaining depth >= 99). Such scores are halfmove-clock-context-dependent and must
-    /// never be reused as a bound — the cached move stays valid for ordering.
+    /// Search depth 0..=127.
     depth: i8,
     bound_gen: u8, // bound(2 bits) | gen(6 bits)
 }
 
-const FIFTY_MOVE_CLAIM_HORIZON: i32 = 99;
 const DEPTH_VALUE_MASK: u8 = 0x7F;
-const CLOCK_UNSAFE_FLAG: u8 = 0x80;
 
 impl Entry {
     fn bound(&self) -> u8 {
@@ -41,9 +35,6 @@ impl Entry {
     }
     fn depth_val(&self) -> i32 {
         (self.depth as u8 & DEPTH_VALUE_MASK) as i32
-    }
-    fn clock_unsafe(&self) -> bool {
-        self.depth as u8 & CLOCK_UNSAFE_FLAG != 0
     }
 }
 
@@ -56,7 +47,7 @@ pub struct StoreRequest {
     pub depth: i32,
     pub bound: u8,
     pub ply: i32,
-    /// Halfmove clock at store time; decides the CLOCK-UNSAFE flag (claim boundary at 99).
+    /// Halfmove clock at store time; included in the TT key context.
     pub halfmove: u16,
 }
 
@@ -245,9 +236,21 @@ impl TranspositionTable {
         }
     }
 
+    /// Mix the halfmove clock into the table key without changing `Position::hash`, which is
+    /// also the repetition key and intentionally excludes clocks. SplitMix64's finalizer is a
+    /// bijection; multiplying the u16 clock by an odd constant gives each clock a distinct input
+    /// for a fixed position key.
     #[inline]
-    fn index(&self, key: u64) -> usize {
-        (key as usize) & self.len_mask
+    fn contextual_key(key: u64, halfmove: u16) -> u64 {
+        let mut z = key ^ (u64::from(halfmove).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    #[inline]
+    fn index(&self, contextual_key: u64) -> usize {
+        (contextual_key as usize) & self.len_mask
     }
 
     #[inline]
@@ -274,11 +277,11 @@ impl TranspositionTable {
         }
     }
 
-    /// Probe a position at `halfmove`. The clock is not in the Zobrist key, so the score bound
-    /// is suppressed if either store-time or probe-time depth can reach the fifty-move claim boundary.
-    /// The best move remains available for ordering when the score is suppressed.
+    /// Probe a position at its exact halfmove clock. The clock is mixed into the TT key, so
+    /// bounds searched in another clock context cannot be mistaken for this position's score.
     pub fn probe(&mut self, key: u64, ply: i32, halfmove: u16) -> ProbeResult {
         self.probes += 1;
+        let key = Self::contextual_key(key, halfmove);
         let e = Self::unpack(self.entries[self.index(key)]);
         if e.bound() == BOUND_NONE || e.key16 != (key >> 48) as u16 {
             return ProbeResult {
@@ -296,23 +299,15 @@ impl TranspositionTable {
         };
         ProbeResult {
             best_move,
-            // A score is reusable only when it was clock-safe where stored AND the probe's
-            // own halfmove clock plus the stored depth cannot reach an announced-move claim at 99.
-            // The Zobrist key excludes the clock, so both contexts must be checked.
-            score: if e.clock_unsafe()
-                || halfmove as i32 + e.depth_val() >= FIFTY_MOVE_CLAIM_HORIZON
-            {
-                None
-            } else {
-                Some(Self::adjust_score_from_tt(e.score, ply))
-            },
+            score: Some(Self::adjust_score_from_tt(e.score, ply)),
             depth: e.depth_val(),
             bound: e.bound(),
         }
     }
 
-    /// Cheap best-move probe (no stats, for move ordering / PV extraction).
-    pub fn probe_move(&self, key: u64) -> Option<Move> {
+    /// Cheap best-move probe in the same halfmove context (no stats, for PV extraction).
+    pub fn probe_move(&self, key: u64, halfmove: u16) -> Option<Move> {
+        let key = Self::contextual_key(key, halfmove);
         let e = Self::unpack(self.entries[self.index(key)]);
         if e.bound() == BOUND_NONE || e.key16 != (key >> 48) as u16 || e.move16 == 0 {
             None
@@ -332,13 +327,10 @@ impl TranspositionTable {
             halfmove,
         } = req;
         let depth_v = depth.clamp(0, DEPTH_VALUE_MASK as i32);
-        // Mark scores whose searched subtree may reach an announced-move claim at halfmove 99
-        // in the store context. Such scores are never reused as bounds. For entries safe at store
-        // time, `probe` also checks probing clock + stored depth because the clock is excluded
-        // from the Zobrist key; a score safe at halfmove 0 can be unsafe near the claim boundary.
-        // The best move remains available for ordering in either case.
-        let clock_safe = (halfmove as i32 + depth_v) < FIFTY_MOVE_CLAIM_HORIZON;
-        let depth_field = (depth_v as u8) | if clock_safe { 0 } else { CLOCK_UNSAFE_FLAG };
+        // The contextual key ensures a bound is reused only at the same halfmove clock. This
+        // remains valid regardless of extensions or qsearch depth; the stored depth continues to
+        // describe the alpha-beta search depth, not a clock-horizon estimate.
+        let key = Self::contextual_key(key, halfmove);
         let idx = self.index(key);
         let old = Self::unpack(self.entries[idx]);
         let replace = old.bound() == BOUND_NONE
@@ -351,7 +343,7 @@ impl TranspositionTable {
             key16: (key >> 48) as u16,
             move16: best_move.map(|m| m.to_u16()).unwrap_or(0),
             score: Self::adjust_score_to_tt(score, ply),
-            depth: depth_field as i8,
+            depth: depth_v as i8,
             bound_gen: (bound & 0b11) | ((self.generation & 0b111111) << 2),
         };
         self.entries[idx] = Self::pack(&entry);
@@ -417,58 +409,14 @@ mod tests {
         assert_eq!(p.score, None);
     }
 
+    /// Scores and moves may be reused at the exact clock searched, but not across clocks.
+    /// This avoids assuming nominal depth bounds a continuation that can include check
+    /// extensions and quiescence evasions.
     #[test]
-    fn clock_unsafe_entries_suppress_score_but_keep_move() {
-        let mut tt = TranspositionTable::new(1);
+    fn tt_entries_are_scoped_to_the_exact_halfmove_clock() {
         let key = 0x0102030405060708u64;
         let mv = Move::new(12, 28);
-        // halfmove 96 + depth 4 = 100 -> clock-unsafe; score must not be reusable.
-        tt.store(StoreRequest {
-            key,
-            best_move: Some(mv),
-            score: 300,
-            depth: 4,
-            bound: BOUND_EXACT,
-            ply: 0,
-            halfmove: 96,
-        });
-        let p = tt.probe(key, 0, 0);
-        assert_eq!(p.score, None);
-        assert_eq!(p.best_move, Some(mv));
-        assert_eq!(p.depth, 4);
-        // halfmove 94 + depth 4 = 98 < 99 -> clock-safe in the store context.
-        let mut tt2 = TranspositionTable::new(1);
-        tt2.store(StoreRequest {
-            key,
-            best_move: Some(mv),
-            score: 300,
-            depth: 4,
-            bound: BOUND_EXACT,
-            ply: 0,
-            halfmove: 94,
-        });
-        assert_eq!(tt2.probe(key, 0, 0).score, Some(300));
-        // Boundary: halfmove 98 + depth 1 = 99 can reach an announced-move claim -> unsafe.
-        let mut tt3 = TranspositionTable::new(1);
-        tt3.store(StoreRequest {
-            key,
-            best_move: Some(mv),
-            score: 300,
-            depth: 1,
-            bound: BOUND_EXACT,
-            ply: 0,
-            halfmove: 99,
-        });
-        assert_eq!(tt3.probe(key, 0, 0).score, None);
-    }
-
-    /// A bound stored early in the fifty-move clock is not portable to a probe near the
-    /// horizon, even when that entry was safe in its original context (F-54).
-    #[test]
-    fn clock_safe_store_is_suppressed_when_probe_clock_can_reach_horizon() {
         let mut tt = TranspositionTable::new(1);
-        let key = 0xA1B2_C3D4_E5F6_0708u64;
-        let mv = Move::new(12, 28);
         tt.store(StoreRequest {
             key,
             best_move: Some(mv),
@@ -479,14 +427,36 @@ mod tests {
             halfmove: 0,
         });
 
-        // The entry's stored depth cannot reach the claim boundary from 93, but it can from 94.
-        assert_eq!(tt.probe(key, 0, 93).score, Some(275));
-        for halfmove in [94, 95, 98, 99] {
-            let probe = tt.probe(key, 0, halfmove);
-            assert_eq!(probe.score, None, "unsafe probe clock {halfmove}");
-            assert_eq!(probe.best_move, Some(mv), "move ordering at {halfmove}");
-            assert_eq!(probe.depth, 5);
+        let same_clock = tt.probe(key, 0, 0);
+        assert_eq!(same_clock.score, Some(275));
+        assert_eq!(same_clock.best_move, Some(mv));
+        assert_eq!(same_clock.depth, 5);
+        for halfmove in [1, 97, 98, 99, u16::MAX] {
+            let other_clock = tt.probe(key, 0, halfmove);
+            assert_eq!(other_clock.score, None, "cross-clock score at {halfmove}");
+            assert_eq!(
+                other_clock.best_move, None,
+                "cross-clock move at {halfmove}"
+            );
         }
+        assert_eq!(tt.probe_move(key, 0), Some(mv));
+        assert_eq!(tt.probe_move(key, 97), None);
+
+        // Entries immediately before and at the claim boundary remain isolated by exact clock
+        // context; no nominal-depth estimate is used to decide score reuse.
+        let mut boundary = TranspositionTable::new(1);
+        boundary.store(StoreRequest {
+            key,
+            best_move: Some(mv),
+            score: 0,
+            depth: 1,
+            bound: BOUND_EXACT,
+            ply: 0,
+            halfmove: 98,
+        });
+        assert_eq!(boundary.probe(key, 0, 98).score, Some(0));
+        assert_eq!(boundary.probe(key, 0, 97).score, None);
+        assert_eq!(boundary.probe(key, 0, 99).score, None);
     }
 
     #[test]

@@ -1651,6 +1651,21 @@ fn proven_mate_in_one_stops_deeper_single_pv_iterations() {
         bestmove_line(&lines).starts_with("bestmove b8e5"),
         "Qbe5# is the proven mate: {lines:?}"
     );
+    let deeper_iterations: Vec<_> = lines
+        .iter()
+        .filter_map(|line| {
+            line.strip_prefix("info depth ")?
+                .split_whitespace()
+                .next()?
+                .parse::<u32>()
+                .ok()
+        })
+        .filter(|&depth| depth > 1)
+        .collect();
+    assert!(
+        deeper_iterations.is_empty(),
+        "finite single-PV search continued after proving mate in one: {lines:?}"
+    );
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 

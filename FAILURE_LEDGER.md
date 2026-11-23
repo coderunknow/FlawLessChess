@@ -1430,3 +1430,18 @@ The code/test/log head `a891f82c71e807c56f3d57cdb0996beb0956653a` passed `script
 ### F-67 exact final audit-head rerun (2026-11-22)
 
 After recording the prior code-head gate, the documentation-only audit follow-up `63eaa1f99aed35452d5f6a3d5d61f5a6504f5868` was independently revalidated with `scripts/final_gate.sh /tmp/gates/63eaa1f-final`: tree `3c003b15cf89deb56ba81969c3a2033a4710a41f`, clean start/end, exit 0, `FAILS=0`. All 47 library tests plus integration suites, debug/release clippy/build, Python tests, perft/legal differential, UCI/search/TT/mate/resource/time-control probes and full-game checks passed. Release SHA-256 remained `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. Hosted CI and PR dependency disposition remain pending.
+
+### Provenance index — retained raw evidence for selected gate and F-53/F-67 results (2026-11-23)
+
+Append-only index; this does not rewrite or upgrade any earlier result. “UNAVAILABLE” means the raw output is not retained inside this repository (a temporary `/tmp` directory is not repository evidence).
+
+| Result | Source commit | Raw-output path in repository |
+|---|---|---|
+| F-53 regression and verification described above; exact-head local gate, `FAILS=0` | `c87a185f3a6a92c0d9d1b20f2aa04ad1261c67d8` | UNAVAILABLE (the referenced `/tmp/gates/c87a185-final` directory is absent) |
+| F-67 announced-claim fix, targeted regression/UCI reproduction, saved tactical probes, and seed-20261122 holdout | `a891f82c71e807c56f3d57cdb0996beb0956653a` | UNAVAILABLE |
+| F-67 exact-head `scripts/final_gate.sh` run, `FAILS=0` | `a891f82c71e807c56f3d57cdb0996beb0956653a` | UNAVAILABLE (the raw logs remain only in temporary `/tmp/gates/a891f82-final`) |
+| Documentation-only exact-audit-head gate, `FAILS=0` | `63eaa1f99aed35452d5f6a3d5d61f5a6504f5868` | UNAVAILABLE (the raw logs remain only in temporary `/tmp/gates/63eaa1f-final`) |
+
+Future verification entries will name the exact commit and a raw-output path committed in the repository, or explicitly record `UNAVAILABLE`.
+
+Implementation correction for the appended F-54/F-67 fixes: the current code replaces nominal-depth clock-horizon checks with a TT key contextualized by the exact halfmove clock. Thus the older F-67 addendum's sentence that the nominal-depth guard remains is historical and superseded by the code/test changes under review; `Position::hash` stays clock-independent for repetition. The current exact-clock isolation and cross-clock search regressions are still pending full-gate validation on the revised head.
