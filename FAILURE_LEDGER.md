@@ -1365,3 +1365,7 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - Code commit `c4c124ec2eb9222375cebe20151430e7371fd5e2`, tree `5eca9dc6d19a46ccb622eca34c7f6f21483d2ed9`, passed `scripts/final_gate.sh /tmp/gates/c4c124e-final` with a clean tree, `FAILS=0`, exit 0. All debug/release Rust tests, clippy, Python checks, perft/legal differential, search sweep, UCI/fuzz/resource/clock/mate/TT probes, self-play and full-game probes passed. Release binary SHA-256: `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`.
 - Hosted checks on the same code head passed Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless, SF10 calibration and every opponent build. Kilo review remains action-required for insufficient credits; CodeRabbit skipped.
 - F-66 benchmark evidence remains fixed signature/nodes, with the measured time/NPS improvement explicitly limited to this sandbox. No Elo, global speed guarantee, full search-correctness, or release-readiness claim. PR #5 remains open and unmerged.
+
+## F-66 post-gate behavior-preservation samples (2026-11-23 12:18 UTC)
+
+Compared the pre-reuse F-65 binary (`55dac3c`) with the F-66 binary on two fresh capture-biased legal-game oracle sets: seeds 11222026 and 12222026, 60 proven mates each, depth 6. Both builds had 0/60 exact mate-score mismatches on both sets; aggregate nodes matched exactly per set (102,465,537 and 32,870,468). This adds evidence that the qsearch entry optimization preserves tactical results; samples are correlated and are not strength evidence.

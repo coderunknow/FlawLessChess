@@ -505,3 +505,7 @@ Scratch candidate passed full release/debug Rust suites, debug/release clippy an
 Code head `c4c124ec2eb9222375cebe20151430e7371fd5e2` passed `scripts/final_gate.sh /tmp/gates/c4c124e-final` clean exact-head (`dirty-at-start 0`, `FAILS=0`, exit 0). Formatting, debug/release clippy/build/tests, all Python tooling, perft/legal differential, search sweep, UCI/fuzz/resource/clock, TT/mate, self-play and full-game probes passed. Release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`.
 
 Hosted CI on that code head passed Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 and all opponent builds. Kilo is action-required for insufficient credits; CodeRabbit skipped. PR #5 remains open/unmerged. The measured qsearch-entry throughput change is a sandbox benchmark only; no Elo or broad performance claim.
+
+## 2026-11-23 12:18 UTC — F-66 fresh tactical behavior comparison
+
+After the exact-head gate, compared F-66 (`c4c124e`) with the pre-reuse F-65 binary (`55dac3c`) on two fresh capture-biased legal-game oracle sets, seeds 11222026 and 12222026, 60 proven mate-in-1/2 positions each at depth 6. Both binaries returned exact oracle mate distances for all 120 positions, and aggregate node totals were identical within each set (102,465,537 for seed 11222026; 32,870,468 for seed 12222026). This supports preserving search behavior across the qsearch reuse change; correlated tactics do not establish strength.

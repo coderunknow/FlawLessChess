@@ -583,3 +583,7 @@ Reused the legal move list already generated at main-search depth/futility exits
 ## 2026-11-23 12:13 UTC — F-66 closeout
 
 Code head `c4c124e` passed the clean comprehensive gate (`/tmp/gates/c4c124e-final`, `FAILS=0`; release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`). Hosted Ubuntu/Windows/MSRV/artifact/anchor/SF10/opponent checks passed. Kilo lacks credits; CodeRabbit skipped. Sandbox bench timing only; no strength/release claim.
+
+## 2026-11-23 12:18 UTC — F-66 behavior comparison
+
+F-66 vs pre-reuse F-65 on fresh oracle-proven legal-game mate sets (seeds 11222026/12222026, 60 each): 0 mismatches in both binaries, identical aggregate nodes per set (102,465,537; 32,870,468). This is behavior-preservation evidence only, not strength evidence.

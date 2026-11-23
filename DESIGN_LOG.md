@@ -684,3 +684,7 @@ At main-search depth<=0 and low-depth futility cutoffs, the search had just gene
 ## 2026-11-23 12:13 UTC — F-66 exact-head validation
 
 `c4c124ec2eb9222375cebe20151430e7371fd5e2` passed the exact-head clean final gate (`/tmp/gates/c4c124e-final`, `FAILS=0`, exit 0); release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Hosted Ubuntu, Windows, MSRV, Windows artifact, anchor verification, SF10 calibration and all opponent-build checks passed. Kilo review lacks credits; CodeRabbit skipped. No strength/release claim.
+
+## 2026-11-23 12:18 UTC — F-66 behavior-preservation follow-up
+
+Compared F-65-before-reuse (`55dac3c`) against F-66 on fresh seeds 11222026 and 12222026 (60 oracle-proven legal-game mates each, depth 6). Both binaries had zero exact mate-score mismatches on both sets and identical aggregate nodes per set (102,465,537; 32,870,468). This supports result preservation, not playing strength.
