@@ -692,3 +692,7 @@ Compared F-65-before-reuse (`55dac3c`) against F-66 on fresh seeds 11222026 and 
 ## 2026-11-23 12:22 UTC — F-66 extra equivalence check; reply-counter candidate rejected
 
 Pre-reuse F-65 vs F-66 on 100 fresh random legal positions (seed 2112026, depth 5): exact bestmove, score and nodes matched in every position; 1,165,553 nodes each. A separate idea to early-exit legal reply counting at the root was measured in five paired fixed-bench runs and was slightly slower (median 448,818 vs 453,241 NPS, -0.98%), so it was rejected. No movegen change was made.
+
+## 2026-11-23 12:23 UTC — F-66 extra perft/legal differential
+
+Fresh F-66 release checks: perft random seed 12 (334 positions, 1,002 depth checks) and seed 13 (406 positions, 1,218 checks), both 0 failures vs python-chess; legal differential seed 32 (7,832 exact accepted move-set matches, seven oracle-valid rejections justified by material bounds, 622 invalid positions rejected). No movegen code change or strength claim.

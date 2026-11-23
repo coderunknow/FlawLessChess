@@ -515,3 +515,7 @@ After the exact-head gate, compared F-66 (`c4c124e`) with the pre-reuse F-65 bin
 Compared pre-reuse F-65 (`55dac3c`) and F-66 on 100 fresh random legal positions from seed 2112026, depth 5: bestmove, score and node count matched on all 100; aggregate nodes were 1,165,553 for each, exit 0. This supports behavior preservation, not strength.
 
 An early-exit legal-reply-count experiment for the root <=11 safeguard was measured in five paired fixed-depth runs: median 453,241 NPS existing vs 448,818 NPS candidate (-0.98%), median 6.59 s vs 6.65 s. Rejected without changing move generation; no perft/gate result is claimed for the unadopted scratch code.
+
+## 2026-11-23 12:23 UTC — F-66 additional perft/legal validation
+
+Ran fresh perft random differential seeds 12 and 13 on the F-66 release binary against python-chess: respectively 334 positions/1,002 depth checks and 406/1,218, zero failures. Legal-move differential seed 32: 7,832 accepted valid positions, all exact move-set matches; seven oracle-valid positions rejected for the documented material bound; 622 oracle-invalid positions rejected. These extra checks do not represent a movegen source change.

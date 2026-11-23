@@ -1375,3 +1375,7 @@ Compared the pre-reuse F-65 binary (`55dac3c`) with the F-66 binary on two fresh
 - Fresh random legal-position A/B (`random.Random(2112026)`, 100 positions, depth 5) compared pre-reuse F-65 (`55dac3c`) with F-66. Bestmove, score, and node count matched on all 100; both binaries exited cleanly; total nodes were 1,165,553 each.
 - Considered an early-exit legal-reply counter for the <=11 root guard. Five paired fixed-bench runs showed no benefit: median NPS 453,241 (existing) vs 448,818 (candidate, -0.98%), median time 6.59 s vs 6.65 s. Rejected and not applied; no move-generation code changed.
 - The A/B result is a behavior-preservation check, not a strength test. The rejected scratch experiment was not promoted into the repository and therefore has no perft/gate claim.
+
+## F-66 extra legal-move/perft differentials (2026-11-23 12:23 UTC)
+
+On the F-66 release binary, two fresh random-game perft sets passed against python-chess: seed 12 = 334 positions / 1,002 depth checks; seed 13 = 406 positions / 1,218 checks; zero failures. Fresh legal-move differential seed 32 checked 7,832 accepted valid positions with 7,832 exact move-set agreements; seven additional oracle-valid positions were rejected only by the engine's documented material bound, and 622 oracle-invalid positions were rejected. No move-generation changes were made in F-66; these are extra validation only.

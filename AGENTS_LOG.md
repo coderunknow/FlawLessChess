@@ -591,3 +591,7 @@ F-66 vs pre-reuse F-65 on fresh oracle-proven legal-game mate sets (seeds 112220
 ## 2026-11-23 12:22 UTC — F-66 extra check/rejected experiment
 
 F-65/F-66 A/B on 100 random legal positions at depth 5 matched exact bestmove, score and nodes (1,165,553 total each). Early-exit legal reply counting was tested in five paired benchmarks and was marginally slower, so it was rejected; no movegen code change.
+
+## 2026-11-23 12:23 UTC — extra F-66 differential checks
+
+F-66 release: perft seeds 12/13 passed (334+406 positions, 2,220 depth checks total); legal-move differential seed 32 had 7,832 exact agreements, with only documented material-bound rejections among oracle-valid FENs. No movegen change.
