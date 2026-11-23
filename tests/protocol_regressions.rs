@@ -1485,6 +1485,35 @@ fn low_reply_quiet_mate_threats_are_not_reduced() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-61: this legal 13-piece position has a quiet pawn push that threatens Qe2# against each of
+/// White's ten legal replies. Root LMR missed the mate at depth 6 (but found it at depth 7); the
+/// root low-material reply guard now preserves the depth-6 proof. Python-chess exhaustively
+/// verified every reply and the final checkmate.
+#[test]
+fn root_quiet_mate_threat_with_ten_replies_is_not_reduced() {
+    let fen = "r3k3/pb1p4/6p1/2P5/2Pp2P1/5q2/3B4/4K3 b - - 1 23";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(60));
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth 6 "))
+        .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
+    assert!(
+        reports_mate_in(last, 2),
+        "the proven mate in two must be found at depth 6: {last}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove d4d3"),
+        "the quiet d3 push is the proven mating threat: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
 /// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
 /// proof instead of needlessly searching several more plies.

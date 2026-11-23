@@ -179,3 +179,7 @@ A temporary candidate exempting a quiet move from LMR only when there are at mos
 ## 2026-11-23 — F-60 root-only low-reply LMR experiment
 
 On the same three legal-game tactical samples (272 oracle-proven mates in one/two), F-59: 144,806,495 nodes, 5 score mismatches; root-only <=11-piece/<=4-reply safeguard: 133,933,543 nodes, 0 mismatches. A full-tree low-reply guard used 241,350,555 nodes on the same sample and was rejected. A separate 100-position sample remained imperfect (F-59 3 misses; root-only candidate 1 miss; 30.95M vs 32.42M nodes). Fixed bench remains `141943aa23b3fc68`, 2,853,010 nodes. These capture-biased legal-game tactical samples are not representative strength tests; timings/nodes are sandbox-specific.
+
+## 2026-11-23 — F-60/F-61 follow-up samples
+
+On two additional seeded legal-game samples (71 oracle-proven mates each), the root-only <=13-piece/<=10-reply safeguard changed mate-score mismatches from 3→0 and 4→1. Against F-59 across all five samples (443 correlated positions), misses were 12→1, nodes 189.2M→209.7M, elapsed ~235s→248s. A remaining 14-piece mate-in-two is recovered by depth 7 but missed at depth 6. Broader root LMR removal was rejected: 21,391,393 nodes vs 2,853,010 on fixed bench, signature changed. Search results are sandbox-specific tactical evidence; no Elo claim.
