@@ -415,3 +415,5 @@ Current pushed head: `19898a0954e37d5741b7bee59d7542985d472000` on `arena/7584c0
 ## 2026-11-23 — F-58 infinite-search continuation
 
 Reviewing the F-57 fix exposed a protocol regression: a `go infinite` search with a proven mate in one stopped producing analysis after depth 1. The UCI layer held `bestmove` until `stop`, masking that the search itself had ended. The mate-in-one early exit is now disabled while `limits.infinite` is true; MultiPV and finite search behavior are unchanged. Added a test requiring depth 2 before stop; focused release test and clippy in both profiles pass. Exact-head full gate pending.
+
+F-58 was additionally checked under `go ponder`: the same legal mate-in-one position continued through depth 2 before `stop`. Added a dedicated protocol regression alongside the `go infinite` case; focused test pending full-suite run.

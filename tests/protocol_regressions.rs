@@ -1474,6 +1474,32 @@ fn go_infinite_continues_after_proving_mate_in_one() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// Pondering remains an unbounded search until `ponderhit` or `stop`; a proven mate-in-one
+/// must not make the engine silently stop pondering before the GUI reports the opponent's move.
+#[test]
+fn go_ponder_continues_after_proving_mate_in_one() {
+    let fen = "1Q4n1/6Qr/4k3/7p/2N2B1p/1K3N2/nR6/8 w - - 2 61";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go ponder");
+    let depth_two = e.read_until("info depth 2 ", Duration::from_secs(15));
+    assert!(
+        depth_two
+            .iter()
+            .any(|line| line.starts_with("info depth 2 ")),
+        "ponder search should continue beyond the mate-in-one proof: {depth_two:?}"
+    );
+    e.send("stop");
+    let stopped = e.read_until("bestmove", Duration::from_secs(10));
+    assert!(
+        bestmove_line(&stopped).starts_with("bestmove b8e5"),
+        "bestmove should still be the proven mate: {stopped:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// True when an `info` line reports exactly `score mate <n>`. A substring test is not enough:
 /// `score mate 30` contains `score mate 3`.
 fn reports_mate_in(line: &str, n: i32) -> bool {
