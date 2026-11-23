@@ -535,3 +535,7 @@ Audit of `generate_legal`/`make_move`/`unmake_move` supports saved-list validity
 ## 2026-11-23 12:50 UTC — current final hosted status
 
 Hosted CI on `2456223f5daf60b2cd138373b7fef6a8f13aae58` passed all platform, MSRV, artifact, verification, calibration and opponent-build checks. Kilo account-credit limitation and CodeRabbit skip remain; no engineering/CI failure was found.
+
+## 2026-11-23 12:55 UTC — randomized depth-7 equivalence
+
+Ran pre-reuse F-65 vs F-66 on 92 fresh random legal positions at depth 7: bestmove, score, and nodes all exactly matched, with aggregate 5,581,590 nodes per engine and clean exits. This extends the depth-5 100-position A/B and remains behavior-preservation evidence only.

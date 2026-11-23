@@ -1397,3 +1397,7 @@ Hosted CI on `bfbc9c3e5d0bbe437a25a62ab8498bddda7b9ead` passed Ubuntu, Windows, 
 ## Final hosted validation on audit closeout head (2026-11-23 12:50 UTC)
 
 Hosted run `45177640528` / `45177640512` for `2456223f5daf60b2cd138373b7fef6a8f13aae58` passed Ubuntu, Windows, MSRV 1.80, Windows x64 release artifact, verify-flawless, SF10 calibration, and all 12 opponent builds. Kilo review again failed immediately due the existing credit block; CodeRabbit skipped. No CI/CD error was found; only the informational Node.js 20 deprecation warning emitted by GitHub-hosted action wrappers.
+
+## F-66 deeper randomized search A/B (2026-11-23 12:55 UTC)
+
+Extended the pre-reuse F-65 (`55dac3c`) vs F-66 comparison to depth 7 on 92 fresh random legal positions (seed 2112026, same deterministic position stream). Exact bestmove, score and node counts matched on every position; aggregate nodes were 5,581,590 on each build; both processes exited 0. This is behavioral equivalence evidence, not an Elo/strength claim.

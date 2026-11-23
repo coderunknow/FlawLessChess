@@ -712,3 +712,7 @@ Inspected `generate_legal` and make/unmake: each candidate is applied then undon
 ## 2026-11-23 12:50 UTC — final hosted verification
 
 All required hosted code/build checks passed on final audit head `2456223f5daf60b2cd138373b7fef6a8f13aae58`: Linux/Windows CI, Rust 1.80 MSRV, Windows x64 release artifact, verify-flawless, SF10 calibration and all 12 opponent builds. Kilo review credit block and skipped CodeRabbit are external review-status exceptions; no CI failure to fix.
+
+## 2026-11-23 12:55 UTC — deeper F-66 A/B holdout
+
+At depth 7 on 92 deterministic random legal positions (seed 2112026), F-65 pre-reuse and F-66 matched exact bestmove, score, and node count for every position; total nodes 5,581,590 each, both exits 0. No strength inference.

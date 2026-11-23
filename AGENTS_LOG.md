@@ -611,3 +611,7 @@ Reviewed all state touched by legal-move generation and unmake. Saved list remai
 ## 2026-11-23 12:50 UTC — final head hosted checks
 
 All hosted build/test checks pass on 2456223; external Kilo credit block, CodeRabbit skipped. No code/CI fixes required.
+
+## 2026-11-23 12:55 UTC — depth-7 randomized A/B
+
+92 fresh legal random positions at depth 7 yielded identical score, bestmove and nodes between F-65 and F-66; total 5,581,590 nodes each. No source changes.
