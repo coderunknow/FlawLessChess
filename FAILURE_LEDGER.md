@@ -1319,3 +1319,9 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - The NMP guard and exact regression are pushed in commit `a6d20a1` (see status). Focused release/debug F-63 protocol tests and debug/release clippy passed. Full release Rust tests completed successfully as the combined command advanced to debug tests; the command reached the 180-second limit during the debug suite, so that suite did not complete. No exact-head full gate or hosted CI result exists for this final code head. Audit remains incomplete.
 
 - F-63 commit-ID correction: the source/test/docs commit is `66c5f71` (`66c5f713f...`), not `a6d20a1` as mistyped in the preceding F-63 entry. The branch is pushed at that commit; validation status there is unchanged.
+
+## F-63 exact-head closeout (2026-11-23 10:35 UTC)
+
+- Exact-head comprehensive gate on commit `8804fc97d5deedb1eab224f429a616624a9cf734` (source includes F-63): `scripts/final_gate.sh /tmp/gates/8804fc9-final`, clean tree, `FAILS=0`, exit 0. This includes completed release and debug Rust suites, clippy, perft, UCI/fuzz/resource/clock probes, self-play and full-game checks; it supersedes the earlier 180-second timeout of the standalone combined test command.
+- Hosted PR checks on this same code head passed Ubuntu, Windows, MSRV 1.80, Windows artifact, anchor verification, SF10 calibration and every opponent build. Kilo remains action_required for insufficient credits and CodeRabbit skipped; neither is a CI failure.
+- The earlier 511-position comparison found 0 exact mate-score mismatches with the <=8-piece NMP exclusion; no Elo or release-readiness claim. PR #5 remains open, stacked, and unmerged.
