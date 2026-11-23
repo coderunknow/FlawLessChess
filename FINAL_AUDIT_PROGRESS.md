@@ -467,3 +467,11 @@ The last held-out mate miss was isolated to null-move pruning: disabling NMP alo
 ## 2026-11-23 10:35 UTC — F-63 exact-head gate/CI closeout
 
 The earlier F-63 status that said full gate/hosted CI were pending is superseded: `scripts/final_gate.sh /tmp/gates/8804fc9-final` on commit `8804fc9` completed exact-head clean with `FAILS=0`. The comprehensive gate's release/debug tests, clippy, perft and all listed functional/resource/clock/self-play/game probes passed. Hosted CI on the same code head passed Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. The earlier combined cargo test command did time out while running debug tests, but the later exact-head full gate completed them successfully. Kilo review still lacks credits and CodeRabbit is skipped.
+
+## 2026-11-23 11:00 UTC — F-64 root-threat holdout and focused verification
+
+A fresh seed-6222026 capture-biased legal-game set exposed one remaining exact mate-distance miss: valid 14-piece FEN `6k1/r7/2p2p2/1p2r3/3q4/N4PP1/2P4P/5K1R b - - 2 20`. The independent python-chess proof is `...Qd2` then mate against all 11 White replies (mate on a1/e1 depending on the reply). F-63/F-62 code searched the quiet root move with LMR and reported mate 4 at depth 6. A scratch <=11-reply candidate finds mate 2 with bestmove `d4d2`.
+
+Compared the previous candidate with this candidate on all eight stored oracle-verified legal-game sample files: 631 positions, 1→0 mate-score mismatches, aggregate nodes 333,006,299→333,784,342 (+0.234%). New seed-6222026 holdout: 1/60→0/60. Seed-5222026's 60-position holdout: 0/60 for both. These are correlated tactical data, not an Elo/strength result. Fixed benchmark signature and nodes remain `141943aa23b3fc68` / 2,914,999.
+
+Changed only the root low-reply threshold from 10 to 11 (still guarded at <=14 pieces) and added `root_quiet_mate_threat_with_eleven_replies_is_not_reduced`. Focused release/debug test, fmt, diff-check, and debug/release clippy pass. Full exact-head gate/hosted CI/push are pending; no release-readiness or rating claim.

@@ -559,3 +559,7 @@ The F-56 exact-head gate's sole failure was a valid timeout after the engine alr
 ## 2026-11-23 — F-58 infinite-analysis guard
 
 Follow-up review caught that F-57's early mate exit also stopped `go infinite` analysis. Restricted the optimization to finite single-PV searches and added a protocol regression requiring further depth output before stop. Focused tests and clippy pass; full gate pending.
+
+## 2026-11-23 — F-64 (fresh root-LMR miss)
+
+The <=10-reply root threat guard still missed a verified mate-in-two in a 14-piece legal-game position with 11 defender replies. Oracle proof: `...Qd2` forces mate, and every reply is covered. Extending only the root reply cutoff to 11 recovers `mate 2`/`d4d2`; across eight saved tactical sets (631 positions), mismatches 1→0 at +0.234% total nodes. Added a protocol regression. Focused debug/release test, fmt and both clippy profiles pass; exact-head comprehensive gate and CI pending. No strength claim.

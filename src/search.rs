@@ -721,7 +721,7 @@ impl<'a> Searcher<'a> {
                 if reduction > 0
                     && ply == 0
                     && pos.occ_all.count_ones() <= 14
-                    && generate_legal(pos).len <= 10
+                    && generate_legal(pos).len <= 11
                 {
                     reduction = 0;
                 }

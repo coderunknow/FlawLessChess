@@ -1571,6 +1571,36 @@ fn null_move_pruning_does_not_hide_sparse_mate_in_two() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-64: this legal 14-piece position has a quiet queen move that leaves eleven legal replies;
+/// every reply permits mate on the next move. The previous <=10-reply root safeguard reduced it,
+/// so depth 6 reported mate in four instead of the oracle-proven mate in two. Extending that
+/// narrowly scoped threshold restores the proof; python-chess independently verifies all eleven
+/// replies and their mating continuations.
+#[test]
+fn root_quiet_mate_threat_with_eleven_replies_is_not_reduced() {
+    let fen = "6k1/r7/2p2p2/1p2r3/3q4/N4PP1/2P4P/5K1R b - - 2 20";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(60));
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth 6 "))
+        .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
+    assert!(
+        reports_mate_in(last, 2),
+        "the proven mate in two must be found at depth 6: {last}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove d4d2"),
+        "Qd2 is the proven mating threat: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
 /// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
 /// proof instead of needlessly searching several more plies.
