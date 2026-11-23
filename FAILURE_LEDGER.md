@@ -1353,3 +1353,9 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - Hosted checks on the same code head passed Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo review is action-required for insufficient credits; CodeRabbit skipped. These are external review states, not code-test failures.
 - Additional fresh seed-10222026 holdout: 60 oracle-proven legal-game mates, 0 mismatches on both F-65 and the previous candidate. It does not change the registered 691-position comparison above or establish strength.
 - PR #5 remains open and unmerged. No Elo, complete search-correctness, or release-readiness claim.
+
+## F-66 — avoid duplicate legal move generation at the quiescence boundary (2026-11-23)
+
+- Profile-free audit inspection found that the main search always generates legal moves before its depth cutoff and before low-depth futility pruning, then qsearch immediately regenerated the same list on the same unchanged position. Added an optional pre-generated `MoveList` path through the qsearch wrapper/core; the main-search depth<=0 and futility paths pass their already-validated list. Recursive qsearch nodes still generate moves normally. Terminal detection, draw checks, stand-pat, ordering and the searched move set remain unchanged.
+- Scratch-candidate full release/debug Rust suites and debug/release clippy passed; formatting passed. Fixed depth-10 bench signature and node count are identical (`141943aa23b3fc68`, 2,986,470). In five interleaved A/B benchmark pairs, median baseline vs candidate time was 7.86 s vs 6.86 s, and median NPS 379,840 vs 435,080 (+14.5%) in this sandbox. An earlier five-run block showed +12.2% median NPS. These timings are noisy/environment-specific, not a universal throughput claim.
+- The optimization is applied in this commit. Exact-head comprehensive gate and hosted CI are pending; no Elo or strength claim.

@@ -676,3 +676,7 @@ A fresh seed-9222026 legal-game holdout found a 13-piece NMP false fail-high: `1
 ## 2026-11-23 11:49 UTC — F-65 exact-head validation
 
 The code/test commit `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed the clean exact-head final gate (`/tmp/gates/8c8f8a1-final`, `FAILS=0`, exit 0); release SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`. Hosted Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 and all opponent-build checks passed. Fresh seed-10222026 holdout also had 0/60 mismatches for both prior and new candidates. Kilo lacks review credits; CodeRabbit skipped. No rating or readiness claim.
+
+## 2026-11-23 — F-66: reuse the main-search move list at quiescence entry
+
+At main-search depth<=0 and low-depth futility cutoffs, the search had just generated legal moves and qsearch regenerated them again without any intervening position mutation. Added a path for qsearch to consume that existing list; qsearch recursion still generates its own child lists. Full Rust test suites and both clippy profiles passed on an isolated scratch candidate. Depth-10 bench signature/nodes unchanged. Five interleaved A/B bench pairs in this sandbox: median 7.86s→6.86s and 379,840→435,080 nps (+14.5%); a separate five-run block gave +12.2%. This supports the optimization but is noisy, not a general speed guarantee. Exact-head gate pending.

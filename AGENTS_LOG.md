@@ -575,3 +575,7 @@ Another verified legal-game mate-in-two miss occurred at 13 pieces: `...Rh2` for
 ## 2026-11-23 11:49 UTC — F-65 closeout
 
 Exact code/test head `8c8f8a1` passed the clean comprehensive gate (`/tmp/gates/8c8f8a1-final`, `FAILS=0`; binary SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`). Hosted Ubuntu/Windows/MSRV/artifact/anchor/SF10/opponent-build checks passed. Fresh seed-10222026 holdout had 0/60 mismatches. Kilo lacks credits, CodeRabbit skipped. No Elo/release-readiness claim.
+
+## 2026-11-23 — F-66 qsearch entry optimization
+
+Reused the legal move list already generated at main-search depth/futility exits instead of regenerating it at qsearch entry. Scratch full release/debug tests, both clippy profiles, and formatting passed; depth-10 signature/nodes unchanged. Five interleaved A/B runs show median NPS +14.5% in this sandbox (timing is noisy). Exact-head final gate/CI pending; no strength claim.

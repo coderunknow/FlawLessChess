@@ -493,3 +493,9 @@ On nine stored legal-game oracle datasets (691 positions), prior code had 1 mism
 Code/test head `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed `scripts/final_gate.sh /tmp/gates/8c8f8a1-final`: clean start/end, `FAILS=0`, exit 0. This covered format, debug/release clippy/build/tests, Python checks, perft/legal-move differential, search sweep, UCI/fuzz/resource/clock, TT/mate probes, self-play and full-game probes. Release binary SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`.
 
 Hosted checks on `8c8f8a1` passed Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo is action-required for insufficient credits; CodeRabbit skipped. Additional fresh seed-10222026 oracle sample: 60 positions, 0 mate-score mismatches under both F-64 and F-65. PR #5 remains open/unmerged. These are tactical checks, not a strength measurement.
+
+## 2026-11-23 11:58 UTC — F-66 qsearch move-list reuse
+
+Avoided duplicate move generation at two main-search exits: depth<=0 and low-depth futility. The search already had a legal `MoveList` for the unchanged position, so it now passes it to qsearch; recursive qsearch remains unchanged and still generates per-child lists. This preserves the terminal check and draw/stand-pat handling while reducing redundant entry work.
+
+Scratch candidate passed full release/debug Rust suites, debug/release clippy and formatting. Fixed depth-10 bench signature/nodes are identical (`141943aa23b3fc68`, 2,986,470). Five paired A/B bench runs: median time 7.86s→6.86s; median NPS 379,840→435,080 (+14.5%) in this sandbox. A prior five-run block showed +12.2%; timings are noisy and environment-specific. No strength claim. Exact-head comprehensive gate/CI pending.
