@@ -696,3 +696,7 @@ Pre-reuse F-65 vs F-66 on 100 fresh random legal positions (seed 2112026, depth 
 ## 2026-11-23 12:23 UTC — F-66 extra perft/legal differential
 
 Fresh F-66 release checks: perft random seed 12 (334 positions, 1,002 depth checks) and seed 13 (406 positions, 1,218 checks), both 0 failures vs python-chess; legal differential seed 32 (7,832 exact accepted move-set matches, seven oracle-valid rejections justified by material bounds, 622 invalid positions rejected). No movegen code change or strength claim.
+
+## 2026-11-23 12:41 UTC — exact-head gate rerun
+
+The complete `scripts/final_gate.sh /tmp/gates/6bfc833-final` passed from clean head `6bfc8335059e4f4090aa6c9b715ba14c04395c32` / tree `be5388ce90f2157b5bad58fb7f7d8b58107de8e4`: exit 0, dirty-at-start 0, `FAILS=0`. Release SHA-256 unchanged at `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Evidence in `/tmp/gates/6bfc833-final`.

@@ -595,3 +595,7 @@ F-65/F-66 A/B on 100 random legal positions at depth 5 matched exact bestmove, s
 ## 2026-11-23 12:23 UTC — extra F-66 differential checks
 
 F-66 release: perft seeds 12/13 passed (334+406 positions, 2,220 depth checks total); legal-move differential seed 32 had 7,832 exact agreements, with only documented material-bound rejections among oracle-valid FENs. No movegen change.
+
+## 2026-11-23 12:41 UTC — comprehensive exact-head gate
+
+Full `scripts/final_gate.sh /tmp/gates/6bfc833-final` passed at clean head 6bfc8335059e4f4090aa6c9b715ba14c04395c32 (tree be5388ce90f2157b5bad58fb7f7d8b58107de8e4), exit 0, FAILS=0. Release digest unchanged. Logs retained in `/tmp/gates/6bfc833-final`.

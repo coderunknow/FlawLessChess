@@ -1379,3 +1379,7 @@ Compared the pre-reuse F-65 binary (`55dac3c`) with the F-66 binary on two fresh
 ## F-66 extra legal-move/perft differentials (2026-11-23 12:23 UTC)
 
 On the F-66 release binary, two fresh random-game perft sets passed against python-chess: seed 12 = 334 positions / 1,002 depth checks; seed 13 = 406 positions / 1,218 checks; zero failures. Fresh legal-move differential seed 32 checked 7,832 accepted valid positions with 7,832 exact move-set agreements; seven additional oracle-valid positions were rejected only by the engine's documented material bound, and 622 oracle-invalid positions were rejected. No move-generation changes were made in F-66; these are extra validation only.
+
+## F-66 exact-head gate rerun on audit-extended branch head (2026-11-23 12:41 UTC)
+
+Ran `scripts/final_gate.sh /tmp/gates/6bfc833-final` from clean branch head `6bfc8335059e4f4090aa6c9b715ba14c04395c32` (tree `be5388ce90f2157b5bad58fb7f7d8b58107de8e4`). Exit 0, dirty-at-start 0, `FAILS=0`; includes fmt, debug/release clippy/build/tests, Python harness checks, perft/legal differential, search sweep, UCI/protocol, fuzz/resource, TT/mate, self-play and full-game probes. Release SHA-256 remains `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Gate evidence: `/tmp/gates/6bfc833-final`.
