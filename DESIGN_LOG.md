@@ -708,3 +708,7 @@ On `da8c37fffcc0f7a50d96eab2494ac147950799e9`, hosted Ubuntu/Windows/MSRV, manda
 ## 2026-11-23 12:48 UTC — saved move-list validity audit and final CI
 
 Inspected `generate_legal` and make/unmake: each candidate is applied then undone before the returned legal `MoveList` is consumed; unmake restores piece/occupancy arrays, side, rights, ep state, clocks, hash, and the temporary repetition-history entry is popped. The cached list is passed directly to qsearch on the unchanged position, before any board mutation; list values are moves, not stale scores. No defect found and no movegen edit made. Latest hosted CI at bfbc9c3 passed every platform, MSRV, artifact, verification, calibration and opponent-build job; Kilo remains blocked on credits and CodeRabbit skipped.
+
+## 2026-11-23 12:50 UTC — final hosted verification
+
+All required hosted code/build checks passed on final audit head `2456223f5daf60b2cd138373b7fef6a8f13aae58`: Linux/Windows CI, Rust 1.80 MSRV, Windows x64 release artifact, verify-flawless, SF10 calibration and all 12 opponent builds. Kilo review credit block and skipped CodeRabbit are external review-status exceptions; no CI failure to fix.

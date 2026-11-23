@@ -607,3 +607,7 @@ Confirmed hosted CI on da8c37f: platform, MSRV, artifact, verify, calibration an
 ## 2026-11-23 12:48 UTC — close loop on F-66 audit
 
 Reviewed all state touched by legal-move generation and unmake. Saved list remains valid at direct qsearch call site; it carries moves only, and same position is unchanged. No extra change. CI on bfbc9c3 passed platform/MSRV/artifact/verification/calibration/opponent checks; Kilo credit-blocked, CodeRabbit skipped.
+
+## 2026-11-23 12:50 UTC — final head hosted checks
+
+All hosted build/test checks pass on 2456223; external Kilo credit block, CodeRabbit skipped. No code/CI fixes required.

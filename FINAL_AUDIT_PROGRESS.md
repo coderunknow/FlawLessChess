@@ -531,3 +531,7 @@ Hosted CI for `da8c37fffcc0f7a50d96eab2494ac147950799e9`: Ubuntu, Windows, MSRV 
 ## 2026-11-23 12:48 UTC — F-66 list-state audit and latest CI
 
 Audit of `generate_legal`/`make_move`/`unmake_move` supports saved-list validity: generation restores board arrays and scalar state, pops its temporary history hash, and returns only `Move` values. The F-66 depth-zero/futility handoff invokes qsearch immediately with that same position. No code change indicated. Hosted CI on bfbc9c3 passed Ubuntu, Windows, MSRV, mandatory artifact, verify-flawless, SF10 calibration, and 12 opponent builds; Kilo credit block and CodeRabbit skip are the only exceptions.
+
+## 2026-11-23 12:50 UTC — current final hosted status
+
+Hosted CI on `2456223f5daf60b2cd138373b7fef6a8f13aae58` passed all platform, MSRV, artifact, verification, calibration and opponent-build checks. Kilo account-credit limitation and CodeRabbit skip remain; no engineering/CI failure was found.
