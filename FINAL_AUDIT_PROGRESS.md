@@ -407,3 +407,7 @@ The first F-56 full gate had one failed probe: seed 41's TT/bestmove random-game
 ### 2026-11-23 05:58 UTC — test expectation follow-up
 
 The exact-head gate attempt at `a4ecafc` returned `FAILS=2`; both failures were the same legacy integration test demanding an `info depth 4` line after a mate in one. F-57 intentionally ends on the depth-1 proof. Updated the assertion to accept the latest completed iteration. The legacy test and both new F-56/F-57 regressions pass in focused release runs; fmt and diff-check are clean. The full gate was not rerun, so the current tree has no full-gate pass claim.
+
+### Cutoff closeout — 2026-11-23 05:59 UTC
+
+Current pushed head: `19898a0954e37d5741b7bee59d7542985d472000` on `arena/7584c0ca-flawlesschess`, clean. The obsolete fixed-depth-4 assertion was revised to accept the completed mate-in-one iteration; release `protocol_regressions` passes 42/42 and two focused debug tests pass. The last full gate was on parent `a4ecafc` and reports `FAILS=2` solely from that assertion in release/debug. It was not rerun on the final head before cutoff. The audit remains incomplete; F-41 general LMR pruning and broader strength/throughput effects are not fully assessed. No rating or release-readiness claim.
