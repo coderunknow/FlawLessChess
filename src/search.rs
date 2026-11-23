@@ -633,8 +633,11 @@ impl<'a> Searcher<'a> {
             return self.quiesce(pos, alpha, beta, ply);
         }
 
-        // Null-move pruning (not in check, not PV, non-trivial material)
+        // Null-move pruning (not in check, not PV, non-trivial material). Skip it in positions
+        // with at most eight pieces (F-63): a false fail-high hid a forced mate in two in this
+        // low-material endgame, despite the piece having non-pawn material.
         if depth >= 3
+            && pos.occ_all.count_ones() > 8
             && !in_chk
             && !fifty_claim
             && beta < MATE_BOUND

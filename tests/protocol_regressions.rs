@@ -1543,6 +1543,34 @@ fn root_quiet_mate_threat_with_one_reply_is_not_reduced() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-63: null-move pruning gave a false fail-high in this eight-piece endgame and hid a forced
+/// mate in two at depth 6. Disabling null-move pruning in <=8-piece positions restores the exact
+/// proof; python-chess independently verifies the forced line and all seven legal replies.
+#[test]
+fn null_move_pruning_does_not_hide_sparse_mate_in_two() {
+    let fen = "4kr2/7p/1p5K/8/8/4P3/1N4r1/8 b - - 1 28";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(60));
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth 6 "))
+        .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
+    assert!(
+        reports_mate_in(last, 2),
+        "the proven mate in two must be found at depth 6: {last}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove f8f3"),
+        "the rook move is the proven mate-in-two threat: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
 /// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
 /// proof instead of needlessly searching several more plies.
