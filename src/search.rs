@@ -634,10 +634,10 @@ impl<'a> Searcher<'a> {
         }
 
         // Null-move pruning (not in check, not PV, non-trivial material). Skip it in positions
-        // with at most eight pieces (F-63): a false fail-high hid a forced mate in two in this
-        // low-material endgame, despite the piece having non-pawn material.
+        // with at most thirteen pieces (F-63/F-65): false fail-highs hid forced mates in two in
+        // low-material positions, despite the side to move having non-pawn material.
         if depth >= 3
-            && pos.occ_all.count_ones() > 8
+            && pos.occ_all.count_ones() > 13
             && !in_chk
             && !fifty_claim
             && beta < MATE_BOUND

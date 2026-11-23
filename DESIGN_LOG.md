@@ -668,3 +668,7 @@ A fresh 60-position capture-biased legal-game holdout (seed 6222026) found a 14-
 ## 2026-11-23 11:14 UTC — F-64 exact-head validation
 
 Commit `97f3c0427ce6ca93f99d39803c92b3c747120a69` passed the clean exact-head comprehensive gate at `/tmp/gates/97f3c04-final` (`dirty-at-start 0`, `FAILS=0`); the release binary SHA-256 is `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`. Hosted Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 calibration and all opponent builds passed on this code head. Kilo lacks review credits; CodeRabbit skipped. No rating or release-readiness claim.
+
+## 2026-11-23 — F-65: extend the low-material null-move exclusion to 13 pieces
+
+A fresh seed-9222026 legal-game holdout found a 13-piece NMP false fail-high: `1n5r/3kp3/3Np3/8/6P1/1P1P4/2P5/rN2K3 b - - 0 21`. Python-chess proves `...Rh2` mates in two against all 15 replies. The prior build reported cp 1186 / `a1b1`; a selective experiment still missed with NMP disabled through 12 pieces, but the <=13 exclusion found mate 2 / `h8h2`. Extended the low-material NMP guard from <=8 to <=13 while preserving all other guards. Across nine stored legal-game oracle sets (691 positions), mate-score mismatches 1→0 and aggregate nodes fell 0.02%; fixed depth-10 bench nodes rose 2.45% (signature unchanged). Correlated tactics are not Elo evidence. Regression and focused debug/release validation pass; full gate/CI pending.

@@ -567,3 +567,7 @@ The <=10-reply root threat guard still missed a verified mate-in-two in a 14-pie
 ## 2026-11-23 11:14 UTC — F-64 closeout
 
 Code/test head `97f3c04` passed the clean exact-head comprehensive gate (`/tmp/gates/97f3c04-final`, `FAILS=0`; release SHA-256 `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`). Hosted Ubuntu/Windows/MSRV/artifact/anchor/SF10/opponent-build checks passed. Kilo is blocked by insufficient credits; CodeRabbit skipped. No strength/release claim.
+
+## 2026-11-23 — F-65 (13-piece NMP false fail-high)
+
+Another verified legal-game mate-in-two miss occurred at 13 pieces: `...Rh2` forces mate against all 15 replies, but prior depth-6 search returned cp 1186. The <=12 NMP cutoff still misses; disabling NMP through <=13 restores mate 2 / `h8h2`. Nine stored oracle sets (691 positions) improve 1→0 mismatches, aggregate nodes -0.02%; fixed bench nodes +2.45%, signature unchanged. Added regression; focused debug/release test and clippy pass; full gate/CI pending. Not an Elo claim.
