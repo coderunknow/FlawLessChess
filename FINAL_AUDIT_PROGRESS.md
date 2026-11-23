@@ -562,3 +562,7 @@ The current saved-FEN replay confirms F-41/F-44 examples, F-56, F-59–F-65, and
 ## 2026-11-22 — F-67 code-head comprehensive gate
 
 `scripts/final_gate.sh /tmp/gates/a891f82-final` passed on code/log commit `a891f82c71e807c56f3d57cdb0996beb0956653a`, tree `186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb`; dirty at start 0, exact head/tree clean at end, exit 0, `FAILS=0`. Rust debug/release tests and clippy, Python harness tests, perft/legal differential, search and UCI sweeps, mate-in-one, TT bestmove, clock/resource, self-play and full-game probes all passed. Release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. Gate artifacts are in `/tmp/gates/a891f82-final`. This entry is an append-only result record; a documentation-only follow-up head will receive its own exact-head gate. Hosted CI remains pending.
+
+## 2026-11-22 — exact audit-head gate rerun
+
+The audit-only follow-up `63eaa1f99aed35452d5f6a3d5d61f5a6504f5868` passed the complete `scripts/final_gate.sh /tmp/gates/63eaa1f-final`: tree `3c003b15cf89deb56ba81969c3a2033a4710a41f`, clean at start/end, exit 0, `FAILS=0`, release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. The appended gate record is documentation-only; exact validation will be repeated for the final audit-note head. Hosted CI remains pending.

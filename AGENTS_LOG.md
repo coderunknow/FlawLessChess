@@ -631,3 +631,7 @@ Explicitly reconciled the named recent tactical residuals: F-61→F-62 root safe
 ## 2026-11-22 — F-67 comprehensive gate closeout on code head
 
 Commit a891f82c71e807c56f3d57cdb0996beb0956653a / tree 186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb passed `scripts/final_gate.sh /tmp/gates/a891f82-final`: exit 0, clean, FAILS=0. Release binary SHA-256 686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0. Full gate includes Rust debug/release tests/clippy, Python tests, perft/legal differentials, UCI/search/mate/TT/resource/clock checks, self-play and full games. Docs-only follow-up exact-head validation and hosted checks remain pending.
+
+## 2026-11-22 — exact audit-head gate rerun
+
+Commit 63eaa1f99aed35452d5f6a3d5d61f5a6504f5868, tree 3c003b15cf89deb56ba81969c3a2033a4710a41f, passed full final_gate (`/tmp/gates/63eaa1f-final`), clean, `FAILS=0`; release SHA-256 unchanged. Current follow-up adds only this validation record; exact-head gate and hosted CI follow.

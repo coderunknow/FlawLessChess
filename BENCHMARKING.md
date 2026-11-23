@@ -199,3 +199,7 @@ The updated TT claim-boundary guard and search regression passed targeted tests;
 ### F-67 comprehensive-gate note
 
 The exact code head passed the full local gate with release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. This correctness gate does not contain a dedicated performance comparison for F-67; no throughput or Elo attribution is made.
+
+### F-67 audit-head gate rerun
+
+The audit-note-only head also passed the comprehensive local gate and reproduced release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`; this adds no new performance evidence.

@@ -1426,3 +1426,7 @@ Extended the pre-reuse F-65 (`55dac3c`) vs F-66 comparison to depth 7 on 92 fres
 ### F-67 exact-head gate (2026-11-22)
 
 The code/test/log head `a891f82c71e807c56f3d57cdb0996beb0956653a` passed `scripts/final_gate.sh /tmp/gates/a891f82-final`: tree `186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb`, clean at start/end, exit 0, `FAILS=0`. Debug/release Rust tests, clippy, all Python tooling tests, perft/legal differentials, UCI/search/mate/TT/resource/clock probes, self-play, and full-game probes passed. Release SHA-256: `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. This is local validation, not hosted CI or integration.
+
+### F-67 exact final audit-head rerun (2026-11-22)
+
+After recording the prior code-head gate, the documentation-only audit follow-up `63eaa1f99aed35452d5f6a3d5d61f5a6504f5868` was independently revalidated with `scripts/final_gate.sh /tmp/gates/63eaa1f-final`: tree `3c003b15cf89deb56ba81969c3a2033a4710a41f`, clean start/end, exit 0, `FAILS=0`. All 47 library tests plus integration suites, debug/release clippy/build, Python tests, perft/legal differential, UCI/search/TT/mate/resource/time-control probes and full-game checks passed. Release SHA-256 remained `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. Hosted CI and PR dependency disposition remain pending.
