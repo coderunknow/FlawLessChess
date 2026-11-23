@@ -688,3 +688,7 @@ At main-search depth<=0 and low-depth futility cutoffs, the search had just gene
 ## 2026-11-23 12:18 UTC — F-66 behavior-preservation follow-up
 
 Compared F-65-before-reuse (`55dac3c`) against F-66 on fresh seeds 11222026 and 12222026 (60 oracle-proven legal-game mates each, depth 6). Both binaries had zero exact mate-score mismatches on both sets and identical aggregate nodes per set (102,465,537; 32,870,468). This supports result preservation, not playing strength.
+
+## 2026-11-23 12:22 UTC — F-66 extra equivalence check; reply-counter candidate rejected
+
+Pre-reuse F-65 vs F-66 on 100 fresh random legal positions (seed 2112026, depth 5): exact bestmove, score and nodes matched in every position; 1,165,553 nodes each. A separate idea to early-exit legal reply counting at the root was measured in five paired fixed-bench runs and was slightly slower (median 448,818 vs 453,241 NPS, -0.98%), so it was rejected. No movegen change was made.

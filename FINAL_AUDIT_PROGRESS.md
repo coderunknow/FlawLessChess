@@ -509,3 +509,9 @@ Hosted CI on that code head passed Ubuntu, Windows, MSRV, Windows artifact, veri
 ## 2026-11-23 12:18 UTC — F-66 fresh tactical behavior comparison
 
 After the exact-head gate, compared F-66 (`c4c124e`) with the pre-reuse F-65 binary (`55dac3c`) on two fresh capture-biased legal-game oracle sets, seeds 11222026 and 12222026, 60 proven mate-in-1/2 positions each at depth 6. Both binaries returned exact oracle mate distances for all 120 positions, and aggregate node totals were identical within each set (102,465,537 for seed 11222026; 32,870,468 for seed 12222026). This supports preserving search behavior across the qsearch reuse change; correlated tactics do not establish strength.
+
+## 2026-11-23 12:22 UTC — F-66 additional A/B and rejected micro-optimization
+
+Compared pre-reuse F-65 (`55dac3c`) and F-66 on 100 fresh random legal positions from seed 2112026, depth 5: bestmove, score and node count matched on all 100; aggregate nodes were 1,165,553 for each, exit 0. This supports behavior preservation, not strength.
+
+An early-exit legal-reply-count experiment for the root <=11 safeguard was measured in five paired fixed-depth runs: median 453,241 NPS existing vs 448,818 NPS candidate (-0.98%), median 6.59 s vs 6.65 s. Rejected without changing move generation; no perft/gate result is claimed for the unadopted scratch code.

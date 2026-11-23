@@ -1369,3 +1369,9 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 ## F-66 post-gate behavior-preservation samples (2026-11-23 12:18 UTC)
 
 Compared the pre-reuse F-65 binary (`55dac3c`) with the F-66 binary on two fresh capture-biased legal-game oracle sets: seeds 11222026 and 12222026, 60 proven mates each, depth 6. Both builds had 0/60 exact mate-score mismatches on both sets; aggregate nodes matched exactly per set (102,465,537 and 32,870,468). This adds evidence that the qsearch entry optimization preserves tactical results; samples are correlated and are not strength evidence.
+
+## F-66 follow-up: 100-position A/B search equivalence and rejected move-count micro-optimization (2026-11-23 12:22 UTC)
+
+- Fresh random legal-position A/B (`random.Random(2112026)`, 100 positions, depth 5) compared pre-reuse F-65 (`55dac3c`) with F-66. Bestmove, score, and node count matched on all 100; both binaries exited cleanly; total nodes were 1,165,553 each.
+- Considered an early-exit legal-reply counter for the <=11 root guard. Five paired fixed-bench runs showed no benefit: median NPS 453,241 (existing) vs 448,818 (candidate, -0.98%), median time 6.59 s vs 6.65 s. Rejected and not applied; no move-generation code changed.
+- The A/B result is a behavior-preservation check, not a strength test. The rejected scratch experiment was not promoted into the repository and therefore has no perft/gate claim.

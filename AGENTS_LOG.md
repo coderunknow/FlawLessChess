@@ -587,3 +587,7 @@ Code head `c4c124e` passed the clean comprehensive gate (`/tmp/gates/c4c124e-fin
 ## 2026-11-23 12:18 UTC — F-66 behavior comparison
 
 F-66 vs pre-reuse F-65 on fresh oracle-proven legal-game mate sets (seeds 11222026/12222026, 60 each): 0 mismatches in both binaries, identical aggregate nodes per set (102,465,537; 32,870,468). This is behavior-preservation evidence only, not strength evidence.
+
+## 2026-11-23 12:22 UTC — F-66 extra check/rejected experiment
+
+F-65/F-66 A/B on 100 random legal positions at depth 5 matched exact bestmove, score and nodes (1,165,553 total each). Early-exit legal reply counting was tested in five paired benchmarks and was marginally slower, so it was rejected; no movegen code change.
