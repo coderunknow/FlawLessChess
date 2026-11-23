@@ -599,3 +599,7 @@ F-66 release: perft seeds 12/13 passed (334+406 positions, 2,220 depth checks to
 ## 2026-11-23 12:41 UTC — comprehensive exact-head gate
 
 Full `scripts/final_gate.sh /tmp/gates/6bfc833-final` passed at clean head 6bfc8335059e4f4090aa6c9b715ba14c04395c32 (tree be5388ce90f2157b5bad58fb7f7d8b58107de8e4), exit 0, FAILS=0. Release digest unchanged. Logs retained in `/tmp/gates/6bfc833-final`.
+
+## 2026-11-23 12:44 UTC — current hosted checks
+
+Confirmed hosted CI on da8c37f: platform, MSRV, artifact, verify, calibration and all opponent builds pass. Kilo failed due known credits limitation; CodeRabbit skipped. No source changes since full exact-head gate.

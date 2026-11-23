@@ -523,3 +523,7 @@ Ran fresh perft random differential seeds 12 and 13 on the F-66 release binary a
 ## 2026-11-23 12:41 UTC — current branch head gate rerun
 
 Re-ran the exact comprehensive final gate against `6bfc8335059e4f4090aa6c9b715ba14c04395c32`, tree `be5388ce90f2157b5bad58fb7f7d8b58107de8e4`. `scripts/final_gate.sh /tmp/gates/6bfc833-final`: exit 0, clean start, `FAILS=0`; formatting, debug/release clippy/build/tests, Python harness, perft/legal, search, UCI/protocol, resource/fuzz, TT/mate, self-play and complete game probes. Release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`.
+
+## 2026-11-23 12:44 UTC — hosted checks on audit-only follow-up
+
+Hosted CI for `da8c37fffcc0f7a50d96eab2494ac147950799e9`: Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration, and 12 opponent builds all passed. Kilo review remains blocked by insufficient credits, and CodeRabbit skipped. Code/test tree unchanged from exact-head gate at 6bfc833.

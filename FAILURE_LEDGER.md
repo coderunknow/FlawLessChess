@@ -1383,3 +1383,7 @@ On the F-66 release binary, two fresh random-game perft sets passed against pyth
 ## F-66 exact-head gate rerun on audit-extended branch head (2026-11-23 12:41 UTC)
 
 Ran `scripts/final_gate.sh /tmp/gates/6bfc833-final` from clean branch head `6bfc8335059e4f4090aa6c9b715ba14c04395c32` (tree `be5388ce90f2157b5bad58fb7f7d8b58107de8e4`). Exit 0, dirty-at-start 0, `FAILS=0`; includes fmt, debug/release clippy/build/tests, Python harness checks, perft/legal differential, search sweep, UCI/protocol, fuzz/resource, TT/mate, self-play and full-game probes. Release SHA-256 remains `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Gate evidence: `/tmp/gates/6bfc833-final`.
+
+## Latest branch-head hosted CI (2026-11-23 12:44 UTC)
+
+Hosted CI on audit-only head `da8c37fffcc0f7a50d96eab2494ac147950799e9`: Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration, and all 12 opponent builds passed. Kilo Code Review failed immediately again (account-credit limitation already recorded); CodeRabbit skipped. The code/test tree is unchanged from the clean exact-head local gate at `6bfc833`; this new commit only appends the gate result.
