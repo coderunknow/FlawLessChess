@@ -1444,4 +1444,10 @@ Append-only index; this does not rewrite or upgrade any earlier result. “UNAVA
 
 Future verification entries will name the exact commit and a raw-output path committed in the repository, or explicitly record `UNAVAILABLE`.
 
-Implementation correction for the appended F-54/F-67 fixes: the current code replaces nominal-depth clock-horizon checks with a TT key contextualized by the exact halfmove clock. Thus the older F-67 addendum's sentence that the nominal-depth guard remains is historical and superseded by the code/test changes under review; `Position::hash` stays clock-independent for repetition. The current exact-clock isolation and cross-clock search regressions are still pending full-gate validation on the revised head.
+Implementation correction for the appended F-54/F-67 fixes: the current code replaces nominal-depth clock-horizon checks with a TT key contextualized by the exact halfmove clock. Thus the older F-67 addendum's sentence that the nominal-depth guard remains is historical and superseded by the code/test changes under review; `Position::hash` stays clock-independent for repetition. The current exact-clock isolation and cross-clock search regressions were validated by the full gate on source/test commit `071865a39079f3877e342ef36679778483c96ee7`; the append-only exact-head result below supersedes the pending note above.
+
+### PR #5 CodeRabbit corrections — exact-head local gate (2026-11-23)
+
+- Code/test/provenance commit `071865a39079f3877e342ef36679778483c96ee7`, tree `753f62b3d178e4e500db17e0bb0a7ddc3db190cd`, was clean at start and end.
+- `scripts/final_gate.sh /tmp/gates/071865a-review` exited 0 with `FAILS=0`. This covered fmt, debug/release clippy/build/tests, Python tooling tests, perft and legal/search differentials, UCI/fuzz/resource/clock probes, TT/mate/MultiPV probes, self-play, and full-game probes. The revised MultiPV claim tests, exact-clock TT tests, F-67 claim regressions, and mate-in-one iteration-stop protocol regression passed in the release/debug suites.
+- Raw outputs are not retained in the repository: UNAVAILABLE (they remain only in temporary `/tmp/gates/071865a-review`). No rating, strength, or general search-correctness claim follows from this gate.
