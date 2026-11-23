@@ -640,3 +640,7 @@ F-57's safe finite-search early exit was also being applied to `go infinite`, wh
 ## 2026-11-23 — F-59 sparse forcing quiet moves
 
 After a fresh 72-position python-chess mate-in-two sample exposed one depth-6 miss, tested a narrowly bounded LMR exception: for otherwise reducible quiet moves only, when there are at most eight occupied squares, count legal replies after the move; if there are at most two, search at full depth. It recovers the exact `Re2 Kd5 Rd3#` line at depth 6. The same isolated candidate has 0 misses on both the 83-position and 72-position samples, versus current 0/83 and 1/72 misses. An unbounded legal-reply check also recovered the mate but expanded the fixed benchmark workload and was rejected; piece-count gating preserves benchmark signature `141943aa23b3fc68` and 2,853,010 nodes. These tactical samples do not establish playing strength.
+
+## 2026-11-23 — F-59 exact-head validation follow-up
+
+Committed candidate `6b6479d` passed the clean exact-head comprehensive gate: `/tmp/gates/6b6479d-final/summary.txt`, `dirty-at-start 0`, `FAILS=0`. On its release binary, independent random-endgame mate-distance probe seeds 2, 3, 20 and 21 (120 oracle-proven mate-in-1/2 positions each, depth 6) had 0 score mismatches across 480 positions (107 mate in one, 373 mate in two). Seeds 20–21 are fresh samples. This improves tactical regression confidence but is not a playing-strength or Elo measurement.
