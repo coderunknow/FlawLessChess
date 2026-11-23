@@ -99,6 +99,17 @@ def main(argv):
             eng.send(f"go depth {depth}")
             lines = eng.read_until("bestmove", 60)  # raises on a stalled engine
             info = [l for l in lines if l.startswith(f"info depth {depth} ")]
+            if not info and d == 1:
+                # The engine may stop iterative deepening after proving mate in one: this is the
+                # maximum possible root score, so waiting for the requested deeper iteration is
+                # unnecessary. Accept only that exact terminal proof, not an arbitrary shallow line.
+                completed = [
+                    l for l in lines if l.startswith("info depth ") and " score " in l
+                ]
+                if completed:
+                    last = completed[-1].split(" score ")[1].split()
+                    if last[:2] == ["mate", "1"]:
+                        info = [completed[-1]]
             parts = info[-1].split(" score ")[1].split() if info else []
             checked[d] += 1
             if parts[:1] != ["mate"] or parts[1:2] != [str(d)]:
