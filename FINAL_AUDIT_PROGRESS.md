@@ -395,3 +395,7 @@ A transposition score stored at halfmove 0 could be reused at halfmove 98 becaus
 ### F-55 exact-head closeout (2026-11-22 15:57 UTC)
 
 Final source/test head `ec9347d6472bd4a0f712dacf52bc1130421f4403`, tree `46c2d01f438b641f9cc4c1467ae1109f3a094b08`, passed `scripts/final_gate.sh /tmp/gates/ec9347d-final` with `FAILS=0` and a clean, unchanged end check. Release binary SHA-256 `8641c34e141f5a4392b2448b4277fe75f3a174fd6779e132f71e2bababbc47f2`; perft(5) and depth-10 bench unchanged (4,865,609; signature `849a85bf7e8e1eba`, 4,135,406 nodes). The branch is pushed. The audit cutoff remains 16:00 UTC; F-41 LMR quiet-mate concern remains open.
+
+## 2026-11-23 — F-56 quiet-check LMR audit
+
+A fresh search audit found a reproducible LMR miss outside the sparse-position guard: a late quiet checking move can be reduced so far that the proof of a forced mate is lost; qsearch does not explore quiet checks. Fix: do not apply LMR to an eligible quiet move if it gives check. Added an exact UCI regression for a legal middlegame mate-in-two (`Qc6+ Ka5 Ra1#`), which fails on baseline (`cp 1358`, wrong move) and passes on the candidate (`mate 2`, `Qc6+`). Independent python-chess enumeration of random legal playouts found 4/43 and 2/83 baseline misses across two seed sets; candidate found all exact mates in both, and each missed line started with a quiet check. Depth-10 benchmark is now signature `141943aa23b3fc68`, 4,677,558 nodes (+13.1%). This is a tactical correctness trade-off, not an Elo claim; exact-head full gate is pending.

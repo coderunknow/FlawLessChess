@@ -547,3 +547,7 @@ Scope: panic sites in src/, input parsing (go/setoption/position), search root h
 - That entry said clippy was run as `cargo clippy --release --all-targets -- -D warnings`. That is the only clippy line it records. The debug invocation `cargo clippy --all-targets -- -D warnings` was run in the same session but is not in that entry. The release and debug logs are in `/tmp/gates/` (clippy_release.log, clippy_debug.log); both are re-run on the final commit.
 - That entry says `protocol_regressions (7 process tests)`. The count at 49fdecf was 6 (`#[test]` count at the commit); 8 at 3a280df; 9 after the searchmoves control test. Counts are taken from `#[test]` attributes, not from the entry.
 - Historical entries are left as written.
+
+## 2026-11-23 — F-56 tactical-search correction
+
+Applied the user's audit direction to resolve the previously documented LMR owner-choice after confirming an actual false negative on legal middlegame positions. The narrow quiet-check exemption is regression-tested and independently checked against two random-game oracle samples. A 13.1% depth-10 benchmark node increase and signature change are accepted/documented; no rating claim or reuse of frozen rating evidence. Full exact-head gate pending.

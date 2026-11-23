@@ -1394,6 +1394,34 @@ fn quiet_mate_in_two_is_not_pruned_by_a_mate_alpha() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-56: LMR used to reduce this late quiet checking move and miss a proven mate in two in a
+/// legal middlegame. The independent python-chess proof is 1. Qc6+ Ka5 2. Ra1#; the reduced
+/// search reported only a centipawn score at depth 6. Checking moves are now searched unreduced.
+#[test]
+fn late_quiet_checking_move_is_not_reduced_past_a_forced_mate() {
+    let fen = "r4b2/p3p3/n2pP3/4Pp1q/k4P1P/2P1KQp1/1BP1NR2/5R2 w - - 0 51";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(60));
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth 6 "))
+        .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
+    assert!(
+        reports_mate_in(last, 2),
+        "the proven mate in two must be found at depth 6: {last}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove f3c6"),
+        "Qc6+ is the proven mating move: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// True when an `info` line reports exactly `score mate <n>`. A substring test is not enough:
 /// `score mate 30` contains `score mate 3`.
 fn reports_mate_in(line: &str, n: i32) -> bool {

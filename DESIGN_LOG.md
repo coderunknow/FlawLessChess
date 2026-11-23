@@ -616,3 +616,10 @@ DRAFT ONLY — no code changes under this entry.
 - A mate claim the oracle cannot reach within `--limit` is INCONCLUSIVE (exit 3). It is neither a pass nor a defect; the report must say so.
 - A dead or unresponsive engine ends the probe run at the first stall, not after one timeout per case.
 - Not changed: committed gate deadlines (bench, time budgets, the 60 s per-position search wait). Changed only probe-internal handshake waits (`eval_symmetry_probe.py`: 120 s → 10 s). The `go ponder movetime` decision remains open and unchanged.
+
+## 2026-11-23 — F-56: retain full-depth search for quiet checking moves
+
+- Decision for this audit: exempt quiet checks from LMR when the move is otherwise reducible. The owner explicitly requested actual valuable bug fixes and engine improvement. The previous LMR owner-decision is superseded for this narrow class by a reproducible forced-mate failure in legal, >6-piece positions and a fresh independent holdout.
+- Reason: a reduced child can miss the forcing continuation because qsearch only follows captures/promotions and does not search quiet checks. The six observed baseline misses in two independently generated legal-game samples all began with a quiet checking move; restoring full depth found the oracle-proven exact mate in all six.
+- Cost/measurement: depth-10 bench nodes rise 13.1% (4,135,406 → 4,677,558) and the fixed best-move signature changes to `141943aa23b3fc68`. This accepts a measurable nodes/time trade-off for tactical correctness, without claiming a general Elo improvement. Frozen rating evidence is not reused.
+- Verification before exact-head gate: the regression fails on the baseline binary and passes on the candidate; candidate resolves 6/6 baseline misses across two legal-game samples (fresh holdout: 0/83 vs baseline 2/83). Targeted release integration test, fmt, and debug/release clippy pass. Full gate is still pending.

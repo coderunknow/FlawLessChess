@@ -141,8 +141,7 @@ The initial reduced-suite bytes were rejected by the Python standard-library sel
 
 - Change: `relative_move_key` in `src/search.rs` orders equal-score moves by a colour-relative key, so the search
   no longer depends on the side's raw square numbering. Found by `scripts/eval_symmetry_probe.py` (see FAILURE_LEDGER S-14).
-- Current hosted reference: fixed-depth-10 bench signature `849a85bf7e8e1eba` (12 fixed positions, 2,311,437 nodes after F-14; 2,311,407 before it,
-  in about 6.1 s on the local release build, 380k–391k nps). This replaces `141943aa23b3fc68` as the active reference.
+- Historical pre-F-56 reference: fixed-depth-10 bench signature `849a85bf7e8e1eba` (12 fixed positions; node counts varied across revisions and machines). It replaced `141943aa23b3fc68` at the time, before the F-56 search correction below.
 - Comparison on this change: disabling LMR also makes the depth-4 probe symmetric (0/120), but needs 45,805,850 nodes
   for the same bench (about 18× more nodes, 117 s). LMR stays enabled.
 - The `141943aa23b3fc68` entry above is historical and is kept unchanged.
@@ -164,3 +163,7 @@ The initial reduced-suite bytes were rejected by the Python standard-library sel
 - Reading: the allocation stays lazy in both builds (about 2 ms for a table of up to 1 GiB, so pages are not written).
   The RSS-after-search columns vary from run to run in both builds (33–50 MiB); no systematic difference is shown.
   This is a sandbox measurement, not a claim about the reference machine.
+
+## 2026-11-23 — F-56: do not LMR-reduce quiet checking moves
+
+The search now leaves a late quiet move unreduced when it gives check. Independently verified random-game tactical samples showed that LMR hid forced mates in legal positions with more than six pieces; the existing sparse-position exemption did not cover them. The depth-10 fixed benchmark now reports signature `141943aa23b3fc68` and 4,677,558 nodes on this sandbox (vs `849a85bf7e8e1eba` and 4,135,406 nodes immediately before the change, +13.1%). This is a deterministic best-move/node benchmark change and an observed tactical-search correction, not an Elo or general strength claim. Hosted exact-head identity verification is pending until the change is committed and pushed.

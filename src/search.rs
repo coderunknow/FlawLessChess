@@ -690,7 +690,9 @@ impl<'a> Searcher<'a> {
             let capture = is_capture(pos, m);
             let undo = pos.make_move(m);
 
-            // Late move reductions (quiet moves, not in check, late in the list)
+            // Late move reductions (quiet moves, not in check, late in the list). Do not reduce a
+            // quiet move that gives check: it is a forcing move, and a reduced child can stop
+            // before proving a forced mate (F-56); quiescence does not search quiet checks.
             let searched_count = searched_count_usize as i32;
             let mut reduction = 0i32;
             if depth >= 3
@@ -698,6 +700,7 @@ impl<'a> Searcher<'a> {
                 && !capture
                 && m.promo == PROMO_NONE
                 && !in_chk
+                && !in_check(pos)
                 && !sparse
             {
                 reduction = self.lmr[(depth as usize).min(MAX_PLY as usize)]
