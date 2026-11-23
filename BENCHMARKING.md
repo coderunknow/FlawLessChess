@@ -187,3 +187,11 @@ On two additional seeded legal-game samples (71 oracle-proven mates each), the r
 ## 2026-11-23 — F-62 14-piece root guard
 
 The 14-piece safeguard recovered `Bh3 Kh1 Qg2#` at depth 6. On five legal-game oracle samples (443 correlated mate-in-one/two positions), F-62 scored all correctly vs 12 F-59 mismatches, at 211.18M vs 189.19M nodes (+11.6%). Sixth sample had one shared residual in 68 cases. Fixed bench remains `141943aa23b3fc68`, 2,853,010 nodes. Measurement is sandbox-specific; no Elo claim.
+
+## 2026-11-22 — F-67 draw-rule correctness fix
+
+A focused depth-1 UCI regression for an announced fifty-move claim now returns 0 cp where the prior build reported +1268 cp. No benchmark was run to attribute a throughput effect; the change performs a one-time legal move generation at halfmove clock 99 and reuses it through the main-search/qsearch boundary when available. Do not infer performance or Elo impact from this correctness probe. The comprehensive final gate is pending.
+
+### F-67 validation addendum
+
+The updated TT claim-boundary guard and search regression passed targeted tests; no dedicated throughput run was made. The 24-position holdout and saved tactical FEN reruns are correctness probes only and do not support Elo, strength, or broad performance conclusions.

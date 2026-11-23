@@ -539,3 +539,22 @@ Hosted CI on `2456223f5daf60b2cd138373b7fef6a8f13aae58` passed all platform, MSR
 ## 2026-11-23 12:55 UTC — randomized depth-7 equivalence
 
 Ran pre-reuse F-65 vs F-66 on 92 fresh random legal positions at depth 7: bestmove, score, and nodes all exactly matched, with aggregate 5,581,590 nodes per engine and clean exits. This extends the depth-5 100-position A/B and remains behavior-preservation evidence only.
+
+## 2026-11-22 — F-67 reproduced and corrected; mission remains in progress
+
+- Reproduced the fifty-move claim miss at FEN `8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 98 40`, with `go searchmoves b4g4 depth 1`: before the fix the score was +1268 cp. The quiet check leaves one quiet king evasion; the defending side may claim before making that move at clock 99.
+- Fixed announced-move claim handling in main search and quiescence. The clock-99 legal list is reused where possible, TT scores/pruning are skipped for claimable nodes, and qsearch keeps its existing saved-move-list path. Checkmate at clock 100 remains terminal. Added two regressions.
+- Targeted validation so far: `cargo fmt`; all 9 `draw_rule_tests`; `tt::tests::clock_unsafe_entries_suppress_score_but_keep_move`; release build. The release UCI line returns score 0 cp and `bestmove b4g4` at clocks 98/99/100. These are targeted checks only; exact-head full gate, saved tactical FEN sweep, fresh independent legal-game holdout, and hosted CI remain pending.
+- PR #4 is still open, so no PR #5 retargeting/integration/merge is authorized. PR #5 stays open. No Elo, full correctness, or release-readiness claim.
+
+## 2026-11-22 — F-67 expanded adversarial checks
+
+- TT score safety now treats 99 as the earliest claim boundary at store and probe, and tests exercise low-clock-to-near-claim reuse. Added a counterexample guard: at clock 99 a checked position with only legal captures cannot claim by announcing one; its depth-1 score matches clock 98.
+- Built the release binary from the modified source. The original restricted UCI line (`b4g4`, depth 1) returns exactly 0 cp and a legal bestmove at clocks 98, 99, and 100. Qsearch claim and checkmate-precedence regressions pass.
+- Audited 15 saved tactical FENs from F-41/F-44/F-56/F-59–F-65 and F-67: all legal bestmoves and independently proved mate distances (mate 1/2/3 as applicable) match; F-67's restricted claim line is 0 cp.
+- Fresh independent seed-20261122 legal-game sample: python-chess proved 11 mate-in-one and 13 mate-in-two positions; depth-6 FlawLessChess matched all 24 exact mate distances and returned legal bestmoves (2,155,784 nodes; clean process exit). This is tactical behavior evidence only, not an Elo or complete-correctness claim.
+- Exact-head `scripts/final_gate.sh`, hosted checks, and final dependency-boundary review remain pending. PR #4 is confirmed open/unmerged, PR #5 remains open on its existing stacked base; no retarget/merge.
+
+## 2026-11-22 — explicit dispositions for saved selective-search findings
+
+The current saved-FEN replay confirms F-41/F-44 examples, F-56, F-59–F-65, and F-67 as listed above. F-61's mate-in-two is covered by F-62's <=14-piece root safeguard; the separate F-62 sixth-sample residual is covered by F-63's <=8-piece NMP exclusion. Current depth-6 results match the independent mate distances on both. This closes those named cases, not all LMR/NMP/selective-search risk. Remaining unverified/accepted historical items remain separately described in the ledger; no complete-search-correctness or release-readiness claim.

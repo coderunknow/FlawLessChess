@@ -1401,3 +1401,24 @@ Hosted run `45177640528` / `45177640512` for `2456223f5daf60b2cd138373b7fef6a8f1
 ## F-66 deeper randomized search A/B (2026-11-23 12:55 UTC)
 
 Extended the pre-reuse F-65 (`55dac3c`) vs F-66 comparison to depth 7 on 92 fresh random legal positions (seed 2112026, same deterministic position stream). Exact bestmove, score and node counts matched on every position; aggregate nodes were 5,581,590 on each build; both processes exited 0. This is behavioral equivalence evidence, not an Elo/strength claim.
+
+## F-67 — intended fifty-move claim missed at halfmove 99 (2026-11-22)
+
+- Adversarial probe: FEN `8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 98 40`, restricted move `b4g4`. This legal quiet check left White in check with only `g3h3`; after that evasion the clock reached 100. At the intermediate clock 99, White already had the FIDE option to claim by announcing that quiet evasion. The release engine before the fix scored the line +1268 cp at depth 1, missing White's claim. Python-chess confirmed move legality, the sole evasion, and the intended-move claim condition.
+- Root cause: search treated a fifty-move claim only as an already-reached clock of 100; neither main search nor qsearch modeled the claim available by announcing a legal quiet non-pawn move at clock 99. This mattered in the check-evasion/quiescence boundary and made clock-sensitive TT/pruning guards incomplete for that claim context.
+- Fixed in `src/search.rs` and `src/tt.rs`: at clock 99, generate legal moves once and recognize an announced quiet non-pawn, non-capture as a claim option; suppress TT cutoffs/pruning in that context, clamp the searched value to at least draw, and pass/reuse the generated list. Qsearch independently handles boundary nodes while preserving the passed list, and checks terminal positions before applying claim value so checkmate still takes precedence. Root-restricted qsearch checks the unrestricted legal set for claim eligibility without widening its search move list. TT store/probe safety now uses the earliest claim boundary at 99 rather than waiting until 100, retaining move ordering while withholding unsafe scores.
+- Regression coverage: `intended_fifty_move_claim_is_honored_after_quiet_check_evasion` pins the original depth-1 restricted-search case to 0 cp; `qsearch_honors_intended_claim_and_keeps_mate_precedence` checks the clock-99 checked qsearch node and checkmate at clock 100. Targeted draw-rule tests and TT clock-safety test pass. Release UCI reproduction now returns 0 cp at clocks 98, 99 and 100, with `bestmove b4g4` at depth 1.
+- Disposition: FIXED; broader final-gate, fresh holdout, and exact-final-head hosted CI are pending. This is a scoped draw-rule/search correction, not evidence of complete search correctness or playing strength.
+
+### F-67 addendum — TT boundary and eligibility checks (2026-11-22)
+
+- TT store/probe threshold now treats halfmove 99 as the earliest claim boundary; tests cover low-clock reuse at the boundary and an unsafe store at halfmove 98 + depth 1. The existing nominal-depth guard remains deliberately conservative for the represented search depth; TT moves remain available.
+- Added `clock_99_without_eligible_quiet_move_is_not_claimable`: a checked position whose legal moves are captures only returns the same positive restricted-search score at clocks 98 and 99, preventing false claims on capture/pawn moves.
+- F-67 UCI case with `searchmoves b4g4 depth 1`: score 0 cp and legal `bestmove b4g4` at clocks 98, 99 and 100. All 15 saved tactical FEN probes passed (F-41, F-44, F-56, F-59 through F-65, and F-67; exact mate distances checked to three plies where applicable).
+- Fresh independent seed-20261122 legal-game holdout: 24 reachable positions (11 exact mates-in-one, 13 exact mates-in-two), oracle-proven with python-chess; depth-6 engine scores and legal bestmoves matched on 24/24, 2,155,784 aggregate nodes, clean exit. Not strength evidence.
+
+### Tactical finding disposition reconciliation (2026-11-22 audit pass)
+
+- F-41's three saved mate-in-two examples and F-44's three saved sparse mates (including the dense mate-in-one) pass the current depth-6 legal-bestmove and exact mate-distance probes. Later F-56 covers quiet checking moves; this is not a claim that all LMR/selective-search misses are eliminated.
+- F-61's 14-piece mate-in-two is resolved by the F-62 root safeguard; the current saved-FEN probe reports mate 2 at depth 6. The separate sixth-sample residual in F-62 (`4kr2/...`) is resolved by F-63's <=8-piece null-move-pruning exclusion; the current probe reports mate 2 at depth 6.
+- F-63 through F-65 saved mate-in-two examples also pass current exact distance checks. These dispositions close only the named reproductions. General search correctness remains explicitly unclaimed.

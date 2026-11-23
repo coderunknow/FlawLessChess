@@ -3,9 +3,10 @@
 //! - Zobrist-keyed, depth-preferred replacement with generation aging.
 //! - 8-byte entries; power-of-two entry count; aligned u64 access.
 //! - Mate scores are stored ply-relative (added on store, subtracted on load).
-//! - Scores from subtrees that can reach the fifty-move horizon are flagged CLOCK-UNSAFE
-//!   at store time and never reused as bounds. Probe-time halfmove + stored-depth checks also
-//!   prevent a low-clock entry from being reused near the horizon; moves remain usable for ordering.
+//! - Scores from subtrees that can reach a fifty-move claim (including announcing a move at
+//!   halfmove 99) are flagged CLOCK-UNSAFE at store time and never reused as bounds. Probe-time
+//!   halfmove + stored-depth checks also prevent low-clock entries being reused near that boundary;
+//!   moves remain usable for ordering.
 
 use crate::types::Move;
 
@@ -20,14 +21,14 @@ struct Entry {
     move16: u16,
     score: i16,
     /// Search depth 0..=127 in bits 0..=6. Bit 7 is the CLOCK-UNSAFE flag: set when the
-    /// subtree at store time could reach the fifty-move horizon (store-time halfmove +
-    /// remaining depth >= 100). Such scores are halfmove-clock-context-dependent and must
+    /// subtree at store time could reach an announced fifty-move claim (store-time halfmove +
+    /// remaining depth >= 99). Such scores are halfmove-clock-context-dependent and must
     /// never be reused as a bound — the cached move stays valid for ordering.
     depth: i8,
     bound_gen: u8, // bound(2 bits) | gen(6 bits)
 }
 
-const FIFTY_MOVE_HORIZON: i32 = 100;
+const FIFTY_MOVE_CLAIM_HORIZON: i32 = 99;
 const DEPTH_VALUE_MASK: u8 = 0x7F;
 const CLOCK_UNSAFE_FLAG: u8 = 0x80;
 
@@ -55,7 +56,7 @@ pub struct StoreRequest {
     pub depth: i32,
     pub bound: u8,
     pub ply: i32,
-    /// Halfmove clock at store time; decides the CLOCK-UNSAFE flag (fifty-move horizon).
+    /// Halfmove clock at store time; decides the CLOCK-UNSAFE flag (claim boundary at 99).
     pub halfmove: u16,
 }
 
@@ -274,7 +275,7 @@ impl TranspositionTable {
     }
 
     /// Probe a position at `halfmove`. The clock is not in the Zobrist key, so the score bound
-    /// is suppressed if either store-time or probe-time depth can reach the fifty-move horizon.
+    /// is suppressed if either store-time or probe-time depth can reach the fifty-move claim boundary.
     /// The best move remains available for ordering when the score is suppressed.
     pub fn probe(&mut self, key: u64, ply: i32, halfmove: u16) -> ProbeResult {
         self.probes += 1;
@@ -296,9 +297,11 @@ impl TranspositionTable {
         ProbeResult {
             best_move,
             // A score is reusable only when it was clock-safe where stored AND the probe's
-            // own halfmove clock plus the stored depth cannot reach the fifty-move horizon.
+            // own halfmove clock plus the stored depth cannot reach an announced-move claim at 99.
             // The Zobrist key excludes the clock, so both contexts must be checked.
-            score: if e.clock_unsafe() || halfmove as i32 + e.depth_val() >= FIFTY_MOVE_HORIZON {
+            score: if e.clock_unsafe()
+                || halfmove as i32 + e.depth_val() >= FIFTY_MOVE_CLAIM_HORIZON
+            {
                 None
             } else {
                 Some(Self::adjust_score_from_tt(e.score, ply))
@@ -329,12 +332,12 @@ impl TranspositionTable {
             halfmove,
         } = req;
         let depth_v = depth.clamp(0, DEPTH_VALUE_MASK as i32);
-        // Mark scores whose searched subtree may reach the fifty-move horizon in the store
-        // context. Such scores are never reused as bounds. For entries safe at store time,
-        // `probe` also checks the probing halfmove clock + stored depth because the clock is
-        // excluded from the Zobrist key; a score safe at halfmove 0 can still be unsafe at 98.
+        // Mark scores whose searched subtree may reach an announced-move claim at halfmove 99
+        // in the store context. Such scores are never reused as bounds. For entries safe at store
+        // time, `probe` also checks probing clock + stored depth because the clock is excluded
+        // from the Zobrist key; a score safe at halfmove 0 can be unsafe near the claim boundary.
         // The best move remains available for ordering in either case.
-        let clock_safe = (halfmove as i32 + depth_v) < FIFTY_MOVE_HORIZON;
+        let clock_safe = (halfmove as i32 + depth_v) < FIFTY_MOVE_CLAIM_HORIZON;
         let depth_field = (depth_v as u8) | if clock_safe { 0 } else { CLOCK_UNSAFE_FLAG };
         let idx = self.index(key);
         let old = Self::unpack(self.entries[idx]);
@@ -433,7 +436,7 @@ mod tests {
         assert_eq!(p.score, None);
         assert_eq!(p.best_move, Some(mv));
         assert_eq!(p.depth, 4);
-        // halfmove 94 + depth 4 = 98 < 100 -> clock-safe; score reusable in any context.
+        // halfmove 94 + depth 4 = 98 < 99 -> clock-safe in the store context.
         let mut tt2 = TranspositionTable::new(1);
         tt2.store(StoreRequest {
             key,
@@ -445,7 +448,7 @@ mod tests {
             halfmove: 94,
         });
         assert_eq!(tt2.probe(key, 0, 0).score, Some(300));
-        // Boundary: halfmove 99 + depth 1 = 100 -> unsafe.
+        // Boundary: halfmove 98 + depth 1 = 99 can reach an announced-move claim -> unsafe.
         let mut tt3 = TranspositionTable::new(1);
         tt3.store(StoreRequest {
             key,
@@ -476,9 +479,9 @@ mod tests {
             halfmove: 0,
         });
 
-        // The entry's stored depth cannot reach 100 from 94, but it can from 95.
-        assert_eq!(tt.probe(key, 0, 94).score, Some(275));
-        for halfmove in [95, 98, 99] {
+        // The entry's stored depth cannot reach the claim boundary from 93, but it can from 94.
+        assert_eq!(tt.probe(key, 0, 93).score, Some(275));
+        for halfmove in [94, 95, 98, 99] {
             let probe = tt.probe(key, 0, halfmove);
             assert_eq!(probe.score, None, "unsafe probe clock {halfmove}");
             assert_eq!(probe.best_move, Some(mv), "move ordering at {halfmove}");

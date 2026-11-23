@@ -615,3 +615,15 @@ All hosted build/test checks pass on 2456223; external Kilo credit block, CodeRa
 ## 2026-11-23 12:55 UTC — depth-7 randomized A/B
 
 92 fresh legal random positions at depth 7 yielded identical score, bestmove and nodes between F-65 and F-66; total 5,581,590 nodes each. No source changes.
+
+## 2026-11-22 — F-67 intended fifty-move claim correction
+
+Reproduced the halfmove-98 checking-line defect in UCI and traced it to the claim available by announcing a legal quiet move at clock 99. Added clock-boundary recognition in main search and qsearch, preserving terminal mate precedence, the existing qsearch move-list handoff, TT clock safety, and strict root `searchmoves`. Added two regressions. Targeted draw-rule suite (9 tests), TT clock-unsafe test, fmt, and release build passed; full mission gate/holdouts remain pending. No move-generation code changed and no performance or strength claim is made.
+
+## 2026-11-22 — F-67 TT boundary and tactical holdouts
+
+Updated TT clock safety to use the earliest announced-claim boundary (99); added a no-eligible-quiet-move regression for the clock-99 case. F-67 UCI restricted line returns 0 cp at clocks 98/99/100. All 15 saved tactical FENs passed exact mate-distance/legality checks where applicable. Independent python-chess legal-game holdout seed 20261122: 24 oracle-proven positions (11 mate-in-one, 13 mate-in-two), 24/24 exact depth-6 mate distance and legal bestmove, 2,155,784 nodes. Full final gate/CI remain pending. No Elo/strength claim.
+
+## 2026-11-22 — saved-finding dispositions reconciled
+
+Explicitly reconciled the named recent tactical residuals: F-61→F-62 root safeguard and F-62 sixth-sample residual→F-63 NMP exclusion; current replay confirms exact mate 2 at depth 6 for both. Named F-41/F-44 and F-56/F-59–F-65/F-67 tactical examples pass their current checks. This does not close general selective-search risk.

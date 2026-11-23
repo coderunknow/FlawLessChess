@@ -7,7 +7,8 @@
 //! Draws honored inside search: repetition (2-fold along the search path), fifty-move rule,
 //! insufficient material; checkmate/stalemate handled by the no-legal-moves branch, which is
 //! checked BEFORE any pruning heuristic so a terminal node can never be pruned or mis-scored.
-//! Mate takes precedence over claimable draw rules when the side to move is in check.
+//! Mate takes precedence over claimable draw rules when the side to move is in check. The
+//! fifty-move claim includes announcing a quiet move from halfmove clock 99.
 
 use crate::attack;
 use crate::eval::{
@@ -568,9 +569,9 @@ impl<'a> Searcher<'a> {
         //    ply EXCEPT the root, so the root always searches its moves (R-02a). A checked node
         //    with no legal reply is still checkmate (mate precedence, R-02b);
         //  * fifty-move is a CLAIMABLE draw, not a forced one: the side to move may claim it or
-        //    play on, and a mate it can deliver takes precedence (R-02b). Such a node is searched
-        //    normally, its value is clamped to >= DRAW, and TT score cutoffs and pruning are
-        //    skipped there (R-12).
+        //    play on, including by announcing a quiet move at clock 99; a mate takes precedence
+        //    (R-02b). Such a node is searched normally, its value is clamped to >= DRAW, and TT
+        //    score cutoffs and pruning are skipped there (R-12).
         let in_chk = in_check(pos);
         if ply > 0 && pos.insufficient_material() {
             return DRAW_SCORE;
@@ -581,7 +582,15 @@ impl<'a> Searcher<'a> {
             }
             return DRAW_SCORE;
         }
-        let fifty_claim = pos.is_fifty_move();
+        // A player may claim on the 100th halfmove by announcing a quiet, non-pawn move
+        // while the current clock is 99. Generate once at this boundary so the claim option
+        // is included in score handling and unsafe TT cutoffs/pruning are disabled. At 100,
+        // terminal detection below still gives checkmate precedence.
+        let mut horizon_moves = (pos.halfmove >= 99).then(|| generate_legal(pos));
+        let fifty_claim = pos.is_fifty_move()
+            || horizon_moves
+                .as_ref()
+                .is_some_and(|moves| pos.halfmove == 99 && has_claiming_move(pos, moves));
         let mut alpha = alpha;
         let alpha_entry = alpha;
         let is_pv = beta - alpha > 1;
@@ -608,7 +617,7 @@ impl<'a> Searcher<'a> {
 
         // Terminal (no legal moves) BEFORE any pruning/fail-soft heuristic:
         // mate takes precedence over draw rules; stalemate is a draw.
-        let mut moves = generate_legal(pos);
+        let mut moves = horizon_moves.take().unwrap_or_else(|| generate_legal(pos));
         if ply == 0 {
             if let Some(ref only) = self.root_moves {
                 let mut j = 0usize;
@@ -829,9 +838,30 @@ impl<'a> Searcher<'a> {
         ply: i32,
         initial_moves: Option<MoveList>,
     ) -> i32 {
-        // Fifty-move is a claimable draw (see `search`): the value is at least DRAW.
-        let claim = pos.is_fifty_move();
-        let v = self.quiesce_core(pos, alpha, beta, ply, initial_moves);
+        // At halfmove 99, a claim is available if the player can announce a quiet,
+        // non-pawn move that reaches 100. At/after 100, the player can claim immediately.
+        // Reuse the main-search move list when present; only boundary qnodes without one
+        // generate a list here. An empty legal list is terminal, so checkmate takes priority.
+        let mut boundary_moves = initial_moves;
+        let claim = if pos.halfmove >= 99 {
+            if boundary_moves.is_none() {
+                boundary_moves = Some(generate_legal(pos));
+            }
+            // A restricted root list is a search constraint, not a restriction on the player's
+            // legal right to claim. In that uncommon boundary case, inspect the full legal list
+            // without replacing the restricted list consumed by qsearch itself.
+            let unrestricted_root_moves =
+                (ply == 0 && self.root_moves.is_some()).then(|| generate_legal(pos));
+            let moves = unrestricted_root_moves
+                .as_ref()
+                .or(boundary_moves.as_ref())
+                .expect("boundary moves were generated");
+            moves.len > 0
+                && (pos.is_fifty_move() || (pos.halfmove == 99 && has_claiming_move(pos, moves)))
+        } else {
+            false
+        };
+        let v = self.quiesce_core(pos, alpha, beta, ply, boundary_moves);
         if claim && v < DRAW_SCORE {
             DRAW_SCORE
         } else {
@@ -1097,6 +1127,15 @@ fn see_square_attacked(pieces: &[u64; 12], occupied: u64, by_side: usize, square
     (pawns | knights | bishops | rooks | kings) != 0
 }
 
+/// Whether `moves` contains a legal move that can be announced for a fifty-move claim
+/// from halfmove clock 99. Pawn moves and captures reset the clock instead of reaching 100.
+fn has_claiming_move(pos: &Position, moves: &MoveList) -> bool {
+    (0..moves.len).any(|i| {
+        let m = moves.moves[i];
+        !is_capture(pos, m) && pos.piece_on(m.from).is_some_and(|(_, piece)| piece != PAWN)
+    })
+}
+
 #[inline]
 pub fn is_capture(pos: &Position, m: Move) -> bool {
     captured_piece(pos, m).is_some()
@@ -1322,6 +1361,76 @@ mod draw_rule_tests {
             r.score_cp > MATE_SCORE - 100,
             "expected mate, got {}",
             r.score_cp
+        );
+    }
+
+    /// F-67: a claim can be made by announcing a quiet move that reaches 100 halfmoves.
+    /// The checking move reaches clock 99 and leaves White only the quiet king evasion g3h3;
+    /// White may claim before playing it, so the restricted checking move cannot score as a win.
+    #[test]
+    fn intended_fifty_move_claim_is_honored_after_quiet_check_evasion() {
+        let mut pos =
+            Position::from_fen("8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 98 40").expect("fen");
+        let check = Move::from_uci("b4g4").expect("move");
+        let r = {
+            let mut tt = TranspositionTable::new(4);
+            let stop = AtomicBool::new(false);
+            let limits = Arc::new(Mutex::new(SearchLimits {
+                max_depth: 1,
+                ..SearchLimits::default()
+            }));
+            let mut s = Searcher::new(&mut tt, &stop, limits);
+            s.search_root(&mut pos, Some(vec![check]), 1, &mut |_| {})
+        };
+        assert_eq!(r.best_move, check);
+        assert_eq!(r.score_cp, DRAW_SCORE, "missed intended fifty-move claim");
+    }
+
+    /// Halfmove 99 is claimable only when a legal quiet non-pawn move can be announced.
+    /// In this checked position all four legal moves capture the checking-side queen, so the
+    /// clock advances only if the claim condition were incorrectly applied to captures.
+    #[test]
+    fn clock_99_without_eligible_quiet_move_is_not_claimable() {
+        let fen = "rnbq1b1r/2pQk2p/5ppn/pp2P3/1P6/P1P1PP2/6PP/RNB1KBNR b KQ - {clock} 40";
+        let mut scores = Vec::new();
+        for clock in [98, 99] {
+            let mut pos =
+                Position::from_fen(&fen.replace("{clock}", &clock.to_string())).expect("fen");
+            let legal = generate_legal(&mut pos);
+            assert_eq!(legal.len, 4);
+            assert!(!has_claiming_move(&pos, &legal));
+            let mut tt = TranspositionTable::new(4);
+            let stop = AtomicBool::new(false);
+            let limits = Arc::new(Mutex::new(SearchLimits {
+                max_depth: 1,
+                ..SearchLimits::default()
+            }));
+            let mut s = Searcher::new(&mut tt, &stop, limits);
+            let capture = Move::from_uci("e7d7").expect("capture");
+            let r = s.search_root(&mut pos, Some(vec![capture]), 1, &mut |_| {});
+            assert_eq!(r.best_move, capture);
+            scores.push(r.score_cp);
+        }
+        assert_eq!(scores[0], scores[1]);
+        assert!(scores[1] > DRAW_SCORE);
+    }
+
+    /// The qsearch boundary must honor intended claims too, without replacing a checkmate
+    /// at the 100-halfmove position with a draw.
+    #[test]
+    fn qsearch_honors_intended_claim_and_keeps_mate_precedence() {
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let mut claim =
+            Position::from_fen("8/6p1/6p1/6B1/6rP/1k4K1/4q3/8 w - - 99 40").expect("claim fen");
+        assert_eq!(s.quiesce(&mut claim, -INF_SCORE, INF_SCORE, 1), DRAW_SCORE);
+
+        let mut mate = Position::from_fen("7k/6Q1/6K1/8/8/8/8/8 b - - 100 1").expect("mate fen");
+        assert_eq!(
+            s.quiesce(&mut mate, -INF_SCORE, INF_SCORE, 1),
+            -MATE_SCORE + 1
         );
     }
 
