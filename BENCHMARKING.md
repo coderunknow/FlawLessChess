@@ -183,3 +183,7 @@ On the same three legal-game tactical samples (272 oracle-proven mates in one/tw
 ## 2026-11-23 — F-60/F-61 follow-up samples
 
 On two additional seeded legal-game samples (71 oracle-proven mates each), the root-only <=13-piece/<=10-reply safeguard changed mate-score mismatches from 3→0 and 4→1. Against F-59 across all five samples (443 correlated positions), misses were 12→1, nodes 189.2M→209.7M, elapsed ~235s→248s. A remaining 14-piece mate-in-two is recovered by depth 7 but missed at depth 6. Broader root LMR removal was rejected: 21,391,393 nodes vs 2,853,010 on fixed bench, signature changed. Search results are sandbox-specific tactical evidence; no Elo claim.
+
+## 2026-11-23 — F-62 14-piece root guard
+
+The 14-piece safeguard recovered `Bh3 Kh1 Qg2#` at depth 6. On five legal-game oracle samples (443 correlated mate-in-one/two positions), F-62 scored all correctly vs 12 F-59 mismatches, at 211.18M vs 189.19M nodes (+11.6%). Sixth sample had one shared residual in 68 cases. Fixed bench remains `141943aa23b3fc68`, 2,853,010 nodes. Measurement is sandbox-specific; no Elo claim.

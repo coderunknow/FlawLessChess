@@ -1514,6 +1514,35 @@ fn root_quiet_mate_threat_with_ten_replies_is_not_reduced() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-62: a quiet bishop move in this legal 14-piece position leaves only Kh1, after which Qg2#
+/// is forced. Root LMR reduced the late move at depth 6 and reported mate in three, although the
+/// same engine proved mate in two at depth 7. The <=14-piece root reply safeguard restores the
+/// depth-6 proof; python-chess exhaustively verifies the one-reply mate tree.
+#[test]
+fn root_quiet_mate_threat_with_one_reply_is_not_reduced() {
+    let fen = "2n2b2/1p6/3p1k1r/1n3P1p/1p5P/8/2q3b1/6K1 b - - 2 30";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(60));
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth 6 "))
+        .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
+    assert!(
+        reports_mate_in(last, 2),
+        "the proven mate in two must be found at depth 6: {last}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove g2h3"),
+        "Bh3 is the proven mating threat: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
 /// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
 /// proof instead of needlessly searching several more plies.
