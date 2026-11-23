@@ -411,3 +411,7 @@ The exact-head gate attempt at `a4ecafc` returned `FAILS=2`; both failures were 
 ### Cutoff closeout — 2026-11-23 05:59 UTC
 
 Current pushed head: `19898a0954e37d5741b7bee59d7542985d472000` on `arena/7584c0ca-flawlesschess`, clean. The obsolete fixed-depth-4 assertion was revised to accept the completed mate-in-one iteration; release `protocol_regressions` passes 42/42 and two focused debug tests pass. The last full gate was on parent `a4ecafc` and reports `FAILS=2` solely from that assertion in release/debug. It was not rerun on the final head before cutoff. The audit remains incomplete; F-41 general LMR pruning and broader strength/throughput effects are not fully assessed. No rating or release-readiness claim.
+
+## 2026-11-23 — F-58 infinite-search continuation
+
+Reviewing the F-57 fix exposed a protocol regression: a `go infinite` search with a proven mate in one stopped producing analysis after depth 1. The UCI layer held `bestmove` until `stop`, masking that the search itself had ended. The mate-in-one early exit is now disabled while `limits.infinite` is true; MultiPV and finite search behavior are unchanged. Added a test requiring depth 2 before stop; focused release test and clippy in both profiles pass. Exact-head full gate pending.

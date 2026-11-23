@@ -555,3 +555,7 @@ Applied the user's audit direction to resolve the previously documented LMR owne
 ## 2026-11-23 — F-57 bounded work after a proven mate
 
 The F-56 exact-head gate's sole failure was a valid timeout after the engine already had a mate-in-one proof at depth 3. Added a single-PV early termination check at the maximal root score; MultiPV is intentionally unaffected. Targeted regression and all 400 seed-41 TT/bestmove probes pass; exact-head full gate pending.
+
+## 2026-11-23 — F-58 infinite-analysis guard
+
+Follow-up review caught that F-57's early mate exit also stopped `go infinite` analysis. Restricted the optimization to finite single-PV searches and added a protocol regression requiring further depth output before stop. Focused tests and clippy pass; full gate pending.

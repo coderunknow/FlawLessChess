@@ -632,3 +632,7 @@ DRAFT ONLY — no code changes under this entry.
 - Benchmark identity stays `141943aa23b3fc68`; node count 2,853,010 reflects early termination on forced mate-in-one positions and should not be compared as a pure speed delta against a build that always completed depth 10.
 
 - Gate follow-up (2026-11-23 05:58 UTC): the F-57 early stop correctly invalidated a legacy test's fixed-depth-4 output expectation. Updated it to assert the latest completed iteration and exact mate score. Three targeted release regressions pass. The full gate attempt on `a4ecafc` remains `FAILS=2` (the same stale assertion in release and debug); no clean full-gate rerun fits before this task's cutoff.
+
+## 2026-11-23 — F-58: preserve `go infinite` after a mate-in-one proof
+
+F-57's safe finite-search early exit was also being applied to `go infinite`, which silently stopped analysis after a mate-in-one proof even though UCI mode must continue until `stop`. Keep the early exit for finite single-PV searches only (`!limits.infinite`); ponder remains active because it is represented as infinite until `ponderhit`. MultiPV remains unchanged. A UCI regression demands a depth-2 info line after the mate proof and then stops cleanly. Focused release regression, fmt, and debug/release clippy pass; full gate pending.
