@@ -499,3 +499,9 @@ Hosted checks on `8c8f8a1` passed Ubuntu, Windows, MSRV, Windows artifact, verif
 Avoided duplicate move generation at two main-search exits: depth<=0 and low-depth futility. The search already had a legal `MoveList` for the unchanged position, so it now passes it to qsearch; recursive qsearch remains unchanged and still generates per-child lists. This preserves the terminal check and draw/stand-pat handling while reducing redundant entry work.
 
 Scratch candidate passed full release/debug Rust suites, debug/release clippy and formatting. Fixed depth-10 bench signature/nodes are identical (`141943aa23b3fc68`, 2,986,470). Five paired A/B bench runs: median time 7.86s→6.86s; median NPS 379,840→435,080 (+14.5%) in this sandbox. A prior five-run block showed +12.2%; timings are noisy and environment-specific. No strength claim. Exact-head comprehensive gate/CI pending.
+
+## 2026-11-23 12:13 UTC — F-66 exact-head closeout
+
+Code head `c4c124ec2eb9222375cebe20151430e7371fd5e2` passed `scripts/final_gate.sh /tmp/gates/c4c124e-final` clean exact-head (`dirty-at-start 0`, `FAILS=0`, exit 0). Formatting, debug/release clippy/build/tests, all Python tooling, perft/legal differential, search sweep, UCI/fuzz/resource/clock, TT/mate, self-play and full-game probes passed. Release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`.
+
+Hosted CI on that code head passed Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 and all opponent builds. Kilo is action-required for insufficient credits; CodeRabbit skipped. PR #5 remains open/unmerged. The measured qsearch-entry throughput change is a sandbox benchmark only; no Elo or broad performance claim.

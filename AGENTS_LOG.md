@@ -579,3 +579,7 @@ Exact code/test head `8c8f8a1` passed the clean comprehensive gate (`/tmp/gates/
 ## 2026-11-23 — F-66 qsearch entry optimization
 
 Reused the legal move list already generated at main-search depth/futility exits instead of regenerating it at qsearch entry. Scratch full release/debug tests, both clippy profiles, and formatting passed; depth-10 signature/nodes unchanged. Five interleaved A/B runs show median NPS +14.5% in this sandbox (timing is noisy). Exact-head final gate/CI pending; no strength claim.
+
+## 2026-11-23 12:13 UTC — F-66 closeout
+
+Code head `c4c124e` passed the clean comprehensive gate (`/tmp/gates/c4c124e-final`, `FAILS=0`; release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`). Hosted Ubuntu/Windows/MSRV/artifact/anchor/SF10/opponent checks passed. Kilo lacks credits; CodeRabbit skipped. Sandbox bench timing only; no strength/release claim.

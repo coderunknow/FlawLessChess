@@ -680,3 +680,7 @@ The code/test commit `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed the clean
 ## 2026-11-23 — F-66: reuse the main-search move list at quiescence entry
 
 At main-search depth<=0 and low-depth futility cutoffs, the search had just generated legal moves and qsearch regenerated them again without any intervening position mutation. Added a path for qsearch to consume that existing list; qsearch recursion still generates its own child lists. Full Rust test suites and both clippy profiles passed on an isolated scratch candidate. Depth-10 bench signature/nodes unchanged. Five interleaved A/B bench pairs in this sandbox: median 7.86s→6.86s and 379,840→435,080 nps (+14.5%); a separate five-run block gave +12.2%. This supports the optimization but is noisy, not a general speed guarantee. Exact-head gate pending.
+
+## 2026-11-23 12:13 UTC — F-66 exact-head validation
+
+`c4c124ec2eb9222375cebe20151430e7371fd5e2` passed the exact-head clean final gate (`/tmp/gates/c4c124e-final`, `FAILS=0`, exit 0); release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Hosted Ubuntu, Windows, MSRV, Windows artifact, anchor verification, SF10 calibration and all opponent-build checks passed. Kilo review lacks credits; CodeRabbit skipped. No strength/release claim.
