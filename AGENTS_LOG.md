@@ -627,3 +627,7 @@ Updated TT clock safety to use the earliest announced-claim boundary (99); added
 ## 2026-11-22 — saved-finding dispositions reconciled
 
 Explicitly reconciled the named recent tactical residuals: F-61→F-62 root safeguard and F-62 sixth-sample residual→F-63 NMP exclusion; current replay confirms exact mate 2 at depth 6 for both. Named F-41/F-44 and F-56/F-59–F-65/F-67 tactical examples pass their current checks. This does not close general selective-search risk.
+
+## 2026-11-22 — F-67 comprehensive gate closeout on code head
+
+Commit a891f82c71e807c56f3d57cdb0996beb0956653a / tree 186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb passed `scripts/final_gate.sh /tmp/gates/a891f82-final`: exit 0, clean, FAILS=0. Release binary SHA-256 686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0. Full gate includes Rust debug/release tests/clippy, Python tests, perft/legal differentials, UCI/search/mate/TT/resource/clock checks, self-play and full games. Docs-only follow-up exact-head validation and hosted checks remain pending.

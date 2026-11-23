@@ -195,3 +195,7 @@ A focused depth-1 UCI regression for an announced fifty-move claim now returns 0
 ### F-67 validation addendum
 
 The updated TT claim-boundary guard and search regression passed targeted tests; no dedicated throughput run was made. The 24-position holdout and saved tactical FEN reruns are correctness probes only and do not support Elo, strength, or broad performance conclusions.
+
+### F-67 comprehensive-gate note
+
+The exact code head passed the full local gate with release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. This correctness gate does not contain a dedicated performance comparison for F-67; no throughput or Elo attribution is made.

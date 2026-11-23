@@ -1422,3 +1422,7 @@ Extended the pre-reuse F-65 (`55dac3c`) vs F-66 comparison to depth 7 on 92 fres
 - F-41's three saved mate-in-two examples and F-44's three saved sparse mates (including the dense mate-in-one) pass the current depth-6 legal-bestmove and exact mate-distance probes. Later F-56 covers quiet checking moves; this is not a claim that all LMR/selective-search misses are eliminated.
 - F-61's 14-piece mate-in-two is resolved by the F-62 root safeguard; the current saved-FEN probe reports mate 2 at depth 6. The separate sixth-sample residual in F-62 (`4kr2/...`) is resolved by F-63's <=8-piece null-move-pruning exclusion; the current probe reports mate 2 at depth 6.
 - F-63 through F-65 saved mate-in-two examples also pass current exact distance checks. These dispositions close only the named reproductions. General search correctness remains explicitly unclaimed.
+
+### F-67 exact-head gate (2026-11-22)
+
+The code/test/log head `a891f82c71e807c56f3d57cdb0996beb0956653a` passed `scripts/final_gate.sh /tmp/gates/a891f82-final`: tree `186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb`, clean at start/end, exit 0, `FAILS=0`. Debug/release Rust tests, clippy, all Python tooling tests, perft/legal differentials, UCI/search/mate/TT/resource/clock probes, self-play, and full-game probes passed. Release SHA-256: `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. This is local validation, not hosted CI or integration.

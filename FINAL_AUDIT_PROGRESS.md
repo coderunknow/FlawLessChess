@@ -558,3 +558,7 @@ Ran pre-reuse F-65 vs F-66 on 92 fresh random legal positions at depth 7: bestmo
 ## 2026-11-22 — explicit dispositions for saved selective-search findings
 
 The current saved-FEN replay confirms F-41/F-44 examples, F-56, F-59–F-65, and F-67 as listed above. F-61's mate-in-two is covered by F-62's <=14-piece root safeguard; the separate F-62 sixth-sample residual is covered by F-63's <=8-piece NMP exclusion. Current depth-6 results match the independent mate distances on both. This closes those named cases, not all LMR/NMP/selective-search risk. Remaining unverified/accepted historical items remain separately described in the ledger; no complete-search-correctness or release-readiness claim.
+
+## 2026-11-22 — F-67 code-head comprehensive gate
+
+`scripts/final_gate.sh /tmp/gates/a891f82-final` passed on code/log commit `a891f82c71e807c56f3d57cdb0996beb0956653a`, tree `186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb`; dirty at start 0, exact head/tree clean at end, exit 0, `FAILS=0`. Rust debug/release tests and clippy, Python harness tests, perft/legal differential, search and UCI sweeps, mate-in-one, TT bestmove, clock/resource, self-play and full-game probes all passed. Release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. Gate artifacts are in `/tmp/gates/a891f82-final`. This entry is an append-only result record; a documentation-only follow-up head will receive its own exact-head gate. Hosted CI remains pending.
