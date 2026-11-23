@@ -527,3 +527,7 @@ Re-ran the exact comprehensive final gate against `6bfc8335059e4f4090aa6c9b715ba
 ## 2026-11-23 12:44 UTC — hosted checks on audit-only follow-up
 
 Hosted CI for `da8c37fffcc0f7a50d96eab2494ac147950799e9`: Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration, and 12 opponent builds all passed. Kilo review remains blocked by insufficient credits, and CodeRabbit skipped. Code/test tree unchanged from exact-head gate at 6bfc833.
+
+## 2026-11-23 12:48 UTC — F-66 list-state audit and latest CI
+
+Audit of `generate_legal`/`make_move`/`unmake_move` supports saved-list validity: generation restores board arrays and scalar state, pops its temporary history hash, and returns only `Move` values. The F-66 depth-zero/futility handoff invokes qsearch immediately with that same position. No code change indicated. Hosted CI on bfbc9c3 passed Ubuntu, Windows, MSRV, mandatory artifact, verify-flawless, SF10 calibration, and 12 opponent builds; Kilo credit block and CodeRabbit skip are the only exceptions.

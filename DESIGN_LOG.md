@@ -704,3 +704,7 @@ The complete `scripts/final_gate.sh /tmp/gates/6bfc833-final` passed from clean 
 ## 2026-11-23 12:44 UTC — latest hosted CI
 
 On `da8c37fffcc0f7a50d96eab2494ac147950799e9`, hosted Ubuntu/Windows/MSRV, mandatory Windows release artifact, verify-flawless, SF10 calibration and all 12 opponent builds passed. Kilo review failed immediately due the known account-credit block; CodeRabbit skipped. Only audit text followed the clean exact-head gate.
+
+## 2026-11-23 12:48 UTC — saved move-list validity audit and final CI
+
+Inspected `generate_legal` and make/unmake: each candidate is applied then undone before the returned legal `MoveList` is consumed; unmake restores piece/occupancy arrays, side, rights, ep state, clocks, hash, and the temporary repetition-history entry is popped. The cached list is passed directly to qsearch on the unchanged position, before any board mutation; list values are moves, not stale scores. No defect found and no movegen edit made. Latest hosted CI at bfbc9c3 passed every platform, MSRV, artifact, verification, calibration and opponent-build job; Kilo remains blocked on credits and CodeRabbit skipped.

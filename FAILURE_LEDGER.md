@@ -1387,3 +1387,9 @@ Ran `scripts/final_gate.sh /tmp/gates/6bfc833-final` from clean branch head `6bf
 ## Latest branch-head hosted CI (2026-11-23 12:44 UTC)
 
 Hosted CI on audit-only head `da8c37fffcc0f7a50d96eab2494ac147950799e9`: Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration, and all 12 opponent builds passed. Kilo Code Review failed immediately again (account-credit limitation already recorded); CodeRabbit skipped. The code/test tree is unchanged from the clean exact-head local gate at `6bfc833`; this new commit only appends the gate result.
+
+## F-66 saved-move-list validity audit and final hosted checks (2026-11-23 12:48 UTC)
+
+Reviewed the qsearch reuse handoff against `generate_legal`, `Position::make_move`, and `Position::unmake_move`. Legal generation tests candidates by making/unmaking each and pushing only legal `Move` values; unmake restores all piece/occupancy state, side, castling, en-passant metadata, clocks, hash, and pops the temporary history entry. The F-66 handoff calls qsearch immediately on the same position before any move or mutation; the list consists of moves only, not stale score/order metadata. No state mismatch or defect found, and no movegen change warranted. The concern is covered by the F-66 exact-head gate, perft/legal differentials, 120 oracle-mate comparisons and 100 random-position A/B check.
+
+Hosted CI on `bfbc9c3e5d0bbe437a25a62ab8498bddda7b9ead` passed Ubuntu, Windows, MSRV 1.80, mandatory Windows x64 release artifact, verify-flawless, SF10 calibration and all 12 opponent builds. Kilo review remains the only failing status due the known account-credit restriction; CodeRabbit skipped.

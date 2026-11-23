@@ -603,3 +603,7 @@ Full `scripts/final_gate.sh /tmp/gates/6bfc833-final` passed at clean head 6bfc8
 ## 2026-11-23 12:44 UTC — current hosted checks
 
 Confirmed hosted CI on da8c37f: platform, MSRV, artifact, verify, calibration and all opponent builds pass. Kilo failed due known credits limitation; CodeRabbit skipped. No source changes since full exact-head gate.
+
+## 2026-11-23 12:48 UTC — close loop on F-66 audit
+
+Reviewed all state touched by legal-move generation and unmake. Saved list remains valid at direct qsearch call site; it carries moves only, and same position is unchanged. No extra change. CI on bfbc9c3 passed platform/MSRV/artifact/verification/calibration/opponent checks; Kilo credit-blocked, CodeRabbit skipped.
