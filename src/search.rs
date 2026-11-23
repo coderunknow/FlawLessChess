@@ -711,10 +711,15 @@ impl<'a> Searcher<'a> {
             {
                 reduction = self.lmr[(depth as usize).min(MAX_PLY as usize)]
                     [(searched_count as usize).min(255)];
-                // A late quiet move that leaves the opponent very few legal replies can be a
-                // forcing threat without giving check (F-59). Do not reduce such moves in small
-                // endgames; their reply count is already cheap to bound in 7-8 piece positions.
-                if reduction > 0 && pos.occ_all.count_ones() <= 8 && generate_legal(pos).len <= 2 {
+                // A late quiet root move that leaves few legal replies can be a forcing threat
+                // without giving check (F-59/F-60). Root LMR hid proven mate-in-two moves in legal
+                // positions. Bound this correction to low-material root candidates: the extra
+                // movegen is cheap there, and limiting it to ply 0 avoids cost throughout the tree.
+                if reduction > 0
+                    && ply == 0
+                    && pos.occ_all.count_ones() <= 11
+                    && generate_legal(pos).len <= 4
+                {
                     reduction = 0;
                 }
             }

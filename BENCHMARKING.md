@@ -175,3 +175,7 @@ The F-56 follow-up adds a safe single-PV iterative-deepening stop when a complet
 ## 2026-11-23 — F-59 isolated sparse-reply LMR probe
 
 A temporary candidate exempting a quiet move from LMR only when there are at most eight pieces on board and at most two legal replies after the move retained the fixed depth-10 bench signature `141943aa23b3fc68` and 2,853,010 nodes. An all-position reply-count experiment recovered the target but changed performance; it was discarded. Measurements are sandbox-specific and not an Elo claim.
+
+## 2026-11-23 — F-60 root-only low-reply LMR experiment
+
+On the same three legal-game tactical samples (272 oracle-proven mates in one/two), F-59: 144,806,495 nodes, 5 score mismatches; root-only <=11-piece/<=4-reply safeguard: 133,933,543 nodes, 0 mismatches. A full-tree low-reply guard used 241,350,555 nodes on the same sample and was rejected. A separate 100-position sample remained imperfect (F-59 3 misses; root-only candidate 1 miss; 30.95M vs 32.42M nodes). Fixed bench remains `141943aa23b3fc68`, 2,853,010 nodes. These capture-biased legal-game tactical samples are not representative strength tests; timings/nodes are sandbox-specific.

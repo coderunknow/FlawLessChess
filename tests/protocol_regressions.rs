@@ -1451,6 +1451,40 @@ fn sparse_forcing_quiet_move_is_not_reduced() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-60: low-material quiet root moves leaving at most four legal replies can be mating threats.
+/// These two legal-game positions have independent python-chess mate-in-two proofs; root LMR
+/// misses them at depth 6, while the root-only low-reply safeguard recovers the forced mates.
+#[test]
+fn low_reply_quiet_mate_threats_are_not_reduced() {
+    let cases = [
+        ("8/4k3/6p1/1p2p2r/n6p/7P/r7/3K4 b - - 9 107", "h5g5"),
+        ("8/2p2r2/6k1/3p4/1p4Kp/1P4nP/8/1N6 b - - 7 36", "g3h5"),
+    ];
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    for (fen, mating_move) in cases {
+        e.send("ucinewgame");
+        e.send(&format!("position fen {fen}"));
+        e.send("go depth 6");
+        let lines = e.read_until("bestmove", Duration::from_secs(60));
+        let last = lines
+            .iter()
+            .rev()
+            .find(|l| l.starts_with("info depth 6 "))
+            .unwrap_or_else(|| panic!("no depth-6 line for {fen}: {lines:?}"));
+        assert!(
+            reports_mate_in(last, 2),
+            "independent mate-in-two proof must be found for {fen}: {last}"
+        );
+        assert!(
+            bestmove_line(&lines).starts_with(&format!("bestmove {mating_move}")),
+            "wrong mating move for {fen}: {lines:?}"
+        );
+    }
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
 /// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
 /// proof instead of needlessly searching several more plies.
