@@ -403,3 +403,7 @@ A fresh search audit found a reproducible LMR miss outside the sparse-position g
 ## 2026-11-23 — F-57 stop after proven mate in one
 
 The first F-56 full gate had one failed probe: seed 41's TT/bestmove random-game probe timed out after 60 seconds on a position where the engine had already reported a proven mate in one at depth 3, then continued into expensive deeper iterations. Added a safe single-PV early stop once a completed root iteration reaches `MATE_SCORE - 1`; MultiPV remains unchanged. New protocol regression confirms a legal `Qbe5#` is returned on `go depth 6`. Targeted regressions and the full 400-position seed-41 probe pass (0 failures), along with fmt and debug/release clippy. Full exact-head gate rerun pending. Benchmark signature remains `141943aa23b3fc68`; node count is 2,853,010 due to early termination and is not a like-for-like speed comparison.
+
+### 2026-11-23 05:58 UTC — test expectation follow-up
+
+The exact-head gate attempt at `a4ecafc` returned `FAILS=2`; both failures were the same legacy integration test demanding an `info depth 4` line after a mate in one. F-57 intentionally ends on the depth-1 proof. Updated the assertion to accept the latest completed iteration. The legacy test and both new F-56/F-57 regressions pass in focused release runs; fmt and diff-check are clean. The full gate was not rerun, so the current tree has no full-gate pass claim.

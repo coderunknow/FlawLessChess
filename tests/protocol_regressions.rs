@@ -1137,17 +1137,18 @@ fn fixed_depth_search_finds_mate_in_one_and_reports_depth_lines() {
     e.send("go depth 4");
     let lines = e.read_until("bestmove", Duration::from_secs(30));
     assert_eq!(bestmove_line(&lines), "bestmove a1a8", "{lines:?}");
-    let depth4 = lines
+    let completed = lines
         .iter()
-        .find(|l| l.starts_with("info depth 4 "))
-        .unwrap_or_else(|| panic!("no depth-4 line: {lines:?}"));
+        .rev()
+        .find(|l| l.starts_with("info depth "))
+        .unwrap_or_else(|| panic!("no completed depth line: {lines:?}"));
     assert!(
-        reports_mate_in(depth4, 1),
-        "depth 4 did not report the mate: {depth4}"
+        reports_mate_in(completed, 1),
+        "the completed iteration did not report the mate: {completed}"
     );
     assert!(
-        info_nodes(depth4).is_some_and(|n| n > 1),
-        "depth 4 searched one node: {depth4}"
+        info_nodes(completed).is_some_and(|n| n > 1),
+        "the mate search did not visit multiple nodes: {completed}"
     );
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
