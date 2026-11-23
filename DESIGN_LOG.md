@@ -672,3 +672,7 @@ Commit `97f3c0427ce6ca93f99d39803c92b3c747120a69` passed the clean exact-head co
 ## 2026-11-23 — F-65: extend the low-material null-move exclusion to 13 pieces
 
 A fresh seed-9222026 legal-game holdout found a 13-piece NMP false fail-high: `1n5r/3kp3/3Np3/8/6P1/1P1P4/2P5/rN2K3 b - - 0 21`. Python-chess proves `...Rh2` mates in two against all 15 replies. The prior build reported cp 1186 / `a1b1`; a selective experiment still missed with NMP disabled through 12 pieces, but the <=13 exclusion found mate 2 / `h8h2`. Extended the low-material NMP guard from <=8 to <=13 while preserving all other guards. Across nine stored legal-game oracle sets (691 positions), mate-score mismatches 1→0 and aggregate nodes fell 0.02%; fixed depth-10 bench nodes rose 2.45% (signature unchanged). Correlated tactics are not Elo evidence. Regression and focused debug/release validation pass; full gate/CI pending.
+
+## 2026-11-23 11:49 UTC — F-65 exact-head validation
+
+The code/test commit `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed the clean exact-head final gate (`/tmp/gates/8c8f8a1-final`, `FAILS=0`, exit 0); release SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`. Hosted Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 and all opponent-build checks passed. Fresh seed-10222026 holdout also had 0/60 mismatches for both prior and new candidates. Kilo lacks review credits; CodeRabbit skipped. No rating or readiness claim.

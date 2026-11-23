@@ -487,3 +487,9 @@ Hosted PR checks on code head `97f3c04` passed Ubuntu, Windows, MSRV 1.80, Windo
 A fresh capture-biased legal-game sample (seed 9222026) found a second null-move false fail-high outside the <=8-piece guard: on the 13-piece legal position `1n5r/3kp3/3Np3/8/6P1/1P1P4/2P5/rN2K3 b - - 0 21`, engine score was cp 1186 / `a1b1`, while python-chess proves `...Rh2` forces mate in two against all 15 legal replies. Root-restricted search with `h8h2` confirms the mate. An isolated NMP guard through 12 pieces still misses; through 13 finds `mate 2` / `h8h2` at depth 6. Expanded the low-material exclusion to <=13 pieces and added a dedicated protocol regression.
 
 On nine stored legal-game oracle datasets (691 positions), prior code had 1 mismatch and the <=13 candidate 0; total nodes 398,286,083→398,205,218 (-0.02%). Fresh seed-9222026 sample: 1/60→0/60. Fixed bench signature remains `141943aa23b3fc68`; nodes increase from 2,914,999 to 2,986,470 (+2.45%). No Elo/strength claim. Focused release/debug test, fmt and both clippy profiles pass; full exact-head gate/CI pending.
+
+## 2026-11-23 11:49 UTC — F-65 exact-head closeout
+
+Code/test head `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed `scripts/final_gate.sh /tmp/gates/8c8f8a1-final`: clean start/end, `FAILS=0`, exit 0. This covered format, debug/release clippy/build/tests, Python checks, perft/legal-move differential, search sweep, UCI/fuzz/resource/clock, TT/mate probes, self-play and full-game probes. Release binary SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`.
+
+Hosted checks on `8c8f8a1` passed Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo is action-required for insufficient credits; CodeRabbit skipped. Additional fresh seed-10222026 oracle sample: 60 positions, 0 mate-score mismatches under both F-64 and F-65. PR #5 remains open/unmerged. These are tactical checks, not a strength measurement.

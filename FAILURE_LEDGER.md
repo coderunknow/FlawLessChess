@@ -1346,3 +1346,10 @@ result + uncertainty, suspected mechanism (hypothesis), what was learned, next e
 - Across nine saved capture-biased legal-game oracle datasets (691 positions), the previous candidate had 1 exact mate-score mismatch and the <=13-piece NMP exclusion had 0; aggregate nodes were 398,286,083 vs 398,205,218 (-0.02%). The fresh seed-9222026 set is 60 positions (1→0). These correlated tactical sets do not establish strength.
 - Fixed depth-10 bench signature remains `141943aa23b3fc68`; node count changes from 2,914,999 to 2,986,470 (+2.45%). Timing is noisy; no general speed or Elo claim.
 - Added `null_move_pruning_does_not_hide_thirteen_piece_mate_in_two`. Focused release/debug test, fmt/diff-check, debug/release clippy pass. Exact-head comprehensive gate and hosted CI are pending.
+
+## F-65 exact-head gate and CI closeout (2026-11-23 11:49 UTC)
+
+- Code/test commit `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b`, tree `9bb88d186b96b304055dd029cbdea5f505fd934f`, passed `scripts/final_gate.sh /tmp/gates/8c8f8a1-final` on a clean tree: `FAILS=0`, exit 0. Release binary SHA-256: `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`.
+- Hosted checks on the same code head passed Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo review is action-required for insufficient credits; CodeRabbit skipped. These are external review states, not code-test failures.
+- Additional fresh seed-10222026 holdout: 60 oracle-proven legal-game mates, 0 mismatches on both F-65 and the previous candidate. It does not change the registered 691-position comparison above or establish strength.
+- PR #5 remains open and unmerged. No Elo, complete search-correctness, or release-readiness claim.

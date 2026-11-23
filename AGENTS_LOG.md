@@ -571,3 +571,7 @@ Code/test head `97f3c04` passed the clean exact-head comprehensive gate (`/tmp/g
 ## 2026-11-23 — F-65 (13-piece NMP false fail-high)
 
 Another verified legal-game mate-in-two miss occurred at 13 pieces: `...Rh2` forces mate against all 15 replies, but prior depth-6 search returned cp 1186. The <=12 NMP cutoff still misses; disabling NMP through <=13 restores mate 2 / `h8h2`. Nine stored oracle sets (691 positions) improve 1→0 mismatches, aggregate nodes -0.02%; fixed bench nodes +2.45%, signature unchanged. Added regression; focused debug/release test and clippy pass; full gate/CI pending. Not an Elo claim.
+
+## 2026-11-23 11:49 UTC — F-65 closeout
+
+Exact code/test head `8c8f8a1` passed the clean comprehensive gate (`/tmp/gates/8c8f8a1-final`, `FAILS=0`; binary SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`). Hosted Ubuntu/Windows/MSRV/artifact/anchor/SF10/opponent-build checks passed. Fresh seed-10222026 holdout had 0/60 mismatches. Kilo lacks credits, CodeRabbit skipped. No Elo/release-readiness claim.
