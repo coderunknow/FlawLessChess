@@ -563,3 +563,7 @@ Follow-up review caught that F-57's early mate exit also stopped `go infinite` a
 ## 2026-11-23 — F-64 (fresh root-LMR miss)
 
 The <=10-reply root threat guard still missed a verified mate-in-two in a 14-piece legal-game position with 11 defender replies. Oracle proof: `...Qd2` forces mate, and every reply is covered. Extending only the root reply cutoff to 11 recovers `mate 2`/`d4d2`; across eight saved tactical sets (631 positions), mismatches 1→0 at +0.234% total nodes. Added a protocol regression. Focused debug/release test, fmt and both clippy profiles pass; exact-head comprehensive gate and CI pending. No strength claim.
+
+## 2026-11-23 11:14 UTC — F-64 closeout
+
+Code/test head `97f3c04` passed the clean exact-head comprehensive gate (`/tmp/gates/97f3c04-final`, `FAILS=0`; release SHA-256 `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`). Hosted Ubuntu/Windows/MSRV/artifact/anchor/SF10/opponent-build checks passed. Kilo is blocked by insufficient credits; CodeRabbit skipped. No strength/release claim.

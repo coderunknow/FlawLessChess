@@ -475,3 +475,9 @@ A fresh seed-6222026 capture-biased legal-game set exposed one remaining exact m
 Compared the previous candidate with this candidate on all eight stored oracle-verified legal-game sample files: 631 positions, 1→0 mate-score mismatches, aggregate nodes 333,006,299→333,784,342 (+0.234%). New seed-6222026 holdout: 1/60→0/60. Seed-5222026's 60-position holdout: 0/60 for both. These are correlated tactical data, not an Elo/strength result. Fixed benchmark signature and nodes remain `141943aa23b3fc68` / 2,914,999.
 
 Changed only the root low-reply threshold from 10 to 11 (still guarded at <=14 pieces) and added `root_quiet_mate_threat_with_eleven_replies_is_not_reduced`. Focused release/debug test, fmt, diff-check, and debug/release clippy pass. Full exact-head gate/hosted CI/push are pending; no release-readiness or rating claim.
+
+## 2026-11-23 11:14 UTC — F-64 exact-head closeout
+
+Code/test head `97f3c0427ce6ca93f99d39803c92b3c747120a69` passed `scripts/final_gate.sh /tmp/gates/97f3c04-final` clean exact-head: `dirty-at-start 0`, `FAILS=0`, exit 0. All local gate steps completed (fmt, debug/release clippy/build/tests, Python harness tests, perft/legal differential, search sweep, UCI/fuzz/resource/clock, TT/mate probes, self-play and full games). Release SHA-256: `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`.
+
+Hosted PR checks on code head `97f3c04` passed Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo review is action-required for insufficient credits and CodeRabbit skipped. PR #5 is open and unmerged. F-64 evidence is limited to oracle-verified tactical searches and benchmark node counts; no Elo, complete search-correctness, or release-readiness claim.

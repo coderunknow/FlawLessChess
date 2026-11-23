@@ -664,3 +664,7 @@ The final sixth-sample mate miss was reproduced as an NMP false fail-high: on `4
 ## 2026-11-23 — F-64: extend the root quiet-threat safeguard by one reply
 
 A fresh 60-position capture-biased legal-game holdout (seed 6222026) found a 14-piece mate-in-two that the <=10-reply root correction still missed: `6k1/r7/2p2p2/1p2r3/3q4/N4PP1/2P4P/5K1R b - - 2 20`, `Qd2` followed by mate against every one of 11 legal replies. The old candidate reported mate in four at depth 6; an isolated threshold-11 build finds mate in two and the exact `d4d2` move. Expanded the guard only from <=10 to <=11 legal replies, still root-only and <=14 pieces. Across eight saved oracle-verified legal-game samples (631 positions), exact mate-score mismatches went 1→0, aggregate nodes +0.234%. Fixed bench signature/node count unchanged; no Elo claim. Focused release/debug regression and clippy pass; exact-head final gate pending.
+
+## 2026-11-23 11:14 UTC — F-64 exact-head validation
+
+Commit `97f3c0427ce6ca93f99d39803c92b3c747120a69` passed the clean exact-head comprehensive gate at `/tmp/gates/97f3c04-final` (`dirty-at-start 0`, `FAILS=0`); the release binary SHA-256 is `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`. Hosted Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 calibration and all opponent builds passed on this code head. Kilo lacks review credits; CodeRabbit skipped. No rating or release-readiness claim.
