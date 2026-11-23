@@ -440,6 +440,12 @@ impl<'a> Searcher<'a> {
             if !completed {
                 break;
             }
+            // An exact mate in one is the maximum possible root score, so deeper iterations
+            // cannot improve the move and can waste enormous effort (notably after retaining
+            // full-depth searches for quiet checks, F-56).
+            if multi_pv == 1 && best.score_cp >= MATE_SCORE - 1 {
+                break;
+            }
             // Soft budget (R-08): stop before an iteration that is predicted to overrun it.
             // Completed iterations are always kept; the hard limit still applies inside the tree.
             let l = self.lim();

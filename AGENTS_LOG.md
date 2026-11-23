@@ -551,3 +551,7 @@ Scope: panic sites in src/, input parsing (go/setoption/position), search root h
 ## 2026-11-23 — F-56 tactical-search correction
 
 Applied the user's audit direction to resolve the previously documented LMR owner-choice after confirming an actual false negative on legal middlegame positions. The narrow quiet-check exemption is regression-tested and independently checked against two random-game oracle samples. A 13.1% depth-10 benchmark node increase and signature change are accepted/documented; no rating claim or reuse of frozen rating evidence. Full exact-head gate pending.
+
+## 2026-11-23 — F-57 bounded work after a proven mate
+
+The F-56 exact-head gate's sole failure was a valid timeout after the engine already had a mate-in-one proof at depth 3. Added a single-PV early termination check at the maximal root score; MultiPV is intentionally unaffected. Targeted regression and all 400 seed-41 TT/bestmove probes pass; exact-head full gate pending.

@@ -623,3 +623,10 @@ DRAFT ONLY — no code changes under this entry.
 - Reason: a reduced child can miss the forcing continuation because qsearch only follows captures/promotions and does not search quiet checks. The six observed baseline misses in two independently generated legal-game samples all began with a quiet checking move; restoring full depth found the oracle-proven exact mate in all six.
 - Cost/measurement: depth-10 bench nodes rise 13.1% (4,135,406 → 4,677,558) and the fixed best-move signature changes to `141943aa23b3fc68`. This accepts a measurable nodes/time trade-off for tactical correctness, without claiming a general Elo improvement. Frozen rating evidence is not reused.
 - Verification before exact-head gate: the regression fails on the baseline binary and passes on the candidate; candidate resolves 6/6 baseline misses across two legal-game samples (fresh holdout: 0/83 vs baseline 2/83). Targeted release integration test, fmt, and debug/release clippy pass. Full gate is still pending.
+
+## 2026-11-23 — F-57: stop single-PV iterations after a proven mate in one
+
+- Trigger: the F-56 gate showed a depth-6 randomized legal position where the engine had already proven `mate 1` at depth 3, then spent more than a minute trying to complete depth 6. A mate in one is the maximum possible root score.
+- Decision: end single-PV iterative deepening when a completed iteration reports at least `MATE_SCORE - 1`. Keep MultiPV searching, because its purpose is to report alternative root moves. Preserve the completed iteration and normal UCI bestmove path.
+- Acceptance: independent legal-move proof for `Qbe5#`; new protocol regression requests depth 6 and requires the mate-in-one result promptly. Seed-41 TT/bestmove differential: 400/400 positions, 0 failures after the change. Formatting and both clippy profiles pass; exact-head full gate pending.
+- Benchmark identity stays `141943aa23b3fc68`; node count 2,853,010 reflects early termination on forced mate-in-one positions and should not be compared as a pure speed delta against a build that always completed depth 10.

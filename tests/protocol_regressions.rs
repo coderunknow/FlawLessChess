@@ -1422,6 +1422,30 @@ fn late_quiet_checking_move_is_not_reduced_past_a_forced_mate() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
+/// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
+/// proof instead of needlessly searching several more plies.
+#[test]
+fn proven_mate_in_one_stops_deeper_single_pv_iterations() {
+    let fen = "1Q4n1/6Qr/4k3/7p/2N2B1p/1K3N2/nR6/8 w - - 2 61";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(15));
+    let mate = lines.iter().find(|l| l.starts_with("info depth 1 "));
+    assert!(
+        mate.is_some_and(|line| reports_mate_in(line, 1)),
+        "the independent legal-move proof is mate in one: {lines:?}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove b8e5"),
+        "Qbe5# is the proven mate: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// True when an `info` line reports exactly `score mate <n>`. A substring test is not enough:
 /// `score mate 30` contains `score mate 3`.
 fn reports_mate_in(line: &str, n: i32) -> bool {
