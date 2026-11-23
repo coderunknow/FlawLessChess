@@ -636,3 +636,7 @@ DRAFT ONLY — no code changes under this entry.
 ## 2026-11-23 — F-58: preserve `go infinite` after a mate-in-one proof
 
 F-57's safe finite-search early exit was also being applied to `go infinite`, which silently stopped analysis after a mate-in-one proof even though UCI mode must continue until `stop`. Keep the early exit for finite single-PV searches only (`!limits.infinite`); ponder remains active because it is represented as infinite until `ponderhit`. MultiPV remains unchanged. A UCI regression demands a depth-2 info line after the mate proof and then stops cleanly. Focused release regression, fmt, and debug/release clippy pass; full gate pending.
+
+## 2026-11-23 — F-59 sparse forcing quiet moves
+
+After a fresh 72-position python-chess mate-in-two sample exposed one depth-6 miss, tested a narrowly bounded LMR exception: for otherwise reducible quiet moves only, when there are at most eight occupied squares, count legal replies after the move; if there are at most two, search at full depth. It recovers the exact `Re2 Kd5 Rd3#` line at depth 6. The same isolated candidate has 0 misses on both the 83-position and 72-position samples, versus current 0/83 and 1/72 misses. An unbounded legal-reply check also recovered the mate but expanded the fixed benchmark workload and was rejected; piece-count gating preserves benchmark signature `141943aa23b3fc68` and 2,853,010 nodes. These tactical samples do not establish playing strength.

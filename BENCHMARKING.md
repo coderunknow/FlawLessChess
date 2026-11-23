@@ -171,3 +171,7 @@ The search now leaves a late quiet move unreduced when it gives check. Independe
 ## 2026-11-23 — F-57 stop after a proven mate in one
 
 The F-56 follow-up adds a safe single-PV iterative-deepening stop when a completed iteration proves a mate in one; MultiPV still searches alternatives. This resolves a seed-41 gate timeout where the engine had already found mate in one but continued into deeper iterations. The fixed-depth-10 benchmark still has signature `141943aa23b3fc68`; it reports 2,853,010 nodes on this sandbox because mate-in-one positions now stop before depth 10. This node count is not directly comparable with builds that always searched every benchmark position through depth 10.
+
+## 2026-11-23 — F-59 isolated sparse-reply LMR probe
+
+A temporary candidate exempting a quiet move from LMR only when there are at most eight pieces on board and at most two legal replies after the move retained the fixed depth-10 bench signature `141943aa23b3fc68` and 2,853,010 nodes. An all-position reply-count experiment recovered the target but changed performance; it was discarded. Measurements are sandbox-specific and not an Elo claim.

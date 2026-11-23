@@ -1423,6 +1423,34 @@ fn late_quiet_checking_move_is_not_reduced_past_a_forced_mate() {
     e.quit_and_expect_exit(Duration::from_secs(10));
 }
 
+/// F-59: in a sparse endgame, a late quiet move that leaves at most two legal replies can be a
+/// forcing threat even without check. Preserve it from LMR so a concrete mate in two is not
+/// hidden at depth 6. The expected line was independently verified with python-chess.
+#[test]
+fn sparse_forcing_quiet_move_is_not_reduced() {
+    let fen = "8/8/3K4/1k5p/5p2/1pr4b/6r1/8 b - - 7 68";
+    let mut e = Engine::start();
+    e.send("isready");
+    e.read_until("readyok", Duration::from_secs(10));
+    e.send(&format!("position fen {fen}"));
+    e.send("go depth 6");
+    let lines = e.read_until("bestmove", Duration::from_secs(60));
+    let last = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with("info depth 6 "))
+        .unwrap_or_else(|| panic!("no depth-6 line: {lines:?}"));
+    assert!(
+        reports_mate_in(last, 2),
+        "mate in two must be found: {last}"
+    );
+    assert!(
+        bestmove_line(&lines).starts_with("bestmove g2e2"),
+        "Re2 is the proven mating move: {lines:?}"
+    );
+    e.quit_and_expect_exit(Duration::from_secs(10));
+}
+
 /// F-57: once a single-PV iteration proves a mate in one, deeper iterations cannot improve on
 /// that maximum root score. This legal position has 1. Qbe5#; `go depth 6` must stop after the
 /// proof instead of needlessly searching several more plies.

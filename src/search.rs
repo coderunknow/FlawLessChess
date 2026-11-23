@@ -711,6 +711,12 @@ impl<'a> Searcher<'a> {
             {
                 reduction = self.lmr[(depth as usize).min(MAX_PLY as usize)]
                     [(searched_count as usize).min(255)];
+                // A late quiet move that leaves the opponent very few legal replies can be a
+                // forcing threat without giving check (F-59). Do not reduce such moves in small
+                // endgames; their reply count is already cheap to bound in 7-8 piece positions.
+                if reduction > 0 && pos.occ_all.count_ones() <= 8 && generate_legal(pos).len <= 2 {
+                    reduction = 0;
+                }
             }
 
             let score = if searched_count == 0 {
