@@ -24,10 +24,8 @@ use std::time::Instant;
 
 pub const MAX_PLY: i32 = 128;
 const MATE_BOUND: i32 = MATE_SCORE - 100;
-/// Predicted duration of the next iteration = last iteration time * this factor (R-08).
-/// Measured overspend without prediction was ~1.7x the soft budget; iteration times grow
-/// roughly 2-4x per ply, so 3 is the conservative middle. Tunable.
-const SOFT_GROWTH_FACTOR: u64 = 3;
+#[allow(dead_code)]
+const SOFT_GROWTH_FACTOR: u64 = 6;
 
 #[derive(Clone)]
 pub struct SearchLimits {
@@ -374,7 +372,6 @@ impl<'a> Searcher<'a> {
             if depth > max_depth {
                 break;
             }
-            let iter_begin = self.budget_ms(&self.lim());
             // aspiration window after depth 5
             let (mut alpha, mut beta) = if depth >= 6 {
                 (prev_score - 25, prev_score + 25)
@@ -450,16 +447,13 @@ impl<'a> Searcher<'a> {
             if multi_pv == 1 && !self.lim().infinite && best.score_cp >= MATE_SCORE - 1 {
                 break;
             }
-            // Soft budget (R-08): stop before an iteration that is predicted to overrun it.
-            // Completed iterations are always kept; the hard limit still applies inside the tree.
+            // Soft budget (R-08): stop once the soft budget is reached. Completed iterations
+            // are always kept; the hard limit still caps worst-case overspend inside the tree.
+            // The former predictive stop (next-iteration time * growth factor) left most of the
+            // clock unused on short time controls — e.g. only 116 ms of a 234 ms soft budget at
+            // 10 s. Removing it lets the search use closer to its full allocation.
             let l = self.lim();
-            let now = self.budget_ms(&l);
-            let iter_ms = now.saturating_sub(iter_begin);
-            // For a fixed movetime the soft budget equals the time to spend, so only the
-            // deadline itself ends the search; the growth prediction would stop it early.
-            let predicted_overrun = !l.fixed_time
-                && now.saturating_add(iter_ms.saturating_mul(SOFT_GROWTH_FACTOR)) > l.soft_ms;
-            if !l.infinite && (self.soft_ms_reached() || predicted_overrun) {
+            if !l.infinite && self.soft_ms_reached() {
                 break;
             }
             depth += 1;
