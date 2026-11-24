@@ -635,3 +635,48 @@ Commit a891f82c71e807c56f3d57cdb0996beb0956653a / tree 186ddb7d92c0c4920a5a1a580
 ## 2026-11-22 — exact audit-head gate rerun
 
 Commit 63eaa1f99aed35452d5f6a3d5d61f5a6504f5868, tree 3c003b15cf89deb56ba81969c3a2033a4710a41f, passed full final_gate (`/tmp/gates/63eaa1f-final`), clean, `FAILS=0`; release SHA-256 unchanged. Current follow-up adds only this validation record; exact-head gate and hosted CI follow.
+
+## 2026-11-24 — PR #3/#4/#5 integration reconciliation (merged-tree provenance audit)
+
+Phase A recon (fresh, exact): `main` HEAD `55b0671` is a single orphan commit whose tree equals the
+stack's common ancestor `5e36b06` plus exactly one `.gitattributes` line (`*.py
+linguist-detectable=false`); `git diff 5e36b06 55b0671` touches only `.gitattributes` (+1 line).
+Ancestry verified with `git merge-base --is-ancestor`: PR #3 head `c25e65e` ⊂ PR #4 head `0795260`
+⊂ PR #5 head `c96ab6a`; commit ranges base..P3=19, P3..P4=86, P4..P5=43, base..P5=148, linear, no
+drops, duplicates, reverts, or rewrites. Reconciliation table: PR #3 scope INCLUDED, PR #4 scope
+INCLUDED, PR #5 scope INCLUDED, main updates PRESERVED (via the merge below), duplicates: none.
+
+Reconciliation commit `c37d75e7bfb5bdb1e9a18bb28437b614cb2cd58f` merges `55b0671` into
+`arena/7584c0ca-flawlesschess` with `--allow-unrelated-histories` (main's squash is an orphan
+branch; the stacked branch history is NOT rewritten — normal merge commit, no force-push). All 26
+add/add conflicts were individually audited against the common ancestor before resolution: for 25
+files main's content is byte-identical to `5e36b06`, so the PR-branch side preserves both sides'
+intent; `.gitattributes` is resolved to main's version, preserving the sole main-side change.
+Post-merge invariant verified by diff: merged tree differs from PR #5 head `c96ab6a` only in
+`.gitattributes`, and that file is byte-identical to main `55b0671`. PR #5 base retargeted to
+`main`; `gh pr view 5` reports MERGEABLE against `main` at `c37d75e`.
+
+Phase A–C findings verification at `c37d75e` (all four outstanding review threads, fixed upstream in
+the stack and re-verified here): (1) `scripts/uci_protocol_probe.py` bounded terminate/kill/reap,
+pipe closure, reader joins, cleanup-as-failure in `check()` finally block — PASS 12/12;
+(2) strict `searchmoves` (`bestmove 0000` on empty legal intersection, no widening, root filtering,
+fallback, MultiPV consistent) — probe 299 positions/0 failures + unit regressions; (3)
+`scripts/uci_extreme_args_probe.py` reader-thread/queue deadline applied to every wait, `stop`
+after unbounded searches, bounded cleanup on every exceptional path — FAILURES: 0; (4)
+`scripts/probe_io.py` bounded escalation and reap, explicit failure on unreaped child or stuck
+reader, idempotent close, exit-code preservation — `scripts/test_probe_io.py` 3/3 OK.
+
+Phase D exact-head gate at `c37d75e`: `scripts/final_gate.sh` on a clean worktree
+(dirty-at-start 0), 47/47 steps rc=0, FAILS=0, exit 0, head/tree unchanged at end
+(tree `f13b05481c0bbabf928aa3974ec2ed371a86385c`). Release binary SHA-256
+`423d7f323c245ff0dc7ac03a849280f4de53b5d26d6d1475df90f9ba59e7a1a2`. Includes fmt, clippy
+(debug/release, -D warnings), release+debug cargo suites (175 release tests; perft gates run in
+release), 12 Python test suites, perft differentials s10/s11, legal differential s31, search sweep
+s4, UCI protocol 12/12, malformed 37/37, extreme args 0 failures, grammar fuzz seed 201 (100
+sessions), interleave fuzz seeds 11/7, resource probe, FEN extremes s101/s9, TT bestmove s41/s43,
+searchmoves s51 (299 pos, MultiPV 3), PV legality s81, mate-in-1 s91, MultiPV s92, negative mate
+s77, clock sweep s71 (60/60), time budget 8/8 (movetime elapsed/requested: 50 ms→1.014, 500
+ms→1.002, 2000 ms→1.0004), selfplay 1000ms/300ms/40+15 clocks, full games with python-chess
+referee at 20/60 ms movetime. Raw logs retained in untracked workspace copy
+`audit-evidence/pr5-integration-c37d75e-final/` (repository path unavailable; see FAILURE_LEDGER).
+No correctness fix was required on the integration head; no strength/Elo claim is made.
