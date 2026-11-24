@@ -254,14 +254,8 @@ impl Evaluator for ClassicalEvaluator {
 /// Square weights for space evaluation. Higher for central squares, symmetric
 /// both horizontally and vertically so that colour mirroring preserves value.
 const SPACE_WEIGHT: [i32; 64] = [
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 1, 1, 1, 1, 0, 0,
-    0, 1, 2, 2, 2, 2, 1, 0,
-    1, 2, 3, 4, 4, 3, 2, 1,
-    1, 2, 3, 4, 4, 3, 2, 1,
-    0, 1, 2, 2, 2, 2, 1, 0,
-    0, 0, 1, 1, 1, 1, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 1, 2, 3, 4, 4, 3, 2, 1,
+    1, 2, 3, 4, 4, 3, 2, 1, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
 struct ColorEval {

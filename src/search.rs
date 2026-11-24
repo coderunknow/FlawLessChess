@@ -302,8 +302,7 @@ impl<'a> Searcher<'a> {
         prev_move: Option<Move>,
     ) {
         for i in 0..moves.len {
-            moves.scores[i] =
-                self.move_order_score(pos, moves.moves[i], tt_move, ply, prev_move);
+            moves.scores[i] = self.move_order_score(pos, moves.moves[i], tt_move, ply, prev_move);
         }
         // Stable insertion sort by descending score (lists are short; branch-friendly). Equal
         // scores are ordered by a colour-relative key (S-14), not by generation order: generation
@@ -777,14 +776,7 @@ impl<'a> Searcher<'a> {
             }
 
             let score = if searched_count == 0 {
-                -self.search(
-                    pos,
-                    depth - 1 + extension,
-                    -beta,
-                    -alpha,
-                    ply + 1,
-                    Some(m),
-                )
+                -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1, Some(m))
             } else {
                 let mut s = -self.search(
                     pos,
@@ -805,14 +797,7 @@ impl<'a> Searcher<'a> {
                     );
                 }
                 if s > alpha && s < beta {
-                    s = -self.search(
-                        pos,
-                        depth - 1 + extension,
-                        -beta,
-                        -alpha,
-                        ply + 1,
-                        Some(m),
-                    );
+                    s = -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1, Some(m));
                 }
                 s
             };
