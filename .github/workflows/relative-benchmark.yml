@@ -3,6 +3,12 @@ name: Relative strength benchmark
 on:
   pull_request:
     branches: [main]
+  # Deliberate dispatch for the extended tournament: moving the request marker in a push on the
+  # work branch starts it. The marker is the dispatch record (profile, seed, requester) and it
+  # travels with the evidence, so the run is reproducible from the branch history alone.
+  push:
+    branches: ["arena/**"]
+    paths: ["benches/benchmark-request.json"]
   workflow_dispatch:
     inputs:
       profile:
@@ -29,14 +35,55 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  request:
+    name: Resolve the benchmark request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      profile: ${{ steps.resolve.outputs.profile }}
+      seed: ${{ steps.resolve.outputs.seed }}
+    steps:
+      - name: Check out the exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: resolve
+        name: Resolve profile and seed
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "profile=${{ inputs.profile }}" >> "$GITHUB_OUTPUT"
+            echo "seed=${{ inputs.seed }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = "push" ]; then
+            python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          req = json.load(open("benches/benchmark-request.json"))
+          if req.get("schema") != 1:
+              raise SystemExit("benchmark-request schema must be 1")
+          profile = req.get("profile")
+          if profile not in ("quick", "extended"):
+              raise SystemExit(f"unknown benchmark profile: {profile!r}")
+          seed = int(req.get("seed"))
+          print(f"profile={profile}")
+          print(f"seed={seed}")
+          PY
+            exit 0
+          fi
+          echo "profile=quick" >> "$GITHUB_OUTPUT"
+          echo "seed=20261124" >> "$GITHUB_OUTPUT"
+
   quick:
     name: Quick paired engine match (PR regression screen)
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick'
+    needs: request
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && needs.request.outputs.profile == 'quick'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      QUICK_SEED: ${{ github.event_name == 'workflow_dispatch' && inputs.seed || '20261124' }}
+      QUICK_SEED: ${{ needs.request.outputs.seed }}
     steps:
       - name: Check out exact candidate PR head
         uses: actions/checkout@v4
@@ -114,7 +161,8 @@ jobs:
 
   extended:
     name: Extended paired engine match (replicate ${{ matrix.replicate }})
-    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'extended'
+    needs: request
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'extended' || github.event_name == 'push' && needs.request.outputs.profile == 'extended'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -123,7 +171,7 @@ jobs:
         replicate: [1, 2, 3]
     env:
       CANDIDATE_SHA: ${{ github.sha }}
-      SEED_BASE: ${{ inputs.seed || '20261124' }}
+      SEED_BASE: ${{ needs.request.outputs.seed }}
       RUN_INDEX: ${{ matrix.replicate }}
     steps:
       - name: Check out exact candidate source
@@ -194,8 +242,8 @@ jobs:
 
   extended-aggregate:
     name: Extended aggregate (opening-clustered inference)
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.profile == 'extended'
-    needs: [extended]
+    if: always() && (github.event_name == 'workflow_dispatch' && inputs.profile == 'extended' || github.event_name == 'push' && needs.request.outputs.profile == 'extended')
+    needs: [request, extended]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -220,7 +268,7 @@ jobs:
 
       - name: Validate provenance and aggregate by opening cluster
         env:
-          SEED_BASE: ${{ inputs.seed || '20261124' }}
+          SEED_BASE: ${{ needs.request.outputs.seed }}
         run: |
           set -euo pipefail
           case "$SEED_BASE" in *[!0-9]*|'') echo "invalid seed: $SEED_BASE"; exit 2 ;; esac
