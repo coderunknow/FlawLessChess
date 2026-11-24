@@ -1451,3 +1451,32 @@ Implementation correction for the appended F-54/F-67 fixes: the current code rep
 - Code/test/provenance commit `071865a39079f3877e342ef36679778483c96ee7`, tree `753f62b3d178e4e500db17e0bb0a7ddc3db190cd`, was clean at start and end.
 - `scripts/final_gate.sh /tmp/gates/071865a-review` exited 0 with `FAILS=0`. This covered fmt, debug/release clippy/build/tests, Python tooling tests, perft and legal/search differentials, UCI/fuzz/resource/clock probes, TT/mate/MultiPV probes, self-play, and full-game probes. The revised MultiPV claim tests, exact-clock TT tests, F-67 claim regressions, and mate-in-one iteration-stop protocol regression passed in the release/debug suites.
 - Raw outputs are not retained in the repository: UNAVAILABLE (they remain only in temporary `/tmp/gates/071865a-review`). No rating, strength, or general search-correctness claim follows from this gate.
+
+
+## Probe lifecycle follow-up and supplemental evidence provenance (2026-11-24)
+
+- On the current PR #5 branch, hardened `scripts/probe_io.py` so engine cleanup uses bounded quit/terminate/kill waits, reports unreaped children and stuck reader threads as errors, drains output before closing pipes after a normal exit, and preserves the child's actual exit status. The failure path in `scripts/uci_extreme_args_probe.py` now has unconditional bounded cleanup and retained timeout-based queue reads; `scripts/uci_protocol_probe.py` now reaps and closes every engine on PASS, FAIL, or ERROR and turns incomplete cleanup into a failure.
+- Added `scripts/test_probe_io.py` failure-injection coverage for nonzero exit-code preservation, a child surviving every bounded wait, and a failed protocol write that must still terminate/reap and close all pipes. `searchmoves` is already strict in this branch and covered by `searchmoves_with_no_legal_move_searches_nothing`, `searchmoves_result_is_always_inside_the_requested_set`, and the UCI illegal-only protocol probe.
+- Verification on the working tree: `python3 scripts/test_probe_io.py` (3/3 pass), Python byte-compilation, exact release Rust searchmoves regressions, `uci_extreme_args_probe.py` (39 cases, zero failures), and `uci_protocol_probe.py` (12/12 pass using the installed python-chess venv). A full exact-head final gate is still pending; these results do not close review threads on PR #3 or PR #4 because those PR heads were not changed by this downstream PR #5 work.
+
+### Supplemental provenance index — exact-gate runs referenced after F-53 (2026-11-24)
+
+This append-only table identifies each completed full-gate result recorded in the F-53–F-67 audit entries. The referenced raw transcripts were written to sandbox `/tmp/gates` paths, which are not retained in this repository; no claim is made that they are available. The separate workspace `audit-evidence/` folder contains local audit artifacts but is untracked and is not a repository-retained provenance path.
+
+| Result | Exact source commit | Raw-output path in repository |
+|---|---|---|
+| F-53 exact-head gate (described at line 1219) | `c87a185f3a6a92c0d9d1b20f2aa04ad1261c67d8` | UNAVAILABLE (`/tmp/gates/c87a185-final` is outside the repository and absent) |
+| F-55 exact-head gate | `ec9347d6472bd4a0f712dacf52bc1130421f4403` | UNAVAILABLE (`/tmp/gates/ec9347d-final` is outside the repository and absent) |
+| Exact-candidate gate after F-59 | `6b6479d09f5a70aea6796351f8e36997ea2501c8` | UNAVAILABLE (`/tmp/gates/6b6479d-final` is outside the repository and absent) |
+| F-60 exact-head gate | `4c565be2ee908c550ce3c994b95ccb6c356a80f3` | UNAVAILABLE (`/tmp/gates/4c565be-final` is outside the repository and absent) |
+| F-62 exact-head gate | `e52849cda8806ffd8ccd40d955b471ad39704277` | UNAVAILABLE (`/tmp/gates/e52849c-final` is outside the repository and absent) |
+| F-63 exact-head gate | `8804fc97d5deedb1eab224f429a616624a9cf734` | UNAVAILABLE (`/tmp/gates/8804fc9-final` is outside the repository and absent) |
+| F-64 exact-head gate | `97f3c0427ce6ca93f99d39803c92b3c747120a69` | UNAVAILABLE (`/tmp/gates/97f3c04-final` is outside the repository and absent) |
+| F-65 exact-head gate | `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` | UNAVAILABLE (`/tmp/gates/8c8f8a1-final` is outside the repository and absent) |
+| F-66 exact-head gate | `c4c124ec2eb9222375cebe20151430e7371fd5e2` | UNAVAILABLE (`/tmp/gates/c4c124e-final` is outside the repository and absent) |
+| F-66 audit-extended exact-head gate | `6bfc8335059e4f4090aa6c9b715ba14c04395c32` | UNAVAILABLE (`/tmp/gates/6bfc833-final` is outside the repository and absent) |
+| F-67 code-head exact gate | `a891f82c71e807c56f3d57cdb0996beb0956653a` | UNAVAILABLE (`/tmp/gates/a891f82-final` is outside the repository and absent) |
+| F-67 audit-head exact gate | `63eaa1f99aed35452d5f6a3d5d61f5a6504f5868` | UNAVAILABLE (`/tmp/gates/63eaa1f-final` is outside the repository and absent) |
+| F-67 CodeRabbit-correction exact-head gate | `071865a39079f3877e342ef36679778483c96ee7` | UNAVAILABLE (`/tmp/gates/071865a-review` is outside the repository and absent) |
+
+For future checks, retain raw logs at a tracked repository path or state `UNAVAILABLE` in the corresponding append-only entry; temporary sandbox paths and untracked workspace files are not treated as retained repository evidence.

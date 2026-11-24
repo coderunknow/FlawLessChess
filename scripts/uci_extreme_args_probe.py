@@ -69,22 +69,28 @@ def run_session(lines, wait_for, timeout=60):
     p = subprocess.Popen([E, "uci"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, text=True, bufsize=1)
     out = []
-
-    def send(s):
-        p.stdin.write(s + "\n")
-        p.stdin.flush()
-
-    # Reader thread: the deadline is enforced while waiting, even if the engine prints nothing
-    # (a blocking readline() would not return and the limit would never be checked).
     q = queue.Queue()
+    stderr = []
+    quit_sent = False
 
     def pump():
         for line in p.stdout:
             q.put(line)
         q.put(None)
 
-    threading.Thread(target=pump, daemon=True).start()
+    def drain_stderr():
+        stderr.append(p.stderr.read())
 
+    reader = threading.Thread(target=pump, name="extreme-stdout", daemon=True)
+    err_reader = threading.Thread(target=drain_stderr, name="extreme-stderr", daemon=True)
+    reader.start()
+    err_reader.start()
+
+    def send(s):
+        p.stdin.write(s + "\n")
+        p.stdin.flush()
+
+    # The queue timeout enforces the deadline even if readline() would otherwise block.
     def until(prefix, limit):
         t0 = time.monotonic()
         while True:
@@ -101,108 +107,161 @@ def run_session(lines, wait_for, timeout=60):
             if line.startswith(prefix):
                 return line.rstrip()
 
-    send("uci")
-    if until("uciok", 10) != "uciok":
-        p.kill()
-        p.wait(timeout=10)
-        return "NO_UCIOK", 0.0, p.returncode, "", out
-    send("isready")
-    if until("readyok", 10) != "readyok":
-        p.kill()
-        p.wait(timeout=10)
-        return "NO_READYOK", 0.0, p.returncode, "", out
-    send(f"position fen {START}")
-    send("isready")
-    if until("readyok", 10) != "readyok":
-        p.kill()
-        p.wait(timeout=10)
-        return "NO_READYOK", 0.0, p.returncode, "", out
-    t0 = time.monotonic()
-    for ln in lines:
-        send(ln)
-    reply = until(wait_for, timeout)
-    elapsed = time.monotonic() - t0
-    if reply == "TIMEOUT" and wait_for == "bestmove":
-        # Unbounded by UCI design: answer must come after `stop`. Record that, then check it.
-        send("stop")
-        stopped = until(wait_for, 10)
-        reply = f"STOP->{stopped}"
-    send("quit")
+    reply, elapsed = "ERROR", 0.0
+    error_text = ""
+    cleanup_errors = []
     try:
-        rc = p.wait(timeout=20)
-    except subprocess.TimeoutExpired:
-        p.kill()
+        try:
+            send("uci")
+            if until("uciok", 10) != "uciok":
+                reply = "NO_UCIOK"
+            else:
+                send("isready")
+                if until("readyok", 10) != "readyok":
+                    reply = "NO_READYOK"
+                else:
+                    send(f"position fen {START}")
+                    send("isready")
+                    if until("readyok", 10) != "readyok":
+                        reply = "NO_READYOK"
+                    else:
+                        t0 = time.monotonic()
+                        for ln in lines:
+                            send(ln)
+                        reply = until(wait_for, timeout)
+                        elapsed = time.monotonic() - t0
+                        if reply == "TIMEOUT" and wait_for == "bestmove":
+                            # Unbounded by UCI design: answer must come after `stop`. Record that, then check it.
+                            send("stop")
+                            stopped = until(wait_for, 10)
+                            reply = f"STOP->{stopped}"
+                        send("quit")
+                        quit_sent = True
+        except Exception as exc:
+            error_text = f"session error: {exc!r}"
+    finally:
+        try:
+            if p.poll() is None and quit_sent:
+                try:
+                    p.wait(timeout=20)
+                except subprocess.TimeoutExpired:
+                    cleanup_errors.append("engine did not exit after quit within 20 seconds")
+            if p.poll() is None:
+                try:
+                    p.terminate()
+                except OSError as exc:
+                    cleanup_errors.append(f"terminate failed: {exc}")
+                try:
+                    p.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    try:
+                        p.kill()
+                    except OSError as exc:
+                        cleanup_errors.append(f"kill failed: {exc}")
+                    try:
+                        p.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        cleanup_errors.append("engine did not exit after bounded kill/reap")
+        finally:
+            if p.poll() is not None:
+                reader.join(timeout=5)
+                err_reader.join(timeout=5)
+            for pipe in (p.stdin, p.stdout, p.stderr):
+                try:
+                    pipe.close()
+                except (OSError, ValueError):
+                    pass
+            if reader.is_alive():
+                reader.join(timeout=5)
+            if err_reader.is_alive():
+                err_reader.join(timeout=5)
+            if reader.is_alive():
+                cleanup_errors.append("stdout reader did not finish within 5 seconds")
+            if err_reader.is_alive():
+                cleanup_errors.append("stderr reader did not finish within 5 seconds")
+
+    rc = p.poll()
+    if rc is None:
         rc = "HUNG"
-    err = p.stderr.read()
-    return reply, elapsed, rc, err, out
+    if cleanup_errors:
+        error_text = (error_text + "; " if error_text else "") + "cleanup incomplete: " + "; ".join(cleanup_errors)
+        if rc == 0:
+            rc = "CLEANUP_ERROR"
+    err_text = "\n".join(text for text in (stderr[0] if stderr else "", error_text) if text)
+    return reply, elapsed, rc, err_text, out
 
 
 # A handshake stall means the engine is unresponsive; every later case would wait the same time
 # again, so the run stops at the first one (the same rule as the other probes, F-37).
 STALLS = ("NO_UCIOK", "NO_READYOK")
 
-failures = []
-aborted = None
-for case in GO_CASES:
-    reply, elapsed, rc, err, out = run_session([case], "bestmove", timeout=3)
-    bad = []
-    if reply in STALLS:
-        aborted = reply
-        failures.append((case, [reply]))
-        print(f"FAIL {case[:70]:70s} {reply}; run aborted", flush=True)
-        break
-    if reply in (None, "TIMEOUT") or reply.startswith("STOP->TIMEOUT"):
-        bad.append("no bestmove, even after stop")
-    elif reply.startswith("STOP->"):
-        if not reply.startswith("STOP->bestmove"):
+
+def main():
+    failures = []
+    aborted = None
+    for case in GO_CASES:
+        reply, elapsed, rc, err, out = run_session([case], "bestmove", timeout=3)
+        bad = []
+        if reply in STALLS:
+            aborted = reply
+            failures.append((case, [reply]))
+            print(f"FAIL {case[:70]:70s} {reply}; run aborted", flush=True)
+            break
+        if reply in (None, "TIMEOUT") or reply.startswith("STOP->TIMEOUT"):
+            bad.append("no bestmove, even after stop")
+        elif reply.startswith("STOP->"):
+            if not reply.startswith("STOP->bestmove"):
+                bad.append("reply " + reply)
+        elif not reply.startswith("bestmove"):
             bad.append("reply " + reply)
-    elif not reply.startswith("bestmove"):
-        bad.append("reply " + reply)
-    if rc != 0:
-        bad.append(f"rc={rc}")
-    if "panicked" in err or "panic" in err.lower():
-        bad.append("panic text on stderr")
-    if rc == "HUNG":
-        # the engine answered but did not exit after quit; one such hang fails the run (no 20 s per case)
-        aborted = "HUNG after quit"
-    # a go with an explicit short limit must not run for many seconds
-    if case.startswith("go movetime 1 ") or case == "go movetime 1":
-        if elapsed > 2.0:
-            bad.append(f"movetime 1 took {elapsed:.2f}s")
-    status = "FAIL" if bad else "ok"
-    print(f"{status:4s} {case[:70]:70s} reply={reply!s:22.22s} t={elapsed:7.3f}s rc={rc} {'; '.join(bad)}", flush=True)
-    if bad:
-        failures.append((case, bad))
-    if aborted:
-        print(f"run aborted: {aborted}", flush=True)
-        break
+        if rc != 0:
+            bad.append(f"rc={rc}")
+        if "panicked" in err or "panic" in err.lower():
+            bad.append("panic text on stderr")
+        if rc in ("HUNG", "CLEANUP_ERROR"):
+            aborted = f"{rc} after quit"
+        if case.startswith("go movetime 1 ") or case == "go movetime 1":
+            if elapsed > 2.0:
+                bad.append(f"movetime 1 took {elapsed:.2f}s")
+        status = "FAIL" if bad else "ok"
+        print(f"{status:4s} {case[:70]:70s} reply={reply!s:22.22s} t={elapsed:7.3f}s rc={rc} {'; '.join(bad)}", flush=True)
+        if bad:
+            failures.append((case, bad))
+        if aborted:
+            print(f"run aborted: {aborted}", flush=True)
+            break
 
-for case in SET_CASES:
-    reply, elapsed, rc, err, out = run_session([case, "isready"], "readyok", timeout=30)
-    bad = []
-    if reply in STALLS:
-        aborted = reply
-        failures.append((case, [reply]))
-        print(f"FAIL {case[:70]:70s} {reply}; run aborted", flush=True)
-        break
-    if reply in (None, "TIMEOUT"):
-        bad.append("no readyok")
-    if rc != 0:
-        bad.append(f"rc={rc}")
-    if "panicked" in err:
-        bad.append("panic text on stderr")
-    if rc == "HUNG":
-        aborted = "HUNG after quit"
-    info = [l for l in out if l.startswith("info string")]
-    status = "FAIL" if bad else "ok"
-    print(f"{status:4s} {case[:70]:70s} rc={rc} info={info[-1][:60] if info else '-'} {'; '.join(bad)}", flush=True)
-    if bad:
-        failures.append((case, bad))
-    if aborted:
-        print(f"run aborted: {aborted}", flush=True)
-        break
+    if not aborted:
+        for case in SET_CASES:
+            reply, elapsed, rc, err, out = run_session([case, "isready"], "readyok", timeout=30)
+            bad = []
+            if reply in STALLS:
+                aborted = reply
+                failures.append((case, [reply]))
+                print(f"FAIL {case[:70]:70s} {reply}; run aborted", flush=True)
+                break
+            if reply in (None, "TIMEOUT"):
+                bad.append("no readyok")
+            if rc != 0:
+                bad.append(f"rc={rc}")
+            if "panicked" in err:
+                bad.append("panic text on stderr")
+            if rc in ("HUNG", "CLEANUP_ERROR"):
+                aborted = f"{rc} after quit"
+            info = [l for l in out if l.startswith("info string")]
+            status = "FAIL" if bad else "ok"
+            print(f"{status:4s} {case[:70]:70s} rc={rc} info={info[-1][:60] if info else '-'} {'; '.join(bad)}", flush=True)
+            if bad:
+                failures.append((case, bad))
+            if aborted:
+                print(f"run aborted: {aborted}", flush=True)
+                break
 
-print("FAILURES:", len(failures), "(run aborted: %s)" % aborted if aborted else "")
-for f in failures:
-    print("  ", f)
-sys.exit(1 if failures else 0)
+    print("FAILURES:", len(failures), "(run aborted: %s)" % aborted if aborted else "")
+    for failure in failures:
+        print("  ", failure)
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

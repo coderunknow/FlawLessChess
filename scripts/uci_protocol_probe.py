@@ -25,9 +25,14 @@ class Eng:
         self.p = subprocess.Popen([EXE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.q = queue.Queue(); self.all = []; self.err = []
         ENGINES.append(self)
-        self.reader = threading.Thread(target=self._r, daemon=True); self.reader.start()
+        self.reader = threading.Thread(target=self._r, name="uci-stdout", daemon=True)
+        self.err_reader = threading.Thread(target=self._read_stderr, name="uci-stderr", daemon=True)
+        self.reader.start()
         # Drain stderr so a chatty engine can never block on a full pipe.
-        threading.Thread(target=lambda: self.err.append(self.p.stderr.read()), daemon=True).start()
+        self.err_reader.start()
+        self._finished = False
+    def _read_stderr(self):
+        self.err.append(self.p.stderr.read())
     def _r(self):
         for raw in iter(self.p.stdout.readline, b""):
             l = raw.decode("utf-8", "replace").rstrip("\r\n"); self.q.put(l); self.all.append(l)
@@ -44,50 +49,77 @@ class Eng:
             if l is None: raise AssertionError(f"EOF waiting for {what}; last={seen[-3:]}")
             seen.append(l)
             if pred(l): return seen
+    def _finish_readers(self):
+        errors = []
+        threads = (self.reader, self.err_reader)
+        if self.p.poll() is not None:
+            # Drain trailing stdout/stderr to EOF before closing the streams.
+            for thread in threads:
+                thread.join(timeout=5)
+        for f in (self.p.stdin, self.p.stdout, self.p.stderr):
+            try: f.close()
+            except (OSError, ValueError): pass
+        for thread in threads:
+            if thread.is_alive(): thread.join(timeout=5)
+            if thread.is_alive(): errors.append(f"{thread.name} reader did not finish within 5 seconds")
+        self._finished = True
+        return errors
+    def abort(self):
+        """Bounded failure cleanup; report any child or reader that survives escalation."""
+        errors = []
+        if self.p.poll() is None:
+            try: self.p.terminate()
+            except OSError as exc: errors.append(f"terminate failed: {exc}")
+            try:
+                self.p.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                try: self.p.kill()
+                except OSError as exc: errors.append(f"kill failed: {exc}")
+                try: self.p.wait(timeout=2)
+                except subprocess.TimeoutExpired: errors.append("engine did not exit after bounded kill/reap")
+        errors.extend(self._finish_readers())
+        if self.p.poll() is None: errors.append("engine remains running after cleanup")
+        return errors
     def close(self):
-        """Wait (bounded) for the engine to exit on its own after `quit`; only then close stdin.
-        Closing stdin first would let EOF end an engine that ignores `quit`, hiding the failure.
-        Then drain every stdout line and validate all of them."""
+        """Wait boundedly for normal quit, then drain and validate all output."""
         try:
             code = self.p.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            self.p.kill(); self.p.wait(); raise AssertionError("engine did not exit after quit")
-        finally:
-            try: self.p.stdin.close()
-            except OSError: pass
-        self.reader.join(5)
-        if self.reader.is_alive():
-            raise AssertionError("stdout not drained after exit")
+        except subprocess.TimeoutExpired as exc:
+            errors = self.abort()
+            detail = "; ".join(errors) if errors else "process was terminated and reaped"
+            raise AssertionError(f"engine did not exit after quit: {detail}") from exc
+        errors = self._finish_readers()
+        if errors:
+            raise AssertionError("incomplete reader cleanup: " + "; ".join(errors))
         bad = unknown_lines(self.all)
         if bad:
             raise AssertionError(f"unexpected stdout lines (all output is checked, incl. before uciok): {bad[:3]}")
-        # Over the complete transcript (after quit too): at most one bestmove per session in these
-        # tests. A second reply, even a legal one, is a protocol violation.
         replies = [l for l in self.all if l.startswith("bestmove")]
         if len(replies) > 1:
             raise AssertionError(f"{len(replies)} bestmove lines on stdout (at most one expected): {replies}")
         return code
 
 def check(name, fn):
+    status, detail = "PASS", ""
     try:
-        fn(); results.append((name, "PASS", ""))
+        fn()
     except AssertionError as e:
-        results.append((name, "FAIL", str(e)))
+        status, detail = "FAIL", str(e)
     except Exception as e:
-        results.append((name, "ERROR", repr(e)))
+        status, detail = "ERROR", repr(e)
     finally:
-        # Unconditional cleanup: kill, reap, and close pipes of every engine this check started.
+        # Every engine is cleaned up even if the probe assertion failed. Cleanup failures turn a
+        # would-be PASS into FAIL and are retained alongside an existing probe failure.
+        cleanup_errors = []
         for e in ENGINES:
-            if e.p.poll() is None:
-                e.p.kill()
-            try:
-                e.p.wait(timeout=10)  # bounded reap after SIGKILL (F-43)
-            except subprocess.TimeoutExpired:
-                pass
-            for f in (e.p.stdin, e.p.stdout, e.p.stderr):
-                try: f.close()
-                except Exception: pass
+            try: cleanup_errors.extend(e.abort())
+            except Exception as exc: cleanup_errors.append(f"cleanup raised {exc!r}")
         ENGINES.clear()
+        if cleanup_errors:
+            cleanup_detail = "; ".join(cleanup_errors)
+            status = "FAIL" if status == "PASS" else status
+            detail = (detail + "; " if detail else "") + "cleanup incomplete: " + cleanup_detail
+    results.append((name, status, detail))
 
 def bestmove_of(lines):
     bm = [l for l in lines if l.startswith("bestmove")]

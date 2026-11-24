@@ -2,7 +2,8 @@
 
 A reader thread feeds stdout lines into a queue, so every wait has a deadline. A blocking
 `for line in p.stdout` never returns if the engine keeps stdout open and stops answering. `close()`
-always sends `quit`, then kills and reaps the process, on success, timeout, and error paths.
+sends `quit`, uses bounded terminate/kill escalation, reaps the child, closes its pipes, and verifies
+that the reader threads finish. Incomplete cleanup is an error, never a successful probe result.
 """
 import queue
 import subprocess
@@ -18,8 +19,14 @@ class Engine:
         )
         self.q = queue.Queue()
         self._err = []
-        threading.Thread(target=self._pump, daemon=True).start()
-        self._errthread = threading.Thread(target=lambda: self._err.append(self.p.stderr.read()), daemon=True)
+        self._outthread = threading.Thread(target=self._pump, name="engine-stdout", daemon=True)
+        self._errthread = threading.Thread(
+            target=lambda: self._err.append(self.p.stderr.read()),
+            name="engine-stderr", daemon=True,
+        )
+        self._closed = False
+        self._cleanup_error = None
+        self._outthread.start()
         self._errthread.start()
 
     def _pump(self):
@@ -55,35 +62,75 @@ class Engine:
     def stderr_text(self):
         return self._err[0] if self._err else ""
 
+    def _close_pipes_and_join_readers(self):
+        errors = []
+        threads = (self._outthread, self._errthread)
+        if self.p.poll() is not None:
+            # Let both readers consume EOF and trailing output before closing their pipes.
+            for thread in threads:
+                thread.join(timeout=5)
+        for pipe in (self.p.stdin, self.p.stdout, self.p.stderr):
+            try:
+                pipe.close()
+            except (OSError, ValueError):
+                pass
+        for thread in threads:
+            if thread.is_alive():
+                thread.join(timeout=5)
+            if thread.is_alive():
+                errors.append(f"{thread.name} reader did not finish within 5 seconds")
+        return errors
+
     def close(self):
-        """Quit the engine if it still runs, kill it after 10 s, and return its exit code."""
-        try:
-            if self.p.poll() is None:
+        """Quit, escalate with bounded waits, reap, close pipes, and return the exit code.
+
+        Raises RuntimeError if the child cannot be reaped or either output reader remains stuck.
+        It is safe to call more than once; the real exit code is retained.
+        """
+        if self._closed:
+            if self._cleanup_error:
+                raise RuntimeError("engine cleanup previously failed: " + self._cleanup_error)
+            if self.p.returncode is None:
+                raise RuntimeError("engine cleanup previously failed; process is still running")
+            return self.p.returncode
+
+        cleanup_errors = []
+        if self.p.poll() is None:
+            try:
+                self.send("quit")
+            except (BrokenPipeError, OSError, ValueError):
+                pass
+            try:
+                self.p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
                 try:
-                    self.send("quit")
-                except (BrokenPipeError, OSError):
-                    pass
+                    self.p.terminate()
+                except OSError as exc:
+                    cleanup_errors.append(f"terminate failed: {exc}")
                 try:
-                    self.p.wait(timeout=10)
+                    self.p.wait(timeout=2)
                 except subprocess.TimeoutExpired:
-                    self.p.kill()
                     try:
-                        self.p.wait(timeout=10)  # bounded reap after SIGKILL (F-43)
+                        self.p.kill()
+                    except OSError as exc:
+                        cleanup_errors.append(f"kill failed: {exc}")
+                    try:
+                        self.p.wait(timeout=2)
                     except subprocess.TimeoutExpired:
-                        pass
-        finally:
-            if self.p.poll() is None:
-                self.p.kill()
-                try:
-                    self.p.wait(timeout=10)  # bounded reap (F-43)
-                except subprocess.TimeoutExpired:
-                    pass
-            self._errthread.join(timeout=5)  # stderr is complete once the process has exited
+                        cleanup_errors.append("engine did not exit after bounded SIGKILL reap")
+
+        cleanup_errors.extend(self._close_pipes_and_join_readers())
+        self._closed = True
+        if self.p.poll() is None:
+            cleanup_errors.append("engine is still running after cleanup")
+        if cleanup_errors:
+            self._cleanup_error = "; ".join(cleanup_errors)
+            raise RuntimeError("incomplete engine cleanup: " + self._cleanup_error)
         return self.p.returncode
 
 
 def search_lines(exe, commands, prefix="bestmove", timeout=60.0):
-    """One fresh engine: send `commands` in order, return the lines up to the first line starting
+    """One fresh engine: send `commands` in order, return lines up to the first line starting
     with `prefix`. A missing reply raises TimeoutError, and a nonzero exit status after the reply
     raises RuntimeError (F-43). The engine is always closed."""
     eng = Engine(exe)
@@ -91,8 +138,11 @@ def search_lines(exe, commands, prefix="bestmove", timeout=60.0):
         for c in commands:
             eng.send(c)
         lines = eng.read_until(prefix, timeout)
-    except BaseException:
-        eng.close()
+    except BaseException as original:
+        try:
+            eng.close()
+        except Exception as cleanup_error:
+            raise RuntimeError(f"probe failed ({original!r}); cleanup also failed ({cleanup_error})") from original
         raise
     rc = eng.close()
     if rc != 0:
