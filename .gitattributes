@@ -2,3 +2,4 @@
 /benches/rating-openings-100-batchB.txt text eol=lf
 /benches/evidence/screening-2/topple-0.1.1/games.jsonl text eol=lf
 /benches/evidence/screening-2/topple-0.2.1/games.jsonl text eol=lf
+*.py linguist-detectable=false
