@@ -19,6 +19,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: write
 
 # Relative baseline fixed to the verified pre-PR #6 main tip. Do not silently track main:
 # advancing this SHA changes the comparison and requires a documented benchmark amendment.
@@ -90,6 +92,16 @@ jobs:
             --candidate-sha "$CANDIDATE_SHA" \
             --baseline-sha "$BASELINE_SHA" \
             --out "benchmark-output/quick-${GITHUB_RUN_ID}"
+
+      - name: Publish the benchmark summary (job summary and pull request comment)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          python scripts/publish_benchmark_summary.py \
+            --summary "benchmark-output/quick-${GITHUB_RUN_ID}/summary.json" \
+            --title "Relative engine benchmark — quick profile (seed ${QUICK_SEED})"
 
       - name: Preserve raw games, PGN, suite and summaries
         if: always()
@@ -217,6 +229,16 @@ jobs:
             --runs-root benchmark-artifacts \
             --out benchmark-aggregate \
             --bootstrap-seed "$bootstrap_seed"
+
+      - name: Publish the pooled result (job summary and pull request comment)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+        run: |
+          python scripts/publish_benchmark_summary.py \
+            --summary benchmark-aggregate/aggregate-summary.json \
+            --title "Relative engine benchmark — extended profile (3 replicates, seeds ${SEED_BASE}..$((SEED_BASE+2)))"
 
       - name: Preserve pooled result
         if: always()

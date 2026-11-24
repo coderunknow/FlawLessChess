@@ -774,8 +774,8 @@ fn outposts_follow_the_classical_definition_and_are_colour_symmetric() {
     let w_hit = "4k3/8/3p4/2N5/8/8/8/4K3 w - - 0 1";
     let m_hit = "4k3/8/8/8/2n5/3P4/8/4K3 b - - 0 1";
     check_outpost(w_hit, m_hit, 0);
-    let w_hit6 = "4k3/8/2N5/1p6/8/8/8/4K3 w - - 0 1";
-    let m_hit3 = "4k3/8/8/8/1P6/2n5/8/4K3 b - - 0 1";
+    let w_hit6 = "4k3/1p6/2N5/8/8/8/8/4K3 w - - 0 1";
+    let m_hit3 = "4k3/8/8/8/8/2n5/1P6/4K3 b - - 0 1";
     check_outpost(w_hit6, m_hit3, 0);
 }
 
