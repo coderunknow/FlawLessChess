@@ -229,6 +229,7 @@ pub struct EvalBreakdown {
     pub king_safety: i32,
     pub bishop_pair: i32,
     pub rook_file: i32,
+    pub space: i32,
     pub tempo: i32,
     pub total: i32,
 }
@@ -250,6 +251,19 @@ impl Evaluator for ClassicalEvaluator {
     }
 }
 
+/// Square weights for space evaluation. Higher for central squares, symmetric
+/// both horizontally and vertically so that colour mirroring preserves value.
+const SPACE_WEIGHT: [i32; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 1, 1, 1, 1, 0, 0,
+    0, 1, 2, 2, 2, 2, 1, 0,
+    1, 2, 3, 4, 4, 3, 2, 1,
+    1, 2, 3, 4, 4, 3, 2, 1,
+    0, 1, 2, 2, 2, 2, 1, 0,
+    0, 0, 1, 1, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+];
+
 struct ColorEval {
     mg: i32,
     eg: i32,
@@ -260,6 +274,7 @@ struct ColorEval {
     king_safety: i32,
     bishop_pair: i32,
     rook_file: i32,
+    space: i32,
 }
 
 fn eval_color(pos: &Position, color: usize, is_white: bool) -> ColorEval {
@@ -275,6 +290,7 @@ fn eval_color(pos: &Position, color: usize, is_white: bool) -> ColorEval {
         king_safety: 0,
         bishop_pair: 0,
         rook_file: 0,
+        space: 0,
     };
     let mut king_sq: Square = 0;
     let mut bishops = 0u32;
@@ -413,6 +429,63 @@ fn eval_color(pos: &Position, color: usize, is_white: bool) -> ColorEval {
     out.mg += rfile_mg;
     out.eg += rfile_eg;
 
+    // space: reward control of important squares, especially in the centre.
+    // Squares are mirrored for black so the score is colour-symmetric.
+    // Space matters more in the middlegame (full weight) than the endgame (half weight).
+    let mut space_mg = 0i32;
+    let mut space_eg = 0i32;
+    let mut add_space = |att: u64| {
+        let mut a = att;
+        while a != 0 {
+            let asq = lsb(a);
+            a &= a - 1;
+            let w = if is_white {
+                SPACE_WEIGHT[asq as usize]
+            } else {
+                SPACE_WEIGHT[(asq ^ 56) as usize]
+            };
+            space_mg += w;
+            space_eg += w / 2;
+        }
+    };
+    // Pawns
+    let mut p = pos.pieces[base + PAWN];
+    while p != 0 {
+        add_space(attack::pawn_attacks_lookup(color, lsb(p)));
+        p &= p - 1;
+    }
+    // Knights
+    let mut n = pos.pieces[base + KNIGHT];
+    while n != 0 {
+        add_space(attack::KNIGHT_ATTACKS[lsb(n) as usize]);
+        n &= n - 1;
+    }
+    // Bishops
+    let mut b = pos.pieces[base + BISHOP];
+    while b != 0 {
+        add_space(attack::bishop_attacks(lsb(b), occ));
+        b &= b - 1;
+    }
+    // Rooks
+    let mut r = pos.pieces[base + ROOK];
+    while r != 0 {
+        add_space(attack::rook_attacks(lsb(r), occ));
+        r &= r - 1;
+    }
+    // Queens
+    let mut q = pos.pieces[base + QUEEN];
+    while q != 0 {
+        add_space(attack::queen_attacks(lsb(q), occ));
+        q &= q - 1;
+    }
+    // King
+    if king_sq != 0 {
+        add_space(attack::KING_ATTACKS[king_sq as usize]);
+    }
+    out.space = space_mg;
+    out.mg += space_mg;
+    out.eg += space_eg;
+
     // bishop pair
     if bishops >= 2 {
         out.bishop_pair = 22;
@@ -512,6 +585,7 @@ pub fn breakdown(pos: &Position) -> EvalBreakdown {
         king_safety: w.king_safety - b.king_safety,
         bishop_pair: w.bishop_pair - b.bishop_pair,
         rook_file: w.rook_file - b.rook_file,
+        space: w.space - b.space,
         tempo: TEMPO,
         total,
     }

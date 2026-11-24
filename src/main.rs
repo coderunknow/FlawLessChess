@@ -320,6 +320,7 @@ fn cmd_eval(args: &[String]) {
     flawless::out_line!("king_safety{:>6}", b.king_safety);
     flawless::out_line!("bishop_pair{:>6}", b.bishop_pair);
     flawless::out_line!("rook_file  {:>6}", b.rook_file);
+    flawless::out_line!("space      {:>6}", b.space);
     flawless::out_line!("tempo      {:>6}", b.tempo);
 }
 
