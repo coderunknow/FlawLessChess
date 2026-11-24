@@ -1480,3 +1480,8 @@ This append-only table identifies each completed full-gate result recorded in th
 | F-67 CodeRabbit-correction exact-head gate | `071865a39079f3877e342ef36679778483c96ee7` | UNAVAILABLE (`/tmp/gates/071865a-review` is outside the repository and absent) |
 
 For future checks, retain raw logs at a tracked repository path or state `UNAVAILABLE` in the corresponding append-only entry; temporary sandbox paths and untracked workspace files are not treated as retained repository evidence.
+
+### Exact-head follow-up for the lifecycle changes (2026-11-24)
+
+- The pending final gate referenced above completed on exact code/test commit `340e96e0b0acffe00de5c64ca1467f73c5f63ac2`, tree `79c699366378d3056eb17fc69365ec16921dcbb9`, in a clean detached worktree. `scripts/final_gate.sh` exited 0 with `FAILS=0`; fmt, debug/release Clippy, builds/tests, all Python tests, perft/differential/search/UCI probes, resource/time-control probes, self-play, and full-game probes passed.
+- Local raw outputs were copied to `audit-evidence/pr5-lifecycle-340e96e-final/` for workspace preservation. That directory is untracked, so raw-output path in the repository remains UNAVAILABLE; the gate result is not presented as hosted CI, independent review, or integration evidence.
