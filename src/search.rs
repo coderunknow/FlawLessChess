@@ -92,6 +92,10 @@ pub struct Searcher<'a> {
     limits: Arc<Mutex<SearchLimits>>,
     eval: ClassicalEvaluator,
     killers: [[Option<Move>; 2]; MAX_PLY as usize],
+    /// Counter move heuristic: counters[side][opponent_from * 64 + opponent_to] stores the move
+    /// that most recently caused a fail-high in reply to the opponent's move from/to.
+    /// A counter move is ordered just above killers and below good captures.
+    counters: [[Option<Move>; 64 * 64]; 2],
     history: [[i32; 64 * 64]; 2],
     lmr: [[i32; 256]; MAX_PLY as usize + 1],
     nodes: u64,
@@ -126,6 +130,7 @@ impl<'a> Searcher<'a> {
             limits,
             eval: ClassicalEvaluator,
             killers: [[None; 2]; MAX_PLY as usize],
+            counters: [[None; 64 * 64]; 2],
             history: [[0; 64 * 64]; 2],
             lmr: build_lmr_table(),
             nodes: 0,
@@ -234,13 +239,29 @@ impl<'a> Searcher<'a> {
         self.eval.evaluate(pos)
     }
 
-    fn move_order_score(&self, pos: &Position, m: Move, tt_move: Option<Move>, ply: usize) -> i32 {
+    fn move_order_score(
+        &self,
+        pos: &Position,
+        m: Move,
+        tt_move: Option<Move>,
+        ply: usize,
+        prev_move: Option<Move>,
+    ) -> i32 {
         if let Some(tm) = tt_move {
             if m == tm {
                 return 1_000_000;
             }
         }
         let us = pos.side;
+        // Counter move: our best response to the opponent's last move. Ordered just above
+        // killers, below good captures.
+        if let Some(pm) = prev_move {
+            if let Some(counter) = self.counters[us][pm.from as usize * 64 + pm.to as usize] {
+                if m == counter {
+                    return 92_000;
+                }
+            }
+        }
         let is_cap = is_capture(pos, m);
         if is_cap {
             let see = static_exchange_eval(pos, m);
@@ -278,9 +299,11 @@ impl<'a> Searcher<'a> {
         moves: &mut MoveList,
         tt_move: Option<Move>,
         ply: usize,
+        prev_move: Option<Move>,
     ) {
         for i in 0..moves.len {
-            moves.scores[i] = self.move_order_score(pos, moves.moves[i], tt_move, ply);
+            moves.scores[i] =
+                self.move_order_score(pos, moves.moves[i], tt_move, ply, prev_move);
         }
         // Stable insertion sort by descending score (lists are short; branch-friendly). Equal
         // scores are ordered by a colour-relative key (S-14), not by generation order: generation
@@ -315,6 +338,7 @@ impl<'a> Searcher<'a> {
     ) -> SearchResult {
         self.tt.new_search();
         self.killers = [[None; 2]; MAX_PLY as usize];
+        self.counters = [[None; 64 * 64]; 2];
         self.root_best = None;
         for side in 0..2 {
             for v in self.history[side].iter_mut() {
@@ -401,7 +425,7 @@ impl<'a> Searcher<'a> {
                 completed = true;
             } else {
                 loop {
-                    let score = self.search(pos, depth, alpha, beta, 0);
+                    let score = self.search(pos, depth, alpha, beta, 0, None);
                     if self.stop.load(Ordering::Relaxed) {
                         break;
                     }
@@ -480,7 +504,7 @@ impl<'a> Searcher<'a> {
                 break;
             }
             let undo = pos.make_move(rm);
-            let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1);
+            let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1, Some(rm));
             pos.unmake_move(rm, &undo);
             if root_fifty_claim && score < DRAW_SCORE {
                 score = DRAW_SCORE;
@@ -546,7 +570,15 @@ impl<'a> Searcher<'a> {
         pv
     }
 
-    fn search(&mut self, pos: &mut Position, depth: i32, alpha: i32, beta: i32, ply: i32) -> i32 {
+    fn search(
+        &mut self,
+        pos: &mut Position,
+        depth: i32,
+        alpha: i32,
+        beta: i32,
+        ply: i32,
+        prev_move: Option<Move>,
+    ) -> i32 {
         if self.node_cap_reached() {
             return alpha;
         }
@@ -661,7 +693,14 @@ impl<'a> Searcher<'a> {
             let reduction = 2 + depth / 4;
             let was_null_move_search = self.null_move_search;
             self.null_move_search = true;
-            let score = -self.search(pos, depth - 1 - reduction, -beta, -beta + 1, ply + 1);
+            let score = -self.search(
+                pos,
+                depth - 1 - reduction,
+                -beta,
+                -beta + 1,
+                ply + 1,
+                None, // null move is not a real opponent move
+            );
             self.null_move_search = was_null_move_search;
             pos.unmake_null_move(prev_ep, prev_ep_included);
             if self.stop.load(Ordering::Relaxed) {
@@ -695,7 +734,7 @@ impl<'a> Searcher<'a> {
             }
         }
 
-        self.order_and_score(pos, &mut moves, tt_move, ply as usize);
+        self.order_and_score(pos, &mut moves, tt_move, ply as usize, prev_move);
 
         let mut best_score = -INF_SCORE;
         let mut best_move: Option<Move> = None;
@@ -738,7 +777,14 @@ impl<'a> Searcher<'a> {
             }
 
             let score = if searched_count == 0 {
-                -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1)
+                -self.search(
+                    pos,
+                    depth - 1 + extension,
+                    -beta,
+                    -alpha,
+                    ply + 1,
+                    Some(m),
+                )
             } else {
                 let mut s = -self.search(
                     pos,
@@ -746,12 +792,27 @@ impl<'a> Searcher<'a> {
                     -alpha - 1,
                     -alpha,
                     ply + 1,
+                    Some(m),
                 );
                 if reduction > 0 && s > alpha {
-                    s = -self.search(pos, depth - 1 + extension, -alpha - 1, -alpha, ply + 1);
+                    s = -self.search(
+                        pos,
+                        depth - 1 + extension,
+                        -alpha - 1,
+                        -alpha,
+                        ply + 1,
+                        Some(m),
+                    );
                 }
                 if s > alpha && s < beta {
-                    s = -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1);
+                    s = -self.search(
+                        pos,
+                        depth - 1 + extension,
+                        -beta,
+                        -alpha,
+                        ply + 1,
+                        Some(m),
+                    );
                 }
                 s
             };
@@ -772,6 +833,11 @@ impl<'a> Searcher<'a> {
                     let ply_idx = ply as usize;
                     self.killers[ply_idx][1] = self.killers[ply_idx][0];
                     self.killers[ply_idx][0] = Some(m);
+                    // Counter move: our move m caused a fail-high in reply to the opponent's
+                    // previous move. Store it so we can try it first next time we face that move.
+                    if let Some(pm) = prev_move {
+                        self.counters[pos.side][pm.from as usize * 64 + pm.to as usize] = Some(m);
+                    }
                     let h = &mut self.history[pos.side][(m.from as usize) * 64 + m.to as usize];
                     *h = (*h + depth * depth).min(100_000);
                     for q in quiet_tried.iter() {
@@ -935,7 +1001,7 @@ impl<'a> Searcher<'a> {
             }
             moves.len = j;
         }
-        self.order_and_score(pos, &mut moves, None, ply as usize);
+        self.order_and_score(pos, &mut moves, None, ply as usize, None);
 
         for i in 0..moves.len {
             let m = moves.moves[i];
@@ -1300,7 +1366,7 @@ mod draw_rule_tests {
         let stop = AtomicBool::new(false);
         let limits = Arc::new(Mutex::new(SearchLimits::default()));
         let mut searcher = Searcher::new(&mut tt, &stop, limits);
-        let _ = searcher.search(&mut pos, 2, -100, -99, 1);
+        let _ = searcher.search(&mut pos, 2, -100, -99, 1, None);
         assert!(
             searcher.nodes() > 1,
             "probe-clock-dependent TT score caused an unsafe cutoff"
@@ -1331,7 +1397,7 @@ mod draw_rule_tests {
         let limits = Arc::new(Mutex::new(SearchLimits::default()));
         let mut searcher = Searcher::new(&mut tt, &stop, limits);
         searcher.null_move_search = true;
-        let _ = searcher.search(&mut pos, 0, -INF_SCORE, INF_SCORE, 1);
+        let _ = searcher.search(&mut pos, 0, -INF_SCORE, INF_SCORE, 1, None);
         assert!(
             searcher.nodes() > 2,
             "search and quiescence must both ignore historical repetitions under a null move"
@@ -1479,7 +1545,7 @@ mod draw_rule_tests {
         let stop = AtomicBool::new(false);
         let limits = Arc::new(Mutex::new(SearchLimits::default()));
         let mut s = Searcher::new(&mut tt, &stop, limits);
-        let _ = s.search(&mut pos, 1, MATE_BOUND, MATE_BOUND + 1, 0);
+        let _ = s.search(&mut pos, 1, MATE_BOUND, MATE_BOUND + 1, 0, None);
         assert!(
             s.nodes() > 1,
             "search did not explore beyond the root: nodes={}, stop={}",
