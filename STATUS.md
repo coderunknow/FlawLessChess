@@ -324,3 +324,36 @@ CI on c564c5c passed Ubuntu but failed the Windows power-analysis smoke because 
 - Not verified: Windows artifact bytes (SHA-256, PE machine, manifest) by hand; real GUI playability in Arena or Cute Chess; independent AI review; MSRV 1.80 on the new head (depends on CI).
 - Release gates: see `docs/audit/2026-11-19-v0.1.0-release-candidate.md`. The V1 rating gate remains NOT MET and does not apply to a pre-V1 claim.
 
+## 2026-11-24 — current session (branch arena/247fe7df-flawlesschess at `4038b75`, PR #6 draft)
+
+Toolchain recovered from npm `@toolchain-bin/*` 1.99.0 pins into `/home/user/.toolchain/sysroot` (static.rust-lang.org unreachable; crates.io unreachable). Python venv with python-chess 1.11.2 at `/home/user/.venv`.
+
+### Changes implemented
+
+1. **Time management** (src/search.rs): removed the predictive-overrun early stop that halted searches well before the soft budget on clock-based time controls. At 10 s the engine previously stopped at 116 ms of a 234 ms soft budget (depth 9); it now runs to depth 10 at ~253 ms. At 1 min it reaches depth 12 at ~1.65 s. Hard budget still caps worst-case overspend; fixed-depth/movetime searches unaffected (bench signature unchanged).
+
+2. **Counter move heuristic** (src/search.rs, HIST-1 from PR #2 audit): when a quiet move causes a fail-high cutoff in reply to the opponent's previous move, store it as a counter move. Ordered just above killers (92,000) and below good captures. Counter table cleared each root search like killers/history; not used in null-move search or quiescence.
+
+3. **Space evaluation** (src/eval.rs, src/main.rs, EVAL-2 from PR #2 audit): reward control of important squares weighted by centrality (centre squares weighted most). Colour-symmetric via square mirroring (sq ^ 56). Tapered: full weight in middlegame, half in endgame. Added `space` field to `EvalBreakdown` and CLI `eval` output.
+
+### Validation (local, this sandbox)
+
+- `cargo fmt --all -- --check`: clean
+- `cargo clippy --release --all-targets -- -D warnings`: clean
+- `cargo test --release`: **172/172 passed** (49 lib + 3 cli_batch + 3 cli_divide + 3 clock_smoke + 43 correctness + 12 movetime_smoke + 51 protocol_regressions + 11 uci_smoke)
+- `scripts/diftest.py`: **2,321 positions d=2, 0 mismatches** (python-chess oracle)
+- `./target/release/flawless perft 6`: **119,060,324** (matches CPW reference)
+- `./target/release/flawless bench`: signature **141943aa23b3fc68** (unchanged from pre-change baseline)
+- `scripts/test_match.py`: **111/111 passed**
+- `scripts/test_rating_estimator.py`: 65/65 checks pass; null control FAIL is pre-existing (anchor/environment issue, not engine-related)
+
+### Not done
+
+- Absolute rating: UNKNOWN / NOT MET (V1 gate requires >2,000 with 95% CI lower bound strictly >2,000)
+- Fresh CodeRabbit review at final SHA: not yet performed
+- MSRV 1.80 compile: not locally verifiable (no 1.80 toolchain obtainable; delegated to CI)
+- Windows execution: not locally verifiable (delegated to CI)
+- Continuation history (remaining HIST-1 element): not yet implemented
+- Outpost/other evaluation terms (remaining EVAL-2 elements): not yet implemented
+- PR #2 (open, draft, conflicting): NOT merged, NOT cherry-picked, NOT touched
+

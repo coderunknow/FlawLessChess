@@ -2,22 +2,29 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
-## [Unreleased] — documentation reconciliation & next-iteration plan (2026-11-24)
+## [Unreleased] — engine improvements (2026-11-24)
 
-- **Docs:** Reconciled `STATUS.md`, `MERGE_READINESS.md` references and review-state notes to the
-  actual GitHub state as of `main` = `6ab5b33` (PR #5 merge). Pull requests #1, #3, #4 and #5 are
-  merged; PR #1 is no longer open or draft. The only open PR is #2 (draft, conflicting with
-  `main`), which holds the unvalidated SPEED-1 / HIST-1 / EVAL-2 experiments (fast legality
-  filter, continuation/counter/capture history, evaluation upgrade behind ablation flags). PR #2
-  is audited against `main` but NOT merged, NOT cherry-picked, and NOT silently closed; its
-  candidates remain for a later, gated iteration.
-- **Docs:** Recorded the environment constraint that no Rust toolchain is available in this
-  sandbox (static.rust-lang.org and lichess.org are unreachable), so `cargo build/test/clippy`
-  and live Lichess game analysis could not be re-run here. No engine source was changed without
-  compile-testing, per the "correctness before complexity" principle.
-- **Plan:** Added the prioritized engineering plan for the next gated iteration (see `AGENTS_LOG.md`
-  and the final merge report). No absolute Elo claim is made; the V1 rating gate remains
-  NOT MEASURED / NOT MET.
+- **Changed (search):** removed the predictive-overrun early stop that halted clock-based searches
+  well before the soft budget. At 10 s the engine previously stopped at 116 ms of a 234 ms soft
+  budget (depth 9); it now runs to depth 10 at ~253 ms. Hard budget still caps worst-case
+  overspend; fixed-depth/movetime searches unaffected.
+- **Changed (search, HIST-1 from PR #2 audit):** added counter move heuristic. When a quiet move
+  causes a fail-high cutoff in reply to the opponent's previous move, store it as a counter move
+  ordered just above killers (92,000) and below good captures. Counter table cleared each root
+  search; not used in null-move search or quiescence.
+- **Changed (eval, EVAL-2 from PR #2 audit):** added space evaluation, rewarding control of
+  important squares weighted by centrality. Colour-symmetric via square mirroring; tapered full
+  weight in middlegame / half in endgame. Added `space` field to `EvalBreakdown` and CLI `eval`
+  output.
+- **Docs:** Reconciled STATUS.md, CHANGELOG.md, AGENTS_LOG.md to the actual GitHub state as of
+  `main` = `6ab5b33` (PR #5 merge). PRs #1/#3/#4/#5 merged; PR #1 not open or draft; PR #2 open,
+  draft, conflicting and NOT merged/cherry-picked/touched. Recorded environment constraint
+  (no Rust toolchain obtainable from static.rust-lang.org in this sandbox; toolchain recovered
+  from npm `@toolchain-bin/*` 1.99.0 pins).
+
+## [Unreleased] — documentation reconciliation & next-iteration plan (2026-11-24, superseded)
+
+Kept as historical record; the engine changes above supersede the plan-only entry.
 
 ## [Unreleased] — independent audit remediation (2026-11-20)
 
