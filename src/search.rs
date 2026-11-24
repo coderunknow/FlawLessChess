@@ -829,7 +829,8 @@ impl<'a> Searcher<'a> {
                     // previous move. Store it so we can try it first next time we face that move.
                     if (self.ablate & crate::ablation::COUNTER_MOVE) == 0 {
                         if let Some(pm) = prev_move {
-                            self.counters[pos.side][pm.from as usize * 64 + pm.to as usize] = Some(m);
+                            self.counters[pos.side][pm.from as usize * 64 + pm.to as usize] =
+                                Some(m);
                         }
                     }
                     let h = &mut self.history[pos.side][(m.from as usize) * 64 + m.to as usize];

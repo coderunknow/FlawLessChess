@@ -110,7 +110,10 @@ mod tests {
     #[test]
     fn duplicate_terms_are_collapsed() {
         assert_eq!(parse_spec("space,space"), vec!["space"]);
-        assert_eq!(parse_spec("space, counter_move,space"), vec!["space", "counter_move"]);
+        assert_eq!(
+            parse_spec("space, counter_move,space"),
+            vec!["space", "counter_move"]
+        );
     }
 
     #[test]

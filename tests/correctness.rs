@@ -714,7 +714,10 @@ fn check_outpost(fen: &str, mirror: &str, expected: i32) {
     let ea = breakdown(&a);
     let eb = breakdown(&b);
     assert_eq!(ea.outpost, expected, "outpost mismatch for {fen}");
-    assert_eq!(eb.outpost, -expected, "mirrored outpost mismatch for {mirror}");
+    assert_eq!(
+        eb.outpost, -expected,
+        "mirrored outpost mismatch for {mirror}"
+    );
     assert_eq!(ea.total, eb.total, "outpost breaks colour symmetry: {fen}");
 }
 
@@ -724,7 +727,11 @@ fn outposts_follow_the_classical_definition_and_are_colour_symmetric() {
     attack::init_attacks();
 
     // The shipped build must not disable anything (see docs/ABLATIONS.md).
-    assert_eq!(flawless::ablation::mask(), 0, "ablation must be off by default");
+    assert_eq!(
+        flawless::ablation::mask(),
+        0,
+        "ablation must be off by default"
+    );
 
     // Safe minor piece on an outpost square of the opponent's camp.
     let w_c5 = "4k3/8/8/2N5/8/8/8/4K3 w - - 0 1";
