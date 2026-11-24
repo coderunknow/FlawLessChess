@@ -64,7 +64,13 @@ class EngineSpec:
 
 
 class UciEngine:
-    def __init__(self, spec: EngineSpec, hash_mb: int | None = None, skill: int | None = None):
+    def __init__(
+        self,
+        spec: EngineSpec,
+        hash_mb: int | None = None,
+        skill: int | None = None,
+        threads: int | None = None,
+    ):
         self.spec = spec
         self.proc = subprocess.Popen(
             spec.cmd,
@@ -89,6 +95,8 @@ class UciEngine:
         self._wait_for("uciok", timeout=60.0)
         if hash_mb is not None:
             self._send(f"setoption name Hash value {hash_mb}")
+        if threads is not None:
+            self._send(f"setoption name Threads value {threads}")
         if skill is not None:
             self._send(f"setoption name Skill Level value {skill}")
         # Rating protocol: pondering is disabled unless the preregistered protocol
@@ -745,6 +753,8 @@ def main() -> int:
                     help="paired repetitions per opening (1 repetition = 2 games, AB/BA); "
                          "e.g. --repetitions 17 with 60 openings = 2,040 games")
     ap.add_argument("--hash", type=int, default=None)
+    ap.add_argument("--threads", type=int, default=None,
+                    help="set each engine's UCI Threads option (e.g. 1 for single-thread benchmarks)")
     ap.add_argument("--skill-white", type=int, default=None)
     ap.add_argument("--skill-black", type=int, default=None)
     ap.add_argument("--max-moves", type=int, default=300)
@@ -776,6 +786,9 @@ def main() -> int:
     ap.add_argument("--black-artifact", default="",
                     help="os.pathsep-separated extra files hashed into the BLACK artifact")
     args = ap.parse_args()
+
+    if args.threads is not None and args.threads < 1:
+        ap.error("--threads must be >= 1")
 
     tc_modes = [m for m in (args.movetime, args.depth, args.tc) if m is not None]
     if len(tc_modes) != 1:
@@ -840,8 +853,18 @@ def main() -> int:
             f"(never overwriting or mixing a batch; if it is an empty crash remnant, remove it explicitly)"
         )
 
-    white = UciEngine(EngineSpec(args.white_name, args.white_cmd.split()), hash_mb=args.hash, skill=args.skill_white)
-    black = UciEngine(EngineSpec(args.black_name, args.black_cmd.split()), hash_mb=args.hash, skill=args.skill_black)
+    white = UciEngine(
+        EngineSpec(args.white_name, args.white_cmd.split()),
+        hash_mb=args.hash,
+        skill=args.skill_white,
+        threads=args.threads,
+    )
+    black = UciEngine(
+        EngineSpec(args.black_name, args.black_cmd.split()),
+        hash_mb=args.hash,
+        skill=args.skill_black,
+        threads=args.threads,
+    )
 
     pgn_path = os.path.join(args.out, "games.pgn")
     jsonl_path = os.path.join(args.out, "games.jsonl")
@@ -868,6 +891,7 @@ def main() -> int:
         "shard_id": args.shard_id,
         "time_control": tc_desc,
         "hash_mb": args.hash,
+        "threads": args.threads,
         "skill_white": args.skill_white,
         "skill_black": args.skill_black,
         "openings_file": os.path.abspath(args.openings),
@@ -926,8 +950,18 @@ def main() -> int:
                 w_cmd, b_cmd = args.black_cmd, args.white_cmd
                 w_skill, b_skill = args.skill_black, args.skill_white
             opening = (entry["opening"], openings[entry["opening_index"]][1])
-            w = UciEngine(EngineSpec(w_name, w_cmd.split()), hash_mb=args.hash, skill=w_skill)
-            b = UciEngine(EngineSpec(b_name, b_cmd.split()), hash_mb=args.hash, skill=b_skill)
+            w = UciEngine(
+                EngineSpec(w_name, w_cmd.split()),
+                hash_mb=args.hash,
+                skill=w_skill,
+                threads=args.threads,
+            )
+            b = UciEngine(
+                EngineSpec(b_name, b_cmd.split()),
+                hash_mb=args.hash,
+                skill=b_skill,
+                threads=args.threads,
+            )
             t0 = time.time()
             try:
                 result = play_game(

@@ -1,0 +1,228 @@
+name: Relative strength benchmark
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "quick PR regression screen or extended paired tournament"
+        required: true
+        type: choice
+        options: [quick, extended]
+        default: quick
+      seed:
+        description: "Opening-order shuffle seed (extended runs use seed, seed+1, seed+2)"
+        required: true
+        type: string
+        default: "20261124"
+
+permissions:
+  contents: read
+
+# Relative baseline fixed to the verified pre-PR #6 main tip. Do not silently track main:
+# advancing this SHA changes the comparison and requires a documented benchmark amendment.
+env:
+  BASELINE_SHA: 6ab5b3349264c6c0a740c433ce454f8e1fed698a
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quick:
+    name: Quick paired engine match (PR regression screen)
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      QUICK_SEED: ${{ github.event_name == 'workflow_dispatch' && inputs.seed || '20261124' }}
+    steps:
+      - name: Check out exact candidate PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Check out pinned baseline source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline-src
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # pinned from master on 2026-11-20
+        with:
+          toolchain: 1.99.0
+
+      - name: Set up Python and install the pinned referee
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check chess==1.11.2
+
+      - name: Record compiler and source identities
+        run: |
+          rustc -vV
+          cargo --version
+          printf 'candidate_sha=%s\nbaseline_sha=%s\n' "$CANDIDATE_SHA" "$BASELINE_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git -C baseline-src rev-parse HEAD)" = "$BASELINE_SHA"
+
+      - name: Build candidate release binary
+        run: cargo build --release --locked
+
+      - name: Build baseline release binary with a separate target directory
+        run: cargo build --release --locked --manifest-path baseline-src/Cargo.toml
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/baseline-target
+
+      - name: Verify binary hashes and run 20 paired openings (40 real UCI games)
+        run: |
+          set -euo pipefail
+          sha256sum target/release/flawless "${RUNNER_TEMP}/baseline-target/release/flawless"
+          case "$QUICK_SEED" in *[!0-9]*|'') echo "invalid seed: $QUICK_SEED"; exit 2 ;; esac
+          python scripts/relative_benchmark.py run \
+            --profile quick \
+            --candidate "$PWD/target/release/flawless" \
+            --baseline "${RUNNER_TEMP}/baseline-target/release/flawless" \
+            --opening-suite benches/openings-20.txt \
+            --seed "$QUICK_SEED" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --baseline-sha "$BASELINE_SHA" \
+            --out "benchmark-output/quick-${GITHUB_RUN_ID}"
+
+      - name: Preserve raw games, PGN, suite and summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relative-strength-quick-${{ github.run_id }}
+          path: benchmark-output/quick-${{ github.run_id }}/
+          if-no-files-found: warn
+          retention-days: 90
+
+  extended:
+    name: Extended paired engine match (replicate ${{ matrix.replicate }})
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'extended'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        replicate: [1, 2, 3]
+    env:
+      CANDIDATE_SHA: ${{ github.sha }}
+      SEED_BASE: ${{ inputs.seed || '20261124' }}
+      RUN_INDEX: ${{ matrix.replicate }}
+    steps:
+      - name: Check out exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check out pinned baseline source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline-src
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # pinned from master on 2026-11-20
+        with:
+          toolchain: 1.99.0
+
+      - name: Set up Python and install the pinned referee
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check chess==1.11.2
+
+      - name: Verify exact source identities
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git -C baseline-src rev-parse HEAD)" = "$BASELINE_SHA"
+          rustc -vV
+          cargo --version
+
+      - name: Build candidate release binary
+        run: cargo build --release --locked
+
+      - name: Build baseline release binary with a separate target directory
+        run: cargo build --release --locked --manifest-path baseline-src/Cargo.toml
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/baseline-target
+
+      - name: Run 100 paired openings (200 real UCI games) for this independent seed
+        run: |
+          set -euo pipefail
+          case "$SEED_BASE" in *[!0-9]*|'') echo "invalid seed: $SEED_BASE"; exit 2 ;; esac
+          seed=$((SEED_BASE + RUN_INDEX - 1))
+          sha256sum target/release/flawless "${RUNNER_TEMP}/baseline-target/release/flawless"
+          python scripts/relative_benchmark.py run \
+            --profile extended \
+            --candidate "$PWD/target/release/flawless" \
+            --baseline "${RUNNER_TEMP}/baseline-target/release/flawless" \
+            --opening-suite benches/rating-openings-100-batchA.txt \
+            --opening-suite benches/rating-openings-100-batchB.txt \
+            --seed "$seed" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --baseline-sha "$BASELINE_SHA" \
+            --out "benchmark-output/extended-${RUN_INDEX}"
+
+      - name: Preserve raw games, PGN, suite and summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relative-strength-extended-${{ github.run_id }}-${{ matrix.replicate }}
+          path: benchmark-output/extended-${{ matrix.replicate }}/
+          if-no-files-found: warn
+          retention-days: 90
+
+  extended-aggregate:
+    name: Extended aggregate (opening-clustered inference)
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.profile == 'extended'
+    needs: [extended]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out candidate benchmark tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python and install the pinned referee
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check chess==1.11.2
+
+      - name: Download all extended replicate evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: relative-strength-extended-${{ github.run_id }}-*
+          path: benchmark-artifacts
+          merge-multiple: false
+
+      - name: Validate provenance and aggregate by opening cluster
+        env:
+          SEED_BASE: ${{ inputs.seed || '20261124' }}
+        run: |
+          set -euo pipefail
+          case "$SEED_BASE" in *[!0-9]*|'') echo "invalid seed: $SEED_BASE"; exit 2 ;; esac
+          bootstrap_seed=$((SEED_BASE + 1000))
+          python scripts/relative_benchmark.py aggregate \
+            --runs-root benchmark-artifacts \
+            --out benchmark-aggregate \
+            --bootstrap-seed "$bootstrap_seed"
+
+      - name: Preserve pooled result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relative-strength-extended-aggregate-${{ github.run_id }}
+          path: benchmark-aggregate/
+          if-no-files-found: warn
+          retention-days: 90

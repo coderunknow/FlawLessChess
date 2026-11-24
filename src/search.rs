@@ -96,6 +96,10 @@ pub struct Searcher<'a> {
     /// that most recently caused a fail-high in reply to the opponent's move from/to.
     /// A counter move is ordered just above killers and below good captures.
     counters: [[Option<Move>; 64 * 64]; 2],
+    /// Ablation mask captured at construction time (see `crate::ablation`). The counter-move
+    /// heuristic is switched off completely when its bit is set: nothing is recorded and nothing
+    /// is ordered above the killers.
+    ablate: u32,
     history: [[i32; 64 * 64]; 2],
     lmr: [[i32; 256]; MAX_PLY as usize + 1],
     nodes: u64,
@@ -131,6 +135,7 @@ impl<'a> Searcher<'a> {
             eval: ClassicalEvaluator,
             killers: [[None; 2]; MAX_PLY as usize],
             counters: [[None; 64 * 64]; 2],
+            ablate: crate::ablation::mask(),
             history: [[0; 64 * 64]; 2],
             lmr: build_lmr_table(),
             nodes: 0,
@@ -254,11 +259,13 @@ impl<'a> Searcher<'a> {
         }
         let us = pos.side;
         // Counter move: our best response to the opponent's last move. Ordered just above
-        // killers, below good captures.
-        if let Some(pm) = prev_move {
-            if let Some(counter) = self.counters[us][pm.from as usize * 64 + pm.to as usize] {
-                if m == counter {
-                    return 92_000;
+        // killers, below good captures. Switched off entirely when ablated.
+        if (self.ablate & crate::ablation::COUNTER_MOVE) == 0 {
+            if let Some(pm) = prev_move {
+                if let Some(counter) = self.counters[us][pm.from as usize * 64 + pm.to as usize] {
+                    if m == counter {
+                        return 92_000;
+                    }
                 }
             }
         }
@@ -820,8 +827,10 @@ impl<'a> Searcher<'a> {
                     self.killers[ply_idx][0] = Some(m);
                     // Counter move: our move m caused a fail-high in reply to the opponent's
                     // previous move. Store it so we can try it first next time we face that move.
-                    if let Some(pm) = prev_move {
-                        self.counters[pos.side][pm.from as usize * 64 + pm.to as usize] = Some(m);
+                    if (self.ablate & crate::ablation::COUNTER_MOVE) == 0 {
+                        if let Some(pm) = prev_move {
+                            self.counters[pos.side][pm.from as usize * 64 + pm.to as usize] = Some(m);
+                        }
                     }
                     let h = &mut self.history[pos.side][(m.from as usize) * 64 + m.to as usize];
                     *h = (*h + depth * depth).min(100_000);

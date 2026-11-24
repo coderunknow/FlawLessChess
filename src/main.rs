@@ -321,7 +321,11 @@ fn cmd_eval(args: &[String]) {
     flawless::out_line!("bishop_pair{:>6}", b.bishop_pair);
     flawless::out_line!("rook_file  {:>6}", b.rook_file);
     flawless::out_line!("space      {:>6}", b.space);
+    flawless::out_line!("outpost    {:>6}", b.outpost);
     flawless::out_line!("tempo      {:>6}", b.tempo);
+    flawless::out_line!("mg         {:>6}", b.mg);
+    flawless::out_line!("eg         {:>6}", b.eg);
+    flawless::out_line!("phase      {:>6}", b.phase);
 }
 
 fn cmd_bench_eval() {

@@ -278,13 +278,15 @@ def test_anchor_schema():
 
 def test_e2e_clock_batch():
     with tempfile.TemporaryDirectory() as td:
-        proc, meta, games = run_match(td, ["--tc", "40/5s", "--repetitions", "2"],
+        proc, meta, games = run_match(td, ["--tc", "40/5s", "--repetitions", "2",
+                                           "--threads", "1"],
                                       OPENINGS_MATE, "batch1")
         check(proc.returncode == 0, f"clock batch exit 0 (got {proc.returncode})")
         check(meta["completion_status"] == "completed", "manifest finalized: completed")
         check(meta["time_control"]["mode"] == "clock" and meta["time_control"]["period_moves"] == 40,
               "manifest records clock TC")
         check(meta["time_control"]["ponder"] is False, "pondering disabled")
+        check(meta["threads"] == 1, "explicit single-thread engine option recorded")
         check(meta["n_games_planned"] == 8 and meta["n_games_counted"] == 8, "8 planned = 8 counted")
         check(meta["schedule"]["n_scheduled"] == 8, "schedule count recorded")
         check(meta["openings_file_sha256"] == hashlib.sha256(

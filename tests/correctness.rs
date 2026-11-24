@@ -698,6 +698,108 @@ fn static_evaluation_is_colour_symmetric() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Outpost evaluation (EVAL-2) and tempo semantics.
+// ---------------------------------------------------------------------------------------------
+
+/// Checks that a position and its colour mirror receive the expected outpost score.
+///
+/// The mirror is the rank flip with the colours and the side to move swapped, so the outpost
+/// term of the mirrored position must be the exact negation of the original one and the
+/// side-to-move relative totals must be equal.
+fn check_outpost(fen: &str, mirror: &str, expected: i32) {
+    use flawless::eval::breakdown;
+    attack::init_attacks();
+    let a = Position::from_fen(fen).expect("fen");
+    let b = Position::from_fen(mirror).expect("mirror fen");
+    let ea = breakdown(&a);
+    let eb = breakdown(&b);
+    assert_eq!(ea.outpost, expected, "outpost mismatch for {fen}");
+    assert_eq!(eb.outpost, -expected, "mirrored outpost mismatch for {mirror}");
+    assert_eq!(ea.total, eb.total, "outpost breaks colour symmetry: {fen}");
+}
+
+#[test]
+fn outposts_follow_the_classical_definition_and_are_colour_symmetric() {
+    use flawless::eval::{OUTPOST_BISHOP_MG, OUTPOST_KNIGHT_MG};
+    attack::init_attacks();
+
+    // The shipped build must not disable anything (see docs/ABLATIONS.md).
+    assert_eq!(flawless::ablation::mask(), 0, "ablation must be off by default");
+
+    // Safe minor piece on an outpost square of the opponent's camp.
+    let w_c5 = "4k3/8/8/2N5/8/8/8/4K3 w - - 0 1";
+    let m_c5 = "4k3/8/8/8/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(w_c5, m_c5, OUTPOST_KNIGHT_MG);
+    let w_c6 = "4k3/8/2N5/8/8/8/8/4K3 w - - 0 1";
+    let m_c6 = "4k3/8/8/8/8/2n5/8/4K3 b - - 0 1";
+    check_outpost(w_c6, m_c6, OUTPOST_KNIGHT_MG);
+    let w_bc5 = "4k3/8/8/2B5/8/8/8/4K3 w - - 0 1";
+    let m_bc5 = "4k3/8/8/8/2b5/8/8/4K3 b - - 0 1";
+    check_outpost(w_bc5, m_bc5, OUTPOST_BISHOP_MG);
+
+    // Two outposts at once.
+    let w_two = "4k3/8/4B3/2N5/8/8/8/4K3 w - - 0 1";
+    let m_two = "4k3/8/8/8/2n5/4b3/8/4K3 b - - 0 1";
+    check_outpost(w_two, m_two, OUTPOST_KNIGHT_MG + OUTPOST_BISHOP_MG);
+
+    // The rank in front of the opponent's back rank is not an outpost: no enemy pawn can ever
+    // stand there, so "safe from enemy pawns" would hold vacuously.
+    let w_c7 = "8/2N4k/8/8/8/8/8/4K3 w - - 0 1";
+    let m_c2 = "4k3/8/8/8/8/8/2n4K/8 b - - 0 1";
+    check_outpost(w_c7, m_c2, 0);
+
+    // The opponent's back rank is never an outpost.
+    let w_c8 = "2N4k/8/8/8/8/8/8/4K3 w - - 0 1";
+    let m_c1 = "4k3/8/8/8/8/8/8/2n4K b - - 0 1";
+    check_outpost(w_c8, m_c1, 0);
+
+    // Edge files are not outposts.
+    let w_a5 = "4k3/8/8/N7/8/8/8/4K3 w - - 0 1";
+    let m_a4 = "4k3/8/8/8/n7/8/8/4K3 b - - 0 1";
+    check_outpost(w_a5, m_a4, 0);
+
+    // Own half of the board is not an outpost.
+    let w_e4 = "4k3/8/8/8/4N3/8/8/4K3 w - - 0 1";
+    let m_e5 = "4k3/8/8/4n3/8/8/8/4K3 b - - 0 1";
+    check_outpost(w_e4, m_e5, 0);
+
+    // An enemy pawn that can still challenge the piece removes the outpost.
+    let w_hit = "4k3/8/3p4/2N5/8/8/8/4K3 w - - 0 1";
+    let m_hit = "4k3/8/8/8/2n5/3P4/8/4K3 b - - 0 1";
+    check_outpost(w_hit, m_hit, 0);
+    let w_hit6 = "4k3/8/2N5/1p6/8/8/8/4K3 w - - 0 1";
+    let m_hit3 = "4k3/8/8/8/1P6/2n5/8/4K3 b - - 0 1";
+    check_outpost(w_hit6, m_hit3, 0);
+}
+
+#[test]
+fn tempo_is_awarded_to_the_side_to_move_for_both_colours() {
+    use flawless::eval::{breakdown, TEMPO, TOTAL_PHASE};
+    attack::init_attacks();
+
+    // White to move with a knight on c5: a non-symmetric position, so the tempo bonus is
+    // observable. The second position is its colour mirror with Black to move.
+    let white = Position::from_fen("4k3/8/8/2N5/8/8/8/4K3 w - - 0 1").unwrap();
+    let black = Position::from_fen("4k3/8/8/8/2n5/8/8/4K3 b - - 0 1").unwrap();
+
+    let bw = breakdown(&white);
+    let bb = breakdown(&black);
+    let tw = (bw.mg * bw.phase + bw.eg * (TOTAL_PHASE - bw.phase)) / TOTAL_PHASE;
+    let tb = (bb.mg * bb.phase + bb.eg * (TOTAL_PHASE - bb.phase)) / TOTAL_PHASE;
+    assert_ne!(tw, 0, "the test position must not be symmetric");
+    assert_ne!(tb, 0, "the test position must not be symmetric");
+
+    assert_eq!(bw.tempo, TEMPO, "the breakdown must report the tempo bonus");
+    assert_eq!(bb.tempo, TEMPO, "the breakdown must report the tempo bonus");
+    assert_eq!(bw.total, tw + TEMPO, "White to move: score plus tempo");
+    assert_eq!(bb.total, -tb + TEMPO, "Black to move: score plus tempo");
+
+    // The side-to-move relative score is invariant under the colour mirror. This fails if the
+    // tempo bonus is applied to one colour only.
+    assert_eq!(bw.total, bb.total, "the score must be colour symmetric");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Search regressions (S-08 node cap, S-14 colour symmetry). Library-level, deterministic.
 // ---------------------------------------------------------------------------------------------
 
