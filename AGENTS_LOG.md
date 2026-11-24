@@ -705,3 +705,17 @@ Post-fix gates: fmt clean; clippy debug+release `-D warnings` clean; `cargo test
 movetime_smoke 12/12, protocol_regressions 51/51 green. Codex review unavailable (account usage
 limits); Kilo/Qodo unavailable (credits); CodeRabbit is the independent reviewer for this round.
 No engine source changed; no strength/Elo claim.
+
+## 2026-11-24 — hosted CI on the fix commit: one transient infra failure, rerun via re-push
+
+Hosted CI (`CI`) passed on `33cbeb3`; `anchor-verify` reported one failed matrix job
+(`build-wowl-1.3.7`) whose failed step is `actions/checkout@v4` — an infrastructure/checkout
+failure, not a build, UCI-identity, bench-signature, or SF10-calibration failure (the same job
+passed on the immediately preceding heads `0329d15` and `c37d75e`, and 12 sibling anchor jobs in
+the same run succeeded; this commit changed only two test files under `tests/`). `gh run rerun`
+was refused by the API ("workflow file may be broken"; the file is unchanged and valid — the same
+refusal for a `workflow_dispatch` retry returned 403 for this token), so the run is retriggered by
+pushing this documentation-only commit; hosted validation is re-required on the new exact head.
+CodeRabbit's incremental check on `33cbeb3` concluded `neutral` (no new findings on the fix
+commit). The exact-head local gate was restarted on `33cbeb3` (clean tree, dirty-at-start 0) and
+will be re-run on the final head.
