@@ -1485,3 +1485,16 @@ For future checks, retain raw logs at a tracked repository path or state `UNAVAI
 
 - The pending final gate referenced above completed on exact code/test commit `340e96e0b0acffe00de5c64ca1467f73c5f63ac2`, tree `79c699366378d3056eb17fc69365ec16921dcbb9`, in a clean detached worktree. `scripts/final_gate.sh` exited 0 with `FAILS=0`; fmt, debug/release Clippy, builds/tests, all Python tests, perft/differential/search/UCI probes, resource/time-control probes, self-play, and full-game probes passed.
 - Local raw outputs were copied to `audit-evidence/pr5-lifecycle-340e96e-final/` for workspace preservation. That directory is untracked, so raw-output path in the repository remains UNAVAILABLE; the gate result is not presented as hosted CI, independent review, or integration evidence.
+
+### Exact-head gate for the PR #3/#4/#5 integration head (2026-11-24)
+
+- The integration head `c37d75e7bfb5bdb1e9a18bb28437b614cb2cd58f` (merge of squashed main
+  `55b0671` into the stacked PR #3/#4/#5 branch; tree `f13b05481c0bbabf928aa3974ec2ed371a86385c`)
+  passed the full `scripts/final_gate.sh` on a clean worktree: exit 0, `FAILS=0`, 47/47 steps
+  rc=0, head and tree unchanged at end. Details recorded in AGENTS_LOG.md (2026-11-24
+  reconciliation entry). Release binary SHA-256
+  `423d7f323c245ff0dc7ac03a849280f4de53b5d26d6d1475df90f9ba59e7a1a2`.
+- Provenance index: `c37d75e` exact-head gate | commit `c37d75e7bfb5bdb1e9a18bb28437b614cb2cd58f` |
+  repository path UNAVAILABLE (evidence dir outside the repository during the run); untracked
+  workspace copy retained at `audit-evidence/pr5-integration-c37d75e-final/` (48 files, summary +
+  per-step logs). It is not presented as hosted CI or independent-review evidence.
