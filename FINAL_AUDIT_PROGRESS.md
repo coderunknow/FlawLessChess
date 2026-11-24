@@ -1,0 +1,568 @@
+# FINAL_AUDIT_PROGRESS.md — FlawLessChess 0.1.0 release mission ledger
+
+Branch: `arena/f668bde4-flawlesschess` (branched from `c25e65e` of `arena/2d2d30b4-flawlesschess`)
+Base PR: #3 (`arena/2d2d30b4-flawlesschess`, OPEN, DRAFT, base `main`) is SUPERSEDED by PR #4 (`arena/f668bde4-flawlesschess`, not draft, the release PR). PR #3 is not the release vehicle and stays draft. Its head is NOT this branch.
+Baseline HEAD at start: `c25e65efc0c6223f58701d529775726db13ebedd` (verified; remote PR head matches)
+Toolchain: Rust 1.99.0 installed from npm `@toolchain-bin/*` into `/home/user/.toolchain/sysroot` (`source /home/user/.toolchain/env`)
+Baseline (c25e65e): `cargo build --release` OK; `cargo test --release` OK. Verified test counts (`#[test]` per commit): unit tests in src/: 19 at c25e65e, 22 at 3a280df; tests/correctness.rs 21 (c25e65e), 30 (49fdecf), 37 (3a280df); tests/protocol_regressions.rs absent (c25e65e), 6 (49fdecf), 8 (3a280df), 9 (working tree after the searchmoves change); clock_smoke 3, movetime_smoke 11, uci_smoke 11 unchanged. The old "lib 21" baseline line was not a verified count and is superseded by the logs in `/tmp/gates/`.
+
+Status legend: NOT STARTED / IN PROGRESS / BLOCKED / COMPLETED / VERIFIED
+
+## Phase A — reconnaissance & audit
+
+| ID | Task | Status | Findings / evidence | Next action |
+|---|---|---|---|---|
+| A1 | Branch/remote/PR state | VERIFIED | Branch == c25e65e == PR #3 head; PR #3 +10,609/-40 over main; 43 files. CodeRabbit (9336913 & c25e65e), Codex (c25e65e), Kilo ACTION_REQUIRED (billing) | — |
+| A2 | Toolchain install | VERIFIED | rustc/cargo 1.99.0, clippy 0.1.99, rustfmt 1.10.0 | — |
+| A3 | Read src/search.rs, uci.rs, position.rs, movegen.rs, types.rs, tt.rs, attack.rs | COMPLETED | see suspect list S-* below | probe each suspect |
+| A4 | Read src/eval.rs, src/main.rs | COMPLETED | main.rs CLI reviewed; `evaluate`, `eval_color`, `breakdown` read in full (phase, mirror via `sq ^ 56`, side-to-move sign, pawns, king safety, rook files). Colour symmetry tested directly (303 pairs, `static_evaluation_is_colour_symmetric`, passes). The search-level mismatch S-14 is diagnosed in Phase G: cause LMR, not evaluation | — |
+| A5 | Read tests/*, scripts/windows_artifact.py, CI workflows | COMPLETED | CI: ci.yml has 3 jobs (test ubuntu/windows, msrv 1.80, windows-x64-artifact). CodeRabbit PR #3 items on 9336913 were fixed in c25e65e (BESTMOVE_RE ponder, finish(eof=False), selfplay --only, ENGINE_ERROR record); the CI `persist-credentials` nitpick is fixed here | — |
+
+## Suspect list (from audit, to be reproduced in Phase B)
+
+- S-01 (FIXED, F-04) `setoption name Hash value 4096` is accepted, but `TranspositionTable::resize` clamps to 2^27 entries = 1 GiB. Effective size silently capped (tt.rs:98).
+- S-02 `clock_limits`: `usable / mtg + inc / 2` can overflow u64 for huge wtime + increment (release wraps silently) (uci.rs:608).
+- S-03 `go wtime N` without `btime` (or vice versa) → no clock limit, search runs to depth 64 (uci.rs:305/308).
+- S-04 UCI stdin loop terminates on the first non-UTF-8 line (`while let Some(Ok(line))`) — engine silently exits (uci.rs:92).
+- S-05 `MoveList::push` bound is only `debug_assert!` (types.rs:228); pseudo-legal move count >256 would panic in release via index OOB → reproduce with dense FEN.
+- S-06 `searchmoves` with only illegal moves (NOT REPRODUCED; process test `illegal_only_searchmoves_still_returns_a_legal_move`).
+- S-07 `go ponder nodes N` node cap after ponderhit (NOT REPRODUCED with ponderhit sent immediately: 4,559 nodes for cap 5,000; process test `ponder_node_cap_is_enforced_after_ponderhit`).
+- S-08 `go nodes N`: NO overshoot observed (stops at or below N). Observed UNDERSHOOT: 651 nodes for N=1000, 4,126 for 5,000, 17,024 for 20,000, 81,210 for 100,000. Cause not analysed. Not a defect in the cap (upper bound holds). LOW.
+- S-09 `is_repetition` scans whole history per node (position.rs:746). LOW perf.
+- S-10 Aspiration loop termination: relies on invariant score > -INF. VERIFY (LOW).
+- S-11 (FIXED, F-06) `Threads` non-1 values now reported on stdout. Test `threads_other_than_one_is_reported_on_stdout`.
+- S-12 (VERIFIED, no defect) FEN castling rights are not checked against placement; stale rights generate no castling move; correct rights generate exactly the castles. Tests `stale_castling_rights_without_rooks_generate_no_castling`, `castling_rights_with_rooks_generate_exactly_the_castles`, `castling_right_is_ignored_when_king_is_off_its_home_square`.
+- S-13 `resize` / `setoption Hash` allocation peak (old+new table both live) and `ucinewgame` clears full table each call (perf, LOW).
+
+## Phase B/C — reproduced findings and fixes (batch 1)
+
+| Finding | Severity | Evidence | Root cause | Fix | Verification |
+|---|---|---|---|---|---|
+| F-01 (S-05) Legal-looking FEN crashes engine: `position fen KQQQQQBk/Q5RB/Q6Q/Q6Q/Q6Q/Q6Q/Q1QQ3Q/QR3QQQ w - - 0 1` + `go` → panic, exit 101 | HIGH | Reproduced on c25e65e via `flawless uci` (main-thread generate_legal) and `moves` batch | FEN accepted >16 pieces/side; pseudo-legal moves 256+ overflow fixed `MoveList` (types.rs push used debug_assert only) | FEN material check (≤16 pieces/side, ≤8 pawns, promoted ≤ missing pawns, `position.rs::material_is_reachable`); MOVE_LIST_CAPACITY=512 with bound 335 documented; push uses hard assert | tests `impossible_material_fen_is_rejected_without_crashing`, correctness `fen_rejects_material…`, `move_list_capacity…`; perft refs unchanged |
+| F-02 (S-04) Non-UTF-8 input byte ends the UCI session (engine exits silently) | HIGH | `printf '\xff\xfe x\nisready\n' \| flawless` → no readyok, exit | `lines()` returns Err → `while let Some(Ok)` ends loop | byte-level bounded reader `read_bounded_line`; lossy UTF-8; oversized lines (>64 KiB) dropped with info string | `non_utf8_input_line_does_not_end_the_session`, `oversized_input_line_is_dropped_and_session_continues`, unit tests |
+| F-03 (S-03) `go wtime N` alone (or `btime` alone) has NO limit: search runs to depth 64 until stop/EOF | HIGH | `printf 'go wtime 2000'` searched to depth 13 and beyond; bestmove only at EOF | clock_limits only when both clocks present; else unlimited | side-to-move clock governs; opponent clock defaults to it; unlimited only if side-to-move clock absent (bare go semantics) | `single_side_clock_bounds_the_search` (0.1 s); `clock_limits_saturate…` |
+| F-04 (S-01) Hash 4096 advertised/accepted but TT silently capped at 1 GiB (2^27 entries) | MEDIUM | probe: TT::new(4096) RSS 1,050,324 kB == TT::new(1024) | clamp(…, 1<<27) in tt.rs | advertise & accept Hash 1..=1024 (`MAX_HASH_MB`), reject larger with info string on stdout | `hash_limit_is_advertised_and_enforced` |
+| F-05 (S-02) clock_limits `usable/mtg + inc/2` u64 overflow (wraps in release) | LOW | arithmetic audit; reachable only with ~u64::MAX clocks + large increment | unchecked add | saturating_div/saturating_add | unit test `clock_limits_saturate_instead_of_wrapping` |
+| F-06 setoption rejection messages went to stderr only (invisible to GUIs) | LOW | `setoption Hash 4096` printed nothing on stdout | eprintln! | `info string` on stdout | covered by F-04 test |
+| F-07 Search worker thread used default 2 MiB stack while MoveList grew to 4 KiB per frame | LOW (defence) | design review | — | 16 MiB worker stack (`SEARCH_STACK_BYTES`) | build + tests |
+
+Verified unchanged: `bench` signature `141943aa23b3fc68` and node count 2,530,885 identical to base c25e65e; NPS within noise (≈360–414k on this 2-vCPU box for both builds).
+Verified: perft CPW references (startpos d1–d4, Kiwipete d1–d3, pos3 d1–d4, pos4 d1–d3, pos5 d1–d3, pos6 d1–d3) — all match; now permanent tests in tests/correctness.rs.
+Verified (process level, unchanged behaviour): illegal-only `searchmoves` returns a legal move; `go ponder nodes N` honours the node cap after ponderhit.
+Local gates after batch 1: `cargo fmt --check` OK; `cargo clippy --all-targets -- -D warnings` OK; `cargo test --release` all green (22 lib, 3 clock, 30 correctness, 11 movetime, 11 uci_smoke, 6 protocol_regressions).
+
+## Phase B/C — batch 2 (differential testing, checker validation, process tests)
+
+Commit 49fdecf holds batch 1. Batch 2 is the next commit on this branch.
+
+| Finding | Severity | Evidence | Root cause | Fix | Verification |
+|---|---|---|---|---|---|
+| F-08 Positions with two checkers on one line through the king, or with three checkers, were ACCEPTED (e.g. `1b4NQ/8/7R/3q4/3P1bn1/3k1K1P/3p4/2B1bN1q w - - 0 1`, queens d5 and h1 both checking Kf3 along one diagonal) | MEDIUM (unreachable input accepted; no crash) | Found by differential fuzzing against python-chess `Status.IMPOSSIBLE_CHECK` / `TOO_MANY_CHECKERS`: 14 oracle-invalid positions were accepted before the fix; 0 after | `from_fen` checked only that the side not to move is not in check | Reject >2 checkers and 2 checkers aligned with the king between them (`king_between_aligned`) | tests `fen_rejects_two_checkers_on_one_line_through_the_king`, `fen_rejects_more_than_two_checkers`, `fen_accepts_a_legal_double_check_from_knight_and_queen` |
+| NOTE (not a defect) The material rule (F-01) rejects some positions that python-chess accepts | — | Each of the 3–26 rejections per seed is justified by the independent necessary condition (≤16 pieces, ≤8 pawns, excess over start counts ≤ missing pawns); no unjustified rejection in any seed | — | — | `scripts/fuzz_legal_differential.py` "justified by material bound" count |
+| EP-01 Full game with en passant was NOT verified in batch 1 | — | Saved self-play games contain 0 en passant captures (checked with python-chess) | — | New referee-based probe `scripts/fullgame_en_passant_probe.py`: forced `e5f6` via `go searchmoves`, then engine-vs-engine to the rule end | runs: 91 plies, 1 ep, threefold (seed-free, 20 ms/move); 47 plies, 1 ep, 2 castles (150 ms/move); 70 plies, 1 ep, 1 castle (final gate run); CI step added |
+| S-14 Search is not colour-symmetric at depth 4 for 2 of 40 random positions (`3r1rn1/pb2kpp1/Bppp4/3p2pP/P2KP1P1/1RQ2N2/1bP2P2/7R w - - 0 27`: 446 vs 493 cp; `1q3bnr/r5p1/n1k2p1p/p1p1pQ2/1BN5/2P2bPP/p2P1KR1/3R2N1 b - - 3 27`: 1284 vs 1262 cp). Mismatches by depth: 0 at depth 2, 1 at depth 3 (48 vs 45), 2 at depth 4. | LOW, not a defect (informational) | `scripts/eval_symmetry_probe.py` | DIAGNOSED (Phase G). Static evaluation is equal on each pair (`flawless eval`: 353/353, 743/743, and 44/44 for the depth-3 pair). Disabling LMR alone makes both depth-4 pairs symmetric (446/446, 1262/1262); disabling null-move pruning alone does not (446/493, 1284/1262). Cause: LMR reduces by move index, and the mirror position generates moves in a different order. | No search change. Search is not required to be colour-symmetric; the hard gate is the static test. | probe prints SEARCH-MISMATCH; hard gate is `static_evaluation_is_colour_symmetric` |
+| UCI-NOTE `go` + `quit` in one stdin burst returns an UNSEARCHED fallback `bestmove` (first legal move, e.g. `a2a3`), because `quit` stops the search before any iteration completes | not a defect of the protocol (quit abandons the search) | Reproduced: `go depth 4` + `isready` + `quit` in one burst → 0 info lines; with a 3 s wait before `isready` → 4 info lines | test-method artifact (already documented in CHANGELOG) | none; probes wait for `bestmove` before `quit` | `uci_bestmove_smoke.py`, `eval_symmetry_probe.py` |
+
+Fuzzing and differential evidence (this session, release build of the batch-2 tree):
+- `scripts/fuzz_legal_differential.py` seeds 1–6 (games 40/150/150/150/150/150) plus placement fuzz: 157,000+ positions checked against python-chess legal move sets, all agree (0 mismatches); 0 oracle-invalid positions accepted; every engine rejection of an oracle-valid position justified by the material bound; en passant positions present in every seed (293–1,073 each).
+- `scripts/fuzz_uci_grammar.py` seeds 1–5 (150 + 4×300 sessions = 1,350 random UCI sessions, valid and malformed commands, random FENs, go variants, binary garbage): 0 hangs, 0 crashes, 0 missing handshakes, 0 bad exit codes.
+- `scripts/eval_symmetry_probe.py`: 40 positions at depth 4, 2 informational search mismatches (S-14).
+
+Gate evidence on the batch-2 tree (logs in /tmp/gates/): `cargo fmt --all -- --check` rc 0; `cargo clippy --release --all-targets -- -D warnings` rc 0; `cargo clippy --all-targets -- -D warnings` rc 0; `cargo test --release --locked` all green (lib 22, clock 3, correctness 37, movetime 11, protocol_regressions 8, uci_smoke 11); `cargo test --locked` (debug) all green; Python suites test_match 111/111, test_rating_estimator 65/65, test_reduced_sample 7/7, test_make_batch_dispatch 7/7, test_power_analysis OK, test_merge_batch_runs PASS, test_windows_artifact OK, test_aggregate_60 PASS, test_recover_download PASS; verify_opening_subsets rc 0; power_analysis JSON assertions (CI) ok; uci_bestmove_smoke ok; uci_protocol_probe 12/12; uci_malformed_probe 37/37; selfplay_games rc 0; fullgame_en_passant_probe PASS; resource_probe rc 0 (peak RSS 21/56/82 MiB at Hash 16/64/256; exit 0); perft 3 = 8902; bench signature 141943aa23b3fc68, 2,530,885 nodes.
+
+Not run locally: MSRV 1.80 (toolchain unavailable on the npm mirror; CI `msrv` job is the check of record); Windows x64 build and smoke (CI `windows-x64-artifact` job is the check of record; no local Windows); GUI tests (no GUI is part of this release; see docs/WINDOWS_GUI_TEST.md, which states that no GUI test has been run).
+
+## Phase E — PR #4 review triage (CodeRabbit on b3a9480; Codex on b3a9480: no findings; Qodo and Kilo: billing-blocked, not counted)
+
+CodeRabbit posted 12 inline comments and 1 nitpick. All are addressed in the next commit. Each fix was checked by a test, a self-test, or a rerun.
+
+| Item | File | Triage | Fix and evidence |
+|---|---|---|---|
+| Major: final `isready` reply not required | scripts/fuzz_uci_grammar.py | VALID (the membership check passed on an earlier `readyok`; one dead `if` block) | `isready` removed from the generator; each session must give exactly one `readyok`; seeds 11 and 21 pass |
+| Malformed or extra `bestmove` accepted by prefix | scripts/windows_artifact.py | VALID, CI-critical (a malformed second reply was dropped by the regex filter) | Count all `bestmove` lines over the full transcript; require one, matching `BESTMOVE_RE`; 3 new tests (`test_second_legal_bestmove_is_rejected`, `test_second_malformed_bestmove_is_rejected`, `test_malformed_single_bestmove_is_rejected`); fake-session `finish()` now drains like the real one; 22/22 |
+| Second `bestmove` not counted | scripts/uci_protocol_probe.py, scripts/uci_malformed_probe.py | VALID | Protocol probe: at most one `bestmove` on the full transcript (in `close()`). Malformed probe: count after drain. Self-test with a fake engine that prints two replies: FAIL "2 bestmove lines" / EXTRA_BESTMOVE x2 |
+| No deadline on the forced depth search | scripts/fullgame_en_passant_probe.py | VALID | `Limit(depth=3, time=5.0)` (python-chess applies `timeout + limit.time`) |
+| Shutdown failure passes | scripts/fullgame_en_passant_probe.py | VALID | `quit()` errors fail the probe; exit code read from `eng.protocol.returncode`; rerun exit 0 with exit code checked |
+| Reply wait blocks forever | scripts/eval_symmetry_probe.py | VALID | Reader thread and queue; every wait has a deadline; kill and reap on any failure |
+| Stdin write can block the Rust test | tests/protocol_regressions.rs | VALID | Writer thread owns stdin; test thread never blocks on write; `quit` closes the channel; 8/8 |
+| Cleanup on failure | benches/movetime-20261119/measure_movetime.py | VALID | try/finally kills and reaps the engine; logic unchanged |
+| Knight placed on g1 (single check, not the double check the test names) | tests/correctness.rs | VALID (nitpick, a real error in my test) | FEN changed to `4k3/8/8/8/8/8/3q2n1/4K3 w - - 0 1` (checkers d2 and g2, verified with python-chess: 2 checkers, legal e1d2 e1f1); test asserts the exact move list |
+| Windows GUI guide names the PR #3 head | docs/WINDOWS_GUI_TEST.md | VALID | Points to the release PR's head run; the candidate c64b743 is excluded |
+| RC audit: manifest and checksum alone cannot check the exe | docs/audit/2026-11-19-v0.1.0-release-candidate.md | VALID | Blocker item now asks for `flawless.exe`, `BUILD-MANIFEST.txt`, `SHA256SUMS.txt` |
+| Unescaped pipe in ledger row F-02 | FINAL_AUDIT_PROGRESS.md | VALID | Pipe escaped; all F-rows have 6 cells |
+| CI `persist-credentials` | .github/workflows/ci.yml | done in 49fdecf/b3a9480 | — |
+
+## Phase F — release gate status (head 3a280df, PR #4)
+
+| Gate | Status | Evidence |
+|---|---|---|
+| G1 CI on the exact final commit | PASS for `3a280df` only; must be re-run on the final SHA | `gh pr checks 4` on `3a280df`: 17 pass (ubuntu-latest, windows-latest, msrv (rust 1.80), windows x64 release artifact, verify-flawless, sf10-calibration, 11 build-* anchor jobs). CodeRabbit: skipping. Kilo Code Review: fail (billing; not bypassed). Runs 44741770006 (CI) and 44741769812 (anchor-verify). |
+| G2 CodeRabbit review on the final head | NOT OBTAINED | The review of `b3a9480` (12 comments) is addressed. Re-review requests on `3a280df` (12:4x and 13:19Z, `@coderabbitai review`) returned "Review rate limited". Not claimed. |
+| G3 Windows artifact: SHA-256 and manifest checked against the executable | NOT VERIFIED (sandbox limit; retried 13:26Z, still EOF) | The artifact `flawless-windows-x64-3a280dff77fcf1042dd49789b7442e63fd50a496` and the job logs are served from `productionresultssa10.blob.core.windows.net`, which this sandbox cannot reach (EOF on download and log fetch). The CI steps that build the exe, check the PE machine type, smoke-test the exact exe, and write `SHA256SUMS.txt` and `BUILD-MANIFEST.txt` all succeeded. The bytes were not inspected locally. |
+| G4 GUI smoke test | NOT APPLICABLE | The release contains the UCI engine executable only. No GUI is shipped. `docs/WINDOWS_GUI_TEST.md` is an optional user test and has not been run. |
+| G5 Local gates on the final tree | PASS on `8370bed` (Phase H) | Earlier logs in /tmp/gates/ were produced before the searchmoves change and do not count for the final commit. |
+| G6 MSRV 1.80 | PASS in CI | msrv job success on 3a280df. Not run locally (toolchain unavailable). |
+
+Decision: the release is NOT published and PR #4 is NOT merged. G2 and G3 are open. Merge, tag `v0.1.0`, and the GitHub Release wait for G2 (CodeRabbit on the final head) and G3 (artifact verified by the user or by a retry from a network that can reach the artifact host).
+
+## Phase G — post-PR-#4 work on head 3a280df
+
+| Item | Result | Evidence |
+|---|---|---|
+| Codex P2 on `src/search.rs:250`: `go searchmoves` with no legal named move widens to all legal moves, outside the requested set (UCI says it restricts) | PARTLY ACCEPTED. Widening kept by decision (DESIGN_LOG 2026-11-20); now announced on stdout | Null move (`bestmove 0000`) is the defect the mission names. Engine now prints `info string searchmoves names no legal move in this position; searching all legal moves` before the search. `illegal_only_searchmoves_still_returns_a_legal_move` asserts the notice; new control `legal_searchmoves_are_respected_without_widening_notice`. `cargo test --test protocol_regressions`: 9 passed. Manual: `go depth 2 searchmoves e2e5 d2d9` → notice + `bestmove a2a3`; `searchmoves e2e4` → no notice. Recorded as F-09 in FAILURE_LEDGER and in README Known limitations. |
+| S-14 search colour-symmetry mismatch (A4 open item) | DIAGNOSED: Late Move Reductions (move-index-dependent). Not a defect | Depth sweep, same 40 positions, seed 2026: depth 2 → 0 mismatches; depth 3 → 1 (48 vs 45); depth 4 → 2. Static eval equal on each mismatched pair (`flawless eval`). Scratch build outside the repo: LMR off → both depth-4 pairs symmetric (446/446, 1262/1262); NMP off only → mismatch remains (446/493, 1284/1262). Logs: /tmp/probe_d4.txt. Not changed. |
+| Windows artifact retry | NOT VERIFIED (blocked) | `gh run download 44741770006 --name flawless-windows-x64-3a280dff77fcf1042dd49789b7442e63fd50a496` at 13:26Z: EOF from `productionresultssa10.blob.core.windows.net`; curl to the same host returns no HTTP status. |
+| CodeRabbit re-review | NOT OBTAINED | Rate-limited again (13:19Z). |
+| Docs | DONE | README Known limitations (Hash 1–1024 MiB; searchmoves behaviour). ARCHITECTURE.md L71 (Hash range 1–1024). `docs/WINDOWS_GUI_TEST.md` already names the release PR head and excludes c64b743 (3a280df). AGENTS_LOG L513 remains historical. |
+| Ledger checks | DONE | F-08 is in FAILURE_LEDGER (batch-2 section) and in this file (batch-2 table, severity MEDIUM). AGENTS_LOG correction entry appended for the batch-1 clippy and protocol-test counts. |
+| Final gates on the final commit | DONE for `8370bed` | See Phase H. |
+
+## Phase H — final gates on source commit 8370bed (release decision)
+
+Source commit: `8370bed8b8914c907d2a3ff2af5d4f2d4bed0e5` (pushed as a fast-forward `3a280df..8370bed`). Working tree clean before the gate run (`dirty_files 0`). Gate script: `/tmp/gates/run_final.sh`; logs and `summary.txt`: `/tmp/gates/final/`.
+
+| Gate | Command | Result |
+|---|---|---|
+| fmt | `cargo fmt --all -- --check` | rc 0 |
+| clippy | `cargo clippy --release --all-targets -- -D warnings`; `cargo clippy --all-targets -- -D warnings` | rc 0; rc 0 |
+| build | `cargo build --release --locked` | rc 0 |
+| tests | `cargo test --release --locked` | rc 0: lib 22, clock 3, correctness 37, movetime 11, protocol_regressions 9, uci_smoke 11 |
+| tests (debug) | `cargo test --locked` | rc 0 (same suites; movetime 31 passed, 6 ignored, see log) |
+| Python suites | test_match, test_rating_estimator, test_reduced_sample, test_make_batch_dispatch, test_power_analysis, test_merge_batch_runs, test_windows_artifact, test_aggregate_60, test_recover_download | all rc 0 |
+| opening subsets / power | `verify_opening_subsets.py`; `power_analysis.py --replicates 1000` | rc 0; rc 0 |
+| bench | `flawless bench` | signature `141943aa23b3fc68`, 2,530,885 nodes |
+| perft | `flawless perft 3` | 8902 |
+| UCI probes | `uci_bestmove_smoke.py`; `uci_protocol_probe.py` (12/12); `uci_malformed_probe.py` (37/37) | rc 0 each |
+| self-play | `selfplay_games.py --tc 3000+50` | rc 0 |
+| full game, en passant | `fullgame_en_passant_probe.py` | PASS: 91 plies, en_passant=1, castles=2, threefold |
+| resource | `resource_probe.py 1000 16 64 256` | rc 0 |
+| fuzz UCI grammar | seeds 9 (120 sessions), 21 (300 sessions) | rc 0; rc 0 |
+| fuzz legal differential | seeds 7 (60 games), 1 (40 games) | rc 0; rc 0 |
+
+CI on `8370bed`: run 44747171541 (CI) success; run 44747171587 (anchor-verify) success. `gh pr checks 4`: 17 pass (ubuntu-latest, windows-latest, msrv (rust 1.80), windows x64 release artifact, verify-flawless, sf10-calibration, 11 build-* anchor jobs). CodeRabbit: skipping. Kilo Code Review: fail (billing; not bypassed).
+
+Reviews on `8370bed`:
+- CodeRabbit: `@coderabbitai review` (13:46Z) → "Review rate limited". NO CodeRabbit review of `8370bed` exists. Not claimed. The three inline comments that appear on this commit are the earlier batch re-anchored; CodeRabbit's replies say they were addressed in `3a280df`. Checked in the code: `measure_movetime.py` has try/finally cleanup; `uci_malformed_probe.py` counts bestmove over the complete drained transcript; `uci_protocol_probe.py` `close()` counts bestmove over the complete transcript after quit.
+- Codex: the P2 on `search.rs:250` (searchmoves widening) was answered on the PR (comment 7041115063). Decision kept: widening announced on stdout, `bestmove 0000` still refused. Codex has not re-reviewed; the disagreement is recorded, not hidden.
+
+Windows artifact `flawless-windows-x64-3a280dff77fcf1042dd49789b7442e63fd50a496`: NOT VERIFIED. The CI artifact job succeeded for `3a280df` (all 8 steps), but the artifact download fails with EOF from `productionresultssa10.blob.core.windows.net` (retried 13:26Z). Manifest and SHA256 were not inspected.
+
+GUI: not part of the release; GUI test not run (`docs/WINDOWS_GUI_TEST.md` is optional and unexecuted).
+
+### Release decision
+
+NOT RELEASED. PR #4 is NOT merged. Tag `v0.1.0` and the GitHub Release "FlawLessChess 0.1.0" are NOT created. Reason: two hard gates are open.
+1. CodeRabbit review on the final head: not obtained (rate-limited).
+2. Windows x64 artifact manifest and SHA256 verification: not possible from this sandbox.
+
+All other gates pass on `8370bed`. Release becomes possible once both are closed. Either close them and re-run CI on the final SHA, or the user verifies the artifact from a network that can reach the blob host and accepts the CodeRabbit state.
+
+Note on SHAs (historical, as of this phase): the ledger commit `8557a5d` that recorded this phase changed only `FINAL_AUDIT_PROGRESS.md` on top of `8370bed`; check with `git diff --stat 8370bed 8557a5d`. The gates above validate `8370bed` only. Later source changes are NOT covered by them; each later phase records its own gates on its own SHA.
+
+
+## Phase I — final gates on source commit 7d5b489 (release decision, supersedes Phase H)
+
+Source commit: `7d5b489405b8b5c513c284532a0865bb1dc7a472` (pushed as a fast-forward `8557a5d..7d5b489`). Changes since Phase H: S-14 colour-relative tie-break in `src/search.rs`; exact `go nodes` cap (S-08); `out_line!` output path that exits 0 on a closed stdout (F-10); new tests; anchor-verify bench signature `849a85bf7e8e1eba`; CHANGELOG, README, ARCHITECTURE, BENCHMARKING, FAILURE_LEDGER, DESIGN_LOG. Gate script: `/tmp/gates/run_final.sh` (rerun on this SHA); logs and `summary.txt` with `commit 7d5b489…` and `dirty_files 0`: `/tmp/gates/final/`. The Phase H run is archived at `/tmp/gates/final-8370bed/`.
+
+| Gate | Command | Result |
+|---|---|---|
+| fmt | `cargo fmt --all -- --check` | rc 0 |
+| clippy | `cargo clippy --release --all-targets -- -D warnings`; `cargo clippy --all-targets -- -D warnings` | rc 0; rc 0 (0 warnings in both logs) |
+| build | `cargo build --release --locked` | rc 0 |
+| tests | `cargo test --release --locked` | rc 0 (lib 22, clock 3, correctness 39, movetime 11, protocol_regressions 12, uci_smoke 11) |
+| tests (debug) | `cargo test --locked` | rc 0 |
+| Python suites | all `scripts/test_*.py` in ci.yml, plus test_aggregate_60 and test_recover_download | all rc 0 |
+| opening subsets / power | `verify_opening_subsets.py`; `power_analysis.py --replicates 1000` | rc 0; rc 0 |
+| bench | `flawless bench` | signature `849a85bf7e8e1eba`, 2,311,407 nodes (6.22 s, 371k nps on this runner) |
+| perft | `flawless perft 3` | 8902 |
+| UCI probes | `uci_bestmove_smoke.py` (b1c3 at depth 2); `uci_protocol_probe.py` (12/12); `uci_malformed_probe.py` (37/37) | rc 0 each |
+| self-play | `selfplay_games.py --tc 3000+50` | rc 0 |
+| full game, en passant | `fullgame_en_passant_probe.py` | rc 0, PASS (every engine move legal; game reached its end) |
+| resource | `resource_probe.py 1000 16 64 256` | rc 0 (peak RSS 56.9 MiB at Hash 64, 88.0 MiB at Hash 256, 1 s movetime) |
+| fuzz UCI grammar | seeds 9 (100 sessions), 21 (100 sessions), 11 (100 sessions) | failures=0 each |
+| fuzz legal differential | seeds 1–7 (40 games each) | RESULT PASS each |
+| search symmetry (informational) | `eval_symmetry_probe.py --positions 120 --depth 4` | 0 mismatches (was 6 before S-14 fix) |
+| closed stdout | `protocol_regressions::closed_stdout_ends_the_process_quietly` | PASS; FAILS on the pre-fix source (exit-status assertion, test line 500; the old build panicked on the closed pipe) |
+
+Mutation checks: the S-14 correctness tests fail on the pre-fix `search.rs` (cap 1 searched 1024 nodes; a recorded pair gave 446 vs 493). `closed_stdout` fails on the pre-fix `src/`.
+
+CI on `7d5b489`: run 44753627798 (CI) success — `ubuntu-latest`, `windows-latest`, `msrv (rust 1.80)`, `windows x64 release artifact` all success. Run 44753628577 (anchor-verify) success. Kilo Code Review: `action_required` (billing; not bypassed).
+
+Reviews on `7d5b489`:
+- CodeRabbit: `@coderabbitai review` posted on PR #4 (comment 7042039996, 14:27Z). CodeRabbit replied "Review triggered" (comment 7042042371) and its check run stayed `in_progress` for about 3 minutes. No review with `commit_id` `7d5b489` exists at the time of writing. **G2 NOT OBTAINED. Not claimed.**
+- Codex: P2 reply on the searchmoves widening (comment 7041115063, 13:46Z) is visible on PR #4. Codex has not re-reviewed `7d5b489`.
+
+Windows artifact `flawless-windows-x64-7d5b489405b8b5c513c284532a0865bb1dc7a472` (artifact 14635798399, 206,405 bytes, not expired; run 44753627798): `gh run download -R coderunknow/FlawLessChess -n …` failed twice (EOF from `productionresultssa16.blob.core.windows.net`). The retry limit is reached and nothing more is attempted in this session. **G3 NOT VERIFIED.** The manifest and SHA256 were not inspected. The Windows-artifact tooling passes its own unit tests (`scripts/test_windows_artifact.py`, rc 0), but that does not verify this artifact.
+
+GUI: not part of the release. No GUI test was run and no GUI result is claimed (`docs/WINDOWS_GUI_TEST.md` is unexecuted).
+
+### Findings disposition (this phase)
+
+- EPIPE / closed stdout (F-10, LOW): found in the audit's pipe probe. Scope: in scope, because a GUI closing the pipe is a normal shutdown path. **Fixed** (`out_line!`, exit 0). Regression test added.
+- S-14 (MEDIUM): **Fixed** by a colour-relative tie-break. LMR stays on: disabling it also gives 0/120 but costs 18× the nodes. Bench reference updated.
+- S-08 (LOW): **Fixed**. `go nodes N` spends exactly N nodes. Regression tests added.
+- S-07 ponder cap: not reproduced. The regression test now asserts the exact cap after `ponderhit`.
+- S-06 illegal-only `searchmoves`: not reproduced. The regression test asserts the stdout notice and the legal move. Remaining decision: widening versus refusing is recorded in DESIGN_LOG 2026-11-20.
+
+### Release decision
+
+NOT RELEASED. PR #4 is NOT merged. Tag `v0.1.0` and the GitHub Release "FlawLessChess 0.1.0" are NOT created. Open hard gates:
+1. G2 CodeRabbit review on the final head: NOT OBTAINED for `7d5b489` (triggered, no review yet).
+2. G3 Windows x64 artifact manifest and SHA256: NOT VERIFIED (blob host returns EOF from this sandbox).
+
+All other gates pass on `7d5b489`. G5 local gates pass on `7d5b489`. G6 MSRV 1.80 passes in CI on `7d5b489`. G4 GUI is N/A.
+
+Note on SHAs: the ledger commit that records this phase changes only `FINAL_AUDIT_PROGRESS.md`. The source tree is identical to `7d5b489`; check with `git diff --stat 7d5b489 HEAD`.
+
+## Phase J — CodeRabbit findings on 7d5b489, fixes, and final-head gates on c6fc956 (release still blocked)
+
+Commits: `7d5b489` (Phase I source) → `6102643` (Phase I ledger, docs only) → `c4fb22f` (CodeRabbit fixes) → `c6fc956` (CI fix for the closed-stdout test). This phase's ledger commit changes only `FINAL_AUDIT_PROGRESS.md`, `FAILURE_LEDGER.md`, `CHANGELOG.md`, and the audit document's action items; `git diff --stat c6fc956 HEAD` shows which.
+
+**CodeRabbit review on 7d5b489 (obtained, 14:37Z, 4 actionable + 1 outside-diff comments, all checked against the code):**
+- F-11 oversized input line dropped without marking the position invalid (valid, LOW). Fixed in `src/uci.rs`: a dropped line sets `position_invalid`; a later valid `position` clears it. Test `oversized_position_line_does_not_leave_the_old_position_in_use` fails on the `7d5b489` source and passes now.
+- T-01 ponder test asserted an exact count, but the search is uncapped until `ponderhit` is processed (valid, timing-dependent). The test now asserts termination and a monotonic node count. Exact caps are asserted in the non-ponder tests.
+- T-02 closed-stdout test read the handshake without a deadline and had no kill-on-failure (valid). It now uses the bounded `Engine` harness; `Engine::drop` kills the child.
+- D-01 audit document's action items named the superseded head `c64b743` (valid, Major). Updated to refer to the final release commit; the historical gate table is unchanged.
+- The Phase H "Note on SHAs" claimed current HEAD was source-identical to `8370bed` (valid). Corrected.
+
+**CI failure on c4fb22f (CI-1):** `Tests (release)` failed on ubuntu-latest (exit 101) and windows-latest (exit 1); msrv, the Windows artifact job, and anchor-verify passed. Logs could not be downloaded (results host EOF) and a rerun was refused (HTTP 403). Cause, inferred from the code and not reproduced: the rewritten closed-stdout test sent three `isready` lines after closing the reader. One read can drain all three `readyok` lines, leaving the engine with nothing to write after the close, so it waits on stdin and never exits. Fix in `c6fc956`: keep sending `isready` until the engine exits. Evidence: 30/30 isolated runs of the test pass; 12 and 10 runs of the protocol suite pass (idle and under CPU load); the full release suite passes; CI on `c6fc956` passes. The CI-1 cause is inferred, and CI passing on `c6fc956` is the only evidence that the fix works.
+
+**Final-head local gates on `c6fc956`** (`/tmp/gates/run_final.sh`, `summary.txt` shows `commit c6fc956…` and `dirty_files 0`; every step rc=0 through DONE): fmt; clippy release and debug (0 warnings); `cargo build --release --locked`; `cargo test --release --locked` (22, 3, 39, 11, 13, 11 passed); `cargo test --locked`; the `scripts/test_*.py` suites (rating_estimator: 65 checks passed, 0 failed; the `FAIL null control` lines are its negative-control fixtures); verify_opening_subsets; power_analysis; bench `849a85bf7e8e1eba` (2,311,407 nodes); perft 3 = 8902; uci_bestmove_smoke; uci_protocol_probe; uci_malformed_probe (37/37); selfplay; fullgame_en_passant (PASS); resource_probe; fuzz_uci_grammar seeds 9 and 21 (0 failures); fuzz_legal_differential seeds 1 and 7 (RESULT PASS).
+
+**CI on `c6fc956`:** run 44757861918 (CI) success: ubuntu-latest, windows-latest, msrv (rust 1.80), windows x64 release artifact all success. Run 44757861893 (anchor-verify) success.
+
+**Windows artifact `flawless-windows-x64-c6fc956e74c28df82682c67eaa76b27a31183ca0`** (artifact 14640410894, 206,468 bytes, not expired; run 44757861918): `gh run download` failed on the first attempt and on the single allowed retry (EOF from the blob host). **G3 NOT VERIFIED** for `c6fc956`. The manifest and SHA256 were not inspected.
+
+**CodeRabbit on `c6fc956`:** review requested on PR #4 (comment at 14:57Z-ish, head stated in the comment). Result: "Review rate limited" (check run `completed neutral`, title "Review rate limited"; steps skipped). No review for `c4fb22f` or `c6fc956` exists. **G2 NOT OBTAINED** for the final head. The earlier review on `7d5b489` is real and its findings are addressed above; it is not a review of the final head.
+
+**Gate summary for the final head `c6fc956`:** G1 CI PASS. G2 CodeRabbit NOT OBTAINED (rate-limited). G3 Windows artifact NOT VERIFIED (EOF). G4 GUI N/A. G5 local gates PASS. G6 MSRV 1.80 PASS in CI.
+
+**Release decision:** NOT RELEASED. PR #4 is NOT merged. No tag `v0.1.0`, no GitHub Release. Open gates: G2 and G3. Next check: when CodeRabbit posts a review with `commit_id` `c6fc956`, triage it; if its findings change source, that is a new SHA and the full gate set and CI run again. The Windows artifact needs a network that can reach the blob host, or the user verifies it directly.
+
+## Phase K — audit stretch to 10:00 UTC+7 (2026-11-21): F-14 evidence, F-18 CI fix, restore recovery
+
+Commits (branch `arena/f668bde4-flawlesschess`, PR #4): `a400e80` (F-16/F-17, pushed earlier; CI failed on Windows clippy)
+→ `ffd6b04` (F-18: Unix-only pipe test gated with `cfg(unix)`, pushed; CI success on all four jobs). The docs commit that
+adds this section is the final head; its source tree is identical to `ffd6b04` (no `src/`, `tests/`, `scripts/`, or
+`Cargo.toml` change, checked by `git diff --stat ffd6b04 HEAD -- src tests scripts Cargo.toml`).
+
+**Sandbox restore (2026-11-21 ~01:56 UTC):** the clone was rebuilt at `c25e65e`; `origin` still held `a400e80`, so no pushed
+commit was lost. The unpushed F-18 commit survived as working-tree changes (verified exactly the two files), and was
+recommitted. The Rust toolchain (`@toolchain-bin` pins) and the venv (`chess==1.11.2`) were reinstalled. See FAILURE_LEDGER.md.
+
+**CI:** `a400e80` run 44777328791 failed on `windows-latest` at `Clippy (deny warnings)` (job 136430504382): the F-13 test
+used a Unix-only pipe binding without a `cfg` gate. Fixed in `ffd6b04` (F-18). Run 44853133810 on `ffd6b04`: success for
+`ubuntu-latest`, `windows-latest`, `msrv (rust 1.80)`, and `windows x64 release artifact`. anchor-verify 44853133745: success.
+
+**Local gates on `ffd6b04`** (`/tmp/gates/final-ffd6b04/summary.txt`, `commit ffd6b04…`, `dirty_files 0`): 34 of 34 rows rc=0.
+Release tests 107 passed, 0 failed; debug tests 101 passed, 0 failed; clippy release and debug with `-D warnings` clean;
+`cargo fmt --check` clean; bench signature `849a85bf7e8e1eba`; `time_budget_probe` 8/8; `uci_extreme_args_probe` 0 failures;
+perft random differential seeds 2 and 8: 0 mismatches (seeds 8 and 9 were read earlier: 0 mismatches each); legal
+differential seeds 1 and 7: 0 failures; search sweep debug seed 3 and release seed 2: PASS; full-game en passant PASS;
+UCI grammar fuzz seeds 9 and 21: 0 failures.
+
+**Findings in this stretch:**
+- F-14 (LOW, fixed in `df6417d`): the earlier "not reproduced" note was wrong. Pre-fix build `0d4fda1` gives an empty PV at
+  the insufficient-material root (nodes 4). HEAD searches the root (nodes 24-52, PV present). Regression test fails on the
+  pre-fix build with "empty PV".
+- F-18 (LOW, CI portability, fixed in `ffd6b04`): see CI above.
+- F-19 (hardening, not a reproduced defect): lock poisoning recovery in the flush paths. No regression test.
+- F-11 mutation check: removing the fix makes its regression test fail (`bestmove b1c3` instead of `0000`). Verified.
+- RSS at Hash 1024: 1007 MiB after 29 searches and still rising; not shown to plateau (see FAILURE_LEDGER.md).
+
+**Probes run (scratch, outside the repo unless noted):**
+- MultiPV 256 on start position, K v K, and a 17-move position: lines equal the legal-move count (20, 5, 17); exit 0.
+- Responsiveness: `isready` during `go infinite` on Kiwipete (Hash 256): `readyok` in under 1 ms; `stop` answered in under 1 ms (5 trials).
+- Mate sign: side being mated gets `score mate -1` (probe on `a400e80`, four positions, earlier in this session).
+- Codex review on `a400e80` (`src/search.rs:283`, P2): repeats F-09 (`searchmoves` with no legal named move). Kept the documented
+  decision (refuse null move, widen to legal moves, announce on stdout). Open design point for the user.
+
+**Gate summary for the final head (source `ffd6b04`):**
+G1 CI: PASS (run 44853133810 and anchor-verify 44853133745).
+G2 CodeRabbit on final head: see the PR comment for the request result; NOT CLAIMED unless a review with that commit_id is received.
+G3 Windows artifact `flawless-windows-x64-ffd6b04dc03bb3d0616941e13bc49b1cb798d36b` (14686132529, 211,374 bytes): NOT VERIFIED (blob EOF on `gh run download` and REST zip).
+G4 GUI: N/A (no GUI in the release).
+G5 local gates: PASS on `ffd6b04` (34/34).
+G6 MSRV 1.80: PASS in CI on `ffd6b04`.
+
+**Release decision: NOT RELEASED.** PR #4 is not merged. No tag `v0.1.0`, no GitHub Release. G3 is not verified, and G2 has no
+review on the final head. Both must pass before any release step.
+
+**Open items (not claimed fixed):** Codex P2 `searchmoves` design point (F-09); RSS plateau at Hash 1024 not shown; `go ponder
+movetime` clock start (DESIGN_LOG); kilo billing-blocked (not bypassed).
+
+**Addendum (same stretch, 09:12–09:20 UTC+7):** fresh seeds, all PASS with 0 failures (scratch runs of the repo scripts, logs in
+`/tmp/audit/k/`): perft random differential seeds 10 and 11 (30 games, depth 3); search sweep release seeds 4 and 5 (50 positions,
+depth 4); legal differential seed 11 (40 games); UCI grammar seed 51 (150 sessions). Probes: CRLF line endings accepted
+(`uci`, `isready`, `position`, `go depth 3` answered); promotion without a piece letter (`a7a8`) rejected with an info string,
+`a7a8q` and `a7a8N` accepted. CI on `ce9f8d4` (docs-only on `ffd6b04`): CI success, anchor-verify success. CodeRabbit review
+requested on `ce9f8d4` (comment 7055699579); the trigger was acknowledged, no review yet at this entry.
+
+**CodeRabbit on `ce9f8d4` (review 02:23Z, 10 actionable comments; checked one by one):** ledger provenance (4 Minor, handled in
+FAILURE_LEDGER.md addendum); `time_budget_probe` black-only case (valid, fixed); `search_sweep` and `uci_extreme_args_probe`
+blocking reads (valid, fixed; targeted runs pass). Source findings, verified in the code and left OPEN (they need a source
+change and a full gate, which did not fit before 10:00): F-20 `src/tt.rs:143` (MAJOR: a refused second allocation can still
+abort), F-21 `src/uci.rs:596` (searchmoves ignored in the spawn-failure fallback), F-22 `src/uci.rs:599` (spawn-failure
+fallback bypasses the output hold for `go infinite`/`go ponder`). None of these is claimed fixed.
+
+**Final source commit of this stretch: `7fe7e87`** (F-21 fix + regression test; the only source change after `ffd6b04`).
+- Local gate `/tmp/gates/final-final/summary.txt` (`commit 7fe7e87…`, `dirty_files 0`): 34 of 34 rows rc=0. Release tests 108 passed / 0 failed (107 + the new `spawn_fallback_respects_searchmoves`); debug tests 102 / 0; clippy release and debug `-D warnings` clean; fmt clean; bench `849a85bf7e8e1eba`; time_budget 8/8; uci_extreme_args 0 failures; perft random seeds 2 and 8: 0 mismatches; search sweep seeds 2 and 3: PASS; legal differential seeds 1 and 7; UCI grammar seeds 9 and 21; full-game en passant PASS.
+- CI on `7fe7e87` (run 44856049743): success for `ubuntu-latest`, `windows-latest`, `msrv (rust 1.80)`, and `windows x64 release artifact`. anchor-verify 44856049740: success.
+- Windows artifact `flawless-windows-x64-7fe7e87231740482a2260cf6f3e2227b269c6e63` (artifact 14687572163, 211,673 bytes): produced by CI; NOT downloaded or verified (earlier downloads from this host returned EOF; not retried in a loop).
+- F-21 reproduced before the fix (`bestmove a2a3` with `searchmoves d2d4` under `ulimit -v 50000`) and fixed (`bestmove d2d4`).
+
+**Still OPEN after this stretch:** F-20 (`src/tt.rs:143`, MAJOR: a refused second allocation can still abort; fix needs a decision about lazy zeroing vs. resident memory at Hash 1024), F-22 (`src/uci.rs:599`: spawn-failure fallback bypasses the output hold for `go infinite`/`go ponder`). Both verified in the code, neither reproduced at run time, neither fixed.
+
+**Gate summary (final source `7fe7e87`):** G1 CI PASS. G2 CodeRabbit: a review was posted on `ce9f8d4` (10 actionable comments; triaged in FAILURE_LEDGER.md); no review yet on `7fe7e87`. G3 Windows artifact NOT VERIFIED. G4 GUI N/A. G5 local gates PASS on `7fe7e87`. G6 MSRV PASS in CI.
+
+**Release decision: NOT RELEASED.** PR #4 not merged. No tag, no GitHub Release. Open: G2 on the final head, G3, F-20, F-22, and the F-09 `searchmoves` design point raised again by Codex.
+
+## Phase L — audit stretch to 17:00 UTC (2026-11-21, deadline 00:00 UTC+7 on 2026-11-22): F-36, final-head gates on 000266e
+
+Scope of this phase: continue the audit after the CLOCK-1 gate, look for bugs by probing the real binary (not by re-running green suites), fix what is a defect, and gate the final head. The clock time at the start of the phase was about 08:45 UTC.
+
+**Findings this phase**
+- F-36 (LOW, CLI, FIXED in `ad000f1`): `flawless divide 0` printed one count-1 line per root move and `total = 20`, while `perft 0` is 1. Cause: `perft_divide` gives each root move `perft(depth−1)` with `saturating_sub`, so depth 0 counted root moves. Fix: depth must be ≥ 1 (usage, exit 2). Regression `tests/cli_divide.rs` (3 tests); mutation check failed as intended. Engine perft and movegen were not changed.
+- OPEN, NOT CHANGED (owner decision, DESIGN_LOG 2026-11-21 audit entry): `go ponder movetime N` counts the movetime from `go`. After 4 s of pondering, `ponderhit` gives a bestmove at once. The UCI spec does not say when a movetime starts, and the rule is pinned by `ponder_movetime_ponderhit_keeps_the_movetime_deadline`.
+- Not defects (checked and recorded in FAILURE_LEDGER.md): `moves` exits 0 on a bad FEN line (F-12 batch contract; DECISION); `movetime` / `movestogo` / `wtime` at 2^63−1, 2^64−1, and 2^64 (saturating by design); `go depth` clamped to 64 (by design); EOF during a search stops it (as Stockfish); `position` with an illegal move gives `bestmove 0000` (F-11 design); insufficient-material scores 0; `bench` deterministic; `divide` matches python-chess on 10 cases; `hash` transposition and en passant behaviour; stop latency 7.5–7.7 ms at depth 100+; panic sites in non-test code.
+
+**Evidence this phase (commands and results in FAILURE_LEDGER.md)**
+- Gate `scripts/final_gate.sh` on `000266e`: 45 steps, FAILS=0, dirty 0, release SHA-256 0d9c508d31e15170921641eedd59735a0a14c15f8ad17472c084848dc9663a6d.
+- CI on `000266e` (run 44886526755) and anchor-verify (44886526780): success.
+- Fresh-seed campaign (18 steps, seeds 12, 13, 32, 33, 6, 202, 12, 102, 44, 52, 82, 92, 93, 78, 72, and malformed/extreme-args): 18 of 18 rc 0.
+- Self-play clock series (six configurations, 60–150 plies each): 0 flags, 0 illegal moves.
+
+**CodeRabbit (G2):** requested on `72dcf78` (comment 7060056225, 08:38 UTC). CodeRabbit replied (comment 7060057149): "Head commit changed", the command was not run, and the reply says automatic reviews are not re-run for already-reviewed commits. No review result exists for any head after `c83046b`. The request must be repeated on the final head. Not claimed.
+**Codex:** usage limit reached on each trigger (comments 7060086428 to 7060154913). Not bypassed. Not claimed.
+
+**Still not done:** G3 (Windows artifact, not verified: blob-storage download errors); CodeRabbit on the final head; the owner decision on `go ponder movetime`; a new CLOCK-1 hash freeze (ENGINE-1 and SEE-candidate hashes still describe the pre-CLOCK-1 binary).
+
+**Release decision: NOT RELEASED.** No merge, no tag, no GitHub Release in this phase.
+
+**Addendum (Phase L, probes after the 000266e gate; no source change, all results recorded in FAILURE_LEDGER.md):** en passant: consistent FENs match python-chess exactly (including the capture `d4e3` with a capturing pawn, and no phantom move without one); inconsistent ep fields (e6 with no pawn on e5, e4 with white to move, d6 with a pawn on d7, and so on) are refused with `error: fen: en passant square inconsistent with a legal double pawn push`. One-sided clocks: `go btime` with White to move is unlimited; `go wtime` limits White. Thread and memory: 1,800 searches in one session, 1 thread at the end, RSS flat at 68 MiB (Hash 64). Whitespace: tabs, double, leading, and trailing spaces parse. `isready` and `uci` during `go infinite` answer in under 1 ms. CLI extra arguments, `version`, `--help`, `eval`, and `hash` behave; perft of two bare-king positions (9 and 7) matches python-chess. Windows cross-compilation is not possible here (no Windows std, no MinGW); G3 stays NOT VERIFIED. Code review of `clock_limits` against its documented invariants: no new finding.
+
+## Phase M — audit continues to 17:00 UTC (2026-11-21, 10:00–; head after this phase: see git log)
+
+**Scope:** finish the harness work from F-37, answer the CodeRabbit review on 2fe1118, re-check the carried ledger figures, look for more defects with the real binary, and record the CLOCK-1 freeze route.
+
+**Findings this phase**
+- F-38 (harness, LOW, FIXED in `eb8fca3`): seven probes (`clock_sweep`, `mate1`, `multipv`, `pv_legality`, `negative_mate`, `searchmoves`, `fuzz_fen_extremes`) still read engine stdout without a deadline. All now use `scripts/probe_io.py`. A stalled engine fails the run with a timeout.
+- F-39 (UCI, LOW–MEDIUM, FIXED in `64c691b`): out-of-range `go depth` / `go nodes` values were ignored with a notice, and with no other limit the search ran until `stop`. `go depth 100` stopped at 64, so the same kind of value behaved differently by size. Found on the release binary (`go depth 4294967296` → `info string ... ignored`, search unlimited). Fix: depth saturates to i32 (clamp 64; negative → clamp 1), nodes uses the saturating u64 parser. Two regression tests in `tests/protocol_regressions.rs`; both time out on the pre-fix source and pass on the fix.
+- Ledger correction (append-only): the earlier note "`go depth 4294967296` saturates to the same clamp" was false before F-39; the K v K node counts were position-specific (256, 384, 576); the self-play margin figures in the 2026-11-21 SELF-PLAY CLOCK entry were pre-F-37 and cannot be re-derived from a saved log, so they are replaced by the printed F-37 re-run values.
+
+**Checked, no defect (see FAILURE_LEDGER.md):** `setoption` values (Hash 0/−5/overflow/non-number, MultiPV 0/100000, Threads 0/64, unknown/no-value forms); `position` tokens (extra fields, bad side/castling/ep/clock, fullmove 0, malformed moves); `clock_limits` arithmetic for `movestogo` 0 and huge values (no panic; saturating; unit-tested).
+
+**Known limitation (not changed):** `go mate N` and `go perft N` are not supported. The keyword and its value are reported (`info string go token ignored`), and the search runs until `stop`. UCI `mate` is not implemented.
+
+**CLOCK-1 freeze route (found this phase):** the `verify-flawless` job's log line `binary_sha256=…` is readable through its check-run annotation: `gh api repos/coderunknow/FlawLessChess/check-runs/<job-id>/annotations`. That route works where the job-log and artifact downloads fail. Caveat: the anchor-verify job checks out the PR merge commit (`refs/pull/4/merge`), not the head. For the current head `64c691b` the merge tree differs from the head tree only by one `.gitattributes` line that main added for `benches/` files. The freeze must use the head of the final source, after all engine changes.
+
+**Still open:** CodeRabbit on the final head; G3 (Windows artifact: download blocked, the job's SHA-256 is only in its log); Kilo billing failure (not bypassed); the owner decision on `go ponder movetime`; the CLOCK-1 freeze on the final head.
+- F-40 (resource, MEDIUM-LOW, FIXED in `9086001`): a non-power-of-two Hash allocated up to 2× the requested size (`Hash 65` → 128 MiB, `Hash 513` → 1 GiB). Table size now rounds down; unit tests pin the allocated size.
+- F-41 (search, MEDIUM, FIXED): futility pruning ignored a mate-score alpha, so a quiet mate in two was pruned (depth 6 reported mate 3). Fixed with a mate-bound guard; regression test; bench signature unchanged. OPEN, owner decision: LMR can hide quiet mates (examples and options in FAILURE_LEDGER F-41 and DESIGN_LOG 2026-11-21 F-41).
+- F-39 (UCI, LOW-MEDIUM, FIXED): out-of-range `go depth` / `go nodes` values were ignored, so the search ran until `stop`.
+
+
+## Correction and progress (2026-11-22, release audit segment)
+
+- F-09 (`go searchmoves` widening, 2026-11-20) is SUPERSEDED for the current work by the owner's strict direction of 2026-11-22 (F-46, DESIGN_LOG.md). A named list with no legal move answers `bestmove 0000` with a stdout notice. Earlier "searchmoves widening" text in this file is history, not the current policy.
+- F-47 (`table_entries` overflow before clamp, library only): fixed, unit-tested.
+- F-48 (probe silent passes and unbounded waits): fixed; `scripts/failure_mode_probe.py` 51/51 pairs as expected; real-engine runs of the changed probes pass; the mate-proof probe is INCONCLUSIVE (exit 3) on seed 42 for seven claims beyond its limit.
+- Still open, unchanged: G2 (CodeRabbit on the final head: not triaged), G3 (Windows artifact: not verified), CLOCK-1 (not frozen), F-41 LMR quiet-mate options (owner decision), `go ponder movetime` (owner decision). No release readiness is claimed.
+
+## Correction (2026-11-22, second): searchmoves wording in this file
+
+- Earlier entries that describe `go searchmoves` widening as a decision still open (around L112, L146, L193, L205 and L278 in this file) are history. The owner's strict direction of 2026-11-22 (F-46, DESIGN_LOG.md) governs: a named list with no legal move answers `bestmove 0000` and announces it on stdout. Do not read the older lines as the current decision.
+- F-52 (external review of `bf026f8`): ponder node cap counted from `ponderhit`, `movestogo` overflow saturation, en-passant FEN checks, and the `(none)` probe gap are fixed (`14b411e`, gate 46/46, `FAILS=0`). Release blockers are unchanged: G2, G3, CLOCK-1.
+
+## 2026-11-22 — F-53 null-move repetition fix
+
+- Found a false draw path in null-move search: the artificial pass was not in the position history, but its descendants still consulted real game hashes. A legally reachable four-ply setup proves the collision: after `g1h1 f8e8 h1g1 e8a8`, a null move plus `Ra8-f8` matches the initial hash.
+- Fixed by suppressing repetition adjudication in both search and quiescence during a null-move subtree; nested null branches preserve the marker. Added a regression that requires both layers to continue beyond the historical-hash match.
+- Verification: targeted release regression PASS; full `cargo test --release --locked` and debug `cargo test --locked` PASS; fmt and debug/release clippy with denied warnings PASS. `scripts/final_gate.sh` ran all functional/harness/perft/fuzz/clock/resource probes successfully; its sole failure was the last clean-tree identity check because the change was still uncommitted. Bench remains `849a85bf7e8e1eba`, 4,135,406 nodes. Clean-tree final gate pending.
+
+### F-53 exact-head closeout (2026-11-22 14:32 UTC)
+
+Commit `c87a185f3a6a92c0d9d1b20f2aa04ad1261c67d8`, tree `05fb02e03926729a6aa19f430704cdf0acb0d7a1`: the clean-tree `scripts/final_gate.sh` completed with `FAILS=0` (all Rust, Python, perft/differential, UCI, fuzz, resource, clock, self-play, and full-game checks passed). Release binary SHA-256: `8edf447d428ff4f21d9337f118c60265493619eb7b77c5473e2eaaec858ef504`. Bench remains `849a85bf7e8e1eba`, 4,135,406 nodes. The full final-gate record is appended in FAILURE_LEDGER.md. This is local validation only; existing release blockers remain unchanged.
+
+## 2026-11-22 — F-54 TT halfmove-context guard
+
+A transposition score stored at halfmove 0 could be reused at halfmove 98 because the Zobrist key omits the clock and the old `CLOCK-UNSAFE` flag only described the store context. That could bypass a claimable fifty-move draw reached in the probe context. `probe` now receives the current halfmove clock and suppresses scores when current clock + stored depth can reach 100, while retaining the move for ordering. Added boundary and search-level regressions; the search-level test fails in a mutation with the probe-time check removed. At this point fmt, clippy (debug/release), and release/debug Rust test suites pass; exact-head full gate is pending. Bench signature and node count remain unchanged.
+
+## 2026-11-22 — F-55 bounded repetition-history scan
+
+`Position::repetition_count` previously scanned all game history at every check. Hash matches before the latest pawn move or capture are impossible, and the halfmove clock bounds the reversible tail. It now checks only the last `halfmove + 1` entries, retaining the current-hash exclusion. A test differentially compares the bounded result against a full-history reference through repeated cycles and an irreversible pawn move (130 history entries), then checks that both a pawn push and a capture reset the reversible window. Targeted regression, fmt, debug clippy, and full release/debug Rust suites pass; perft(5) and the depth-10 bench signature/node count are unchanged. A selected legal-game depth-8 probe had same best move and 0.269 s vs 0.259 s median across 11 baseline/candidate runs; treat timing as noisy, not as a general performance claim. Clean exact-head final gate pending.
+
+### F-55 exact-head closeout (2026-11-22 15:57 UTC)
+
+Final source/test head `ec9347d6472bd4a0f712dacf52bc1130421f4403`, tree `46c2d01f438b641f9cc4c1467ae1109f3a094b08`, passed `scripts/final_gate.sh /tmp/gates/ec9347d-final` with `FAILS=0` and a clean, unchanged end check. Release binary SHA-256 `8641c34e141f5a4392b2448b4277fe75f3a174fd6779e132f71e2bababbc47f2`; perft(5) and depth-10 bench unchanged (4,865,609; signature `849a85bf7e8e1eba`, 4,135,406 nodes). The branch is pushed. The audit cutoff remains 16:00 UTC; F-41 LMR quiet-mate concern remains open.
+
+## 2026-11-23 — F-56 quiet-check LMR audit
+
+A fresh search audit found a reproducible LMR miss outside the sparse-position guard: a late quiet checking move can be reduced so far that the proof of a forced mate is lost; qsearch does not explore quiet checks. Fix: do not apply LMR to an eligible quiet move if it gives check. Added an exact UCI regression for a legal middlegame mate-in-two (`Qc6+ Ka5 Ra1#`), which fails on baseline (`cp 1358`, wrong move) and passes on the candidate (`mate 2`, `Qc6+`). Independent python-chess enumeration of random legal playouts found 4/43 and 2/83 baseline misses across two seed sets; candidate found all exact mates in both, and each missed line started with a quiet check. Depth-10 benchmark is now signature `141943aa23b3fc68`, 4,677,558 nodes (+13.1%). This is a tactical correctness trade-off, not an Elo claim; exact-head full gate is pending.
+
+## 2026-11-23 — F-57 stop after proven mate in one
+
+The first F-56 full gate had one failed probe: seed 41's TT/bestmove random-game probe timed out after 60 seconds on a position where the engine had already reported a proven mate in one at depth 3, then continued into expensive deeper iterations. Added a safe single-PV early stop once a completed root iteration reaches `MATE_SCORE - 1`; MultiPV remains unchanged. New protocol regression confirms a legal `Qbe5#` is returned on `go depth 6`. Targeted regressions and the full 400-position seed-41 probe pass (0 failures), along with fmt and debug/release clippy. Full exact-head gate rerun pending. Benchmark signature remains `141943aa23b3fc68`; node count is 2,853,010 due to early termination and is not a like-for-like speed comparison.
+
+### 2026-11-23 05:58 UTC — test expectation follow-up
+
+The exact-head gate attempt at `a4ecafc` returned `FAILS=2`; both failures were the same legacy integration test demanding an `info depth 4` line after a mate in one. F-57 intentionally ends on the depth-1 proof. Updated the assertion to accept the latest completed iteration. The legacy test and both new F-56/F-57 regressions pass in focused release runs; fmt and diff-check are clean. The full gate was not rerun, so the current tree has no full-gate pass claim.
+
+### Cutoff closeout — 2026-11-23 05:59 UTC
+
+Current pushed head: `19898a0954e37d5741b7bee59d7542985d472000` on `arena/7584c0ca-flawlesschess`, clean. The obsolete fixed-depth-4 assertion was revised to accept the completed mate-in-one iteration; release `protocol_regressions` passes 42/42 and two focused debug tests pass. The last full gate was on parent `a4ecafc` and reports `FAILS=2` solely from that assertion in release/debug. It was not rerun on the final head before cutoff. The audit remains incomplete; F-41 general LMR pruning and broader strength/throughput effects are not fully assessed. No rating or release-readiness claim.
+
+## 2026-11-23 — F-58 infinite-search continuation
+
+Reviewing the F-57 fix exposed a protocol regression: a `go infinite` search with a proven mate in one stopped producing analysis after depth 1. The UCI layer held `bestmove` until `stop`, masking that the search itself had ended. The mate-in-one early exit is now disabled while `limits.infinite` is true; MultiPV and finite search behavior are unchanged. Added a test requiring depth 2 before stop; focused release test and clippy in both profiles pass. Exact-head full gate pending.
+
+F-58 was additionally checked under `go ponder`: the same legal mate-in-one position continued through depth 2 before `stop`. Added a dedicated protocol regression alongside the `go infinite` case; focused test pending full-suite run.
+
+## 2026-11-23 07:33 UTC — cutoff closeout (incomplete)
+
+Investigated F-59, a sparse-endgame late-move-reduction false negative. Added a <=8-piece / <=2-legal-reply exemption and protocol regression for `8/8/3K4/1k5p/5p2/1pr4b/6r1/8 b - - 7 68`, independently verified mate line `Re2 Kd5 Rd3#`. Isolated experiments: depth-6 mate recovered at 303,217 nodes; current search missed it at ~50,493 nodes, while disabling LMR found it at ~1.05M nodes. Candidate found all mates in two across fresh 83- and 72-position sets (baseline had one miss in the latter). This is limited tactical evidence, not strength evidence.
+
+Formatting check, focused release and debug protocol tests, and debug/release clippy passed. `scripts/final_gate.sh /tmp/gates/F59-final` ran to completion but returned exit 1 / `FAILS=1`: every listed test, probe, build, and lint command returned rc=0; only `head_unchanged_at_end` failed because this working tree's intended F-59 changes (three tracked files, including this append-only record) were uncommitted while the gate ran. Consequently there is no exact-commit clean-gate pass for F-59. Changes are pushed in the cutoff commit for review; do not claim the gate passed. Cutoff was 2026-11-23 07:30 UTC and elapsed during the full gate. Audit incomplete: no post-commit exact-head full gate, MSRV 1.80, Windows artifact verification, or general strength measurement was completed.
+
+## 2026-11-23 07:56 UTC — F-59 exact-head gate and additional oracle samples
+
+Resumed after the prior cutoff report as instructed. The pushed F-59 commit `6b6479d09f5a70aea6796351f8e36997ea2501c8` passed `scripts/final_gate.sh /tmp/gates/6b6479d-final` on a clean tree: `dirty-at-start 0`, `FAILS=0`, exit 0. The earlier cutoff report correctly described the then-current situation; this supersedes its statement that the F-59 exact-head gate had not passed.
+
+Additional depth-6 `mate_distance_probe.py` runs on the exact-head release binary for seeds 2, 3, 20 and 21 checked 120 oracle-proven mate-in-1/2 positions per seed, 0 mismatches, engine exit 0 each time (107 mate-in-one, 373 mate-in-two total). Seeds 20 and 21 are fresh; these random-endgame samples do not establish strength. Continuing the audit; no release-readiness or Elo claim.
+
+## 2026-11-23 09:00 UTC — F-60 root-selective-search follow-up
+
+Continuing after opening stacked PR #5 (base #4 head `arena/f668bde4-flawlesschess` at 0795260). CI on the pre-F-60 PR head passed Ubuntu, Windows, MSRV 1.80, Windows artifact, anchor verification, and all benchmark-opponent build jobs. Kilo Code Review ended `action_required` with the explicit message "Insufficient credits to run review"; this is external billing, not a code CI failure. CodeRabbit was skipped by the workflow.
+
+Found additional legal-game oracle misses and refined the F-59 safeguard to root-only, <=11 pieces, <=4 replies. Added the F-60 protocol regression for two exact mate-in-two positions (one leaves two replies, the other four). Verified targeted release/debug tests, fmt, and clippy. Three legal-game holdout sets (272 positions total) compare F-59 at 5 wrong mate scores / 144.8M nodes with root-only F-60 at 0 / 133.9M; a full-tree guard was 0 / 241.4M nodes and was rejected. The fixed depth-10 bench remains signature `141943aa23b3fc68`, 2,853,010 nodes.
+
+Important residual: an independent fourth 100-position sample found 3 F-59 mismatches; F-60 fixed two but still misses a python-chess-proven mate in two at `r3k3/pb1p4/6p1/2P5/2Pp2P1/5q2/3B4/4K3 b - - 1 23` (`d4d3`, then `Qe2#` against ten legal replies). Disabling root LMR globally finds it but costs 21.39M vs 2.85M bench nodes (~7.5x) and changes the best-move signature; no broad fix applied. F-60 changes are not yet committed or gated. Continuing investigation; audit incomplete.
+
+## 2026-11-23 09:31 UTC — F-60 closeout; F-61 residual
+
+F-60 commit `4c565be2ee908c550ce3c994b95ccb6c356a80f3` passed the clean exact-head comprehensive gate: `/tmp/gates/4c565be-final`, `FAILS=0`. On PR #5, Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless, opponent builds and SF10 calibration all passed. Kilo returned `action_required` because the connected review account has insufficient credits; CodeRabbit skipped. No CI/code failure.
+
+Broadened holdouts: seed 2222026 (71 oracle mates) F-59 missed 3, root <=13/<=10 fixed all; seed 7222026 (71) F-59 missed 4, root candidate missed 1. Aggregate five samples: 443 positions, 12 vs 1 mismatches; 189.2M vs 209.7M nodes, 235s vs 248s. These are correlated legal-game tactical samples, not strength results.
+
+One residual found in the latter holdout is a valid 14-piece forced mate-in-two (`2n2b2/1p6/3p1k1r/1n3P1p/1p5P/8/2q3b1/6K1 b - - 2 30`, `Bh3 Kh1 Qg2#`). The engine at depth 6 reports mate 3 but proves mate 2 by depth 7; root-restricted search finds the exact depth-6 mate. Root LMR-off fixes it but costs ~7.5x the fixed bench nodes and changes its signature; a full-tree low-reply check did not fix it. Left unresolved rather than broadening the heuristic blindly. F-61 changes remain uncommitted/ungated; continue.
+
+## 2026-11-23 09:55 UTC — F-62 extension and remaining selective-search residual
+
+Expanded the root low-reply guard to <=14 pieces / <=10 replies after a fresh seed-7222026 sample found `2n2b2/1p6/3p1k1r/1n3P1p/1p5P/8/2q3b1/6K1 b - - 2 30`, an oracle-proven mate in two (`Bh3 Kh1 Qg2#`) incorrectly scored mate 3 at depth 6. The candidate now finds `mate 2` and bestmove `g2h3`; a debug/release protocol test was added and focused test, fmt and clippy pass.
+
+Across the five seeded capture-biased legal-game samples (443 positions), the <=14-piece candidate had zero exact mate-score mismatches vs 12 for F-59; nodes 211.18M vs 189.19M (+11.6%). A sixth sample (68 positions) showed one shared remaining miss in both builds: `4kr2/7p/1p5K/8/8/4P3/1N4r1/8 b - - 1 28`, `Rf3`/`Rf1` leading to forced mate in two. Full root reduction is already removed by the guard for these moves, but unrestricted search still misses at depth 6; root-restricted search finds it and global root-LMR-off does not fix the unrestricted result. This is unresolved and not claimed solved. Current changes are uncommitted and exact-head full gate pending.
+
+## 2026-11-23 10:09 UTC — F-62 exact-head closeout
+
+Commit `e52849cda8806ffd8ccd40d955b471ad39704277` passed the exact-head comprehensive gate `scripts/final_gate.sh /tmp/gates/e52849c-final`: clean tree, `FAILS=0`. Hosted checks on the code head passed Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless anchor, SF10 calibration and all opponent builds. Kilo review reports insufficient credits and CodeRabbit is skipped; neither represents a code failure. PR #5 remains open and stacked on #4, not merged. The PR body was updated through the REST API after `gh pr edit` hit a GitHub GraphQL deprecation error for classic project cards.
+
+The 14-piece F-62 regression and <=14-piece/<=10-reply root rule are pushed. A sixth independent tactical sample still has one proven mate-in-two mismatch, unchanged between F-59 and F-62; root-restricted search finds it, full search does not. The audit remains incomplete; see F-63 description in FAILURE_LEDGER.
+
+## 2026-11-23 10:20 UTC — F-63 focused fix; cutoff incomplete
+
+The last held-out mate miss was isolated to null-move pruning: disabling NMP alone made the full depth-6 search prove `mate 2`; root LMR had already been disabled on the relevant root candidates. Added a <=8-piece NMP exclusion and a protocol regression; pushed in `a6d20a1`. Across 511 seeded legal-game oracle positions, this candidate had 0 mismatches vs 1 for F-62 and only +0.03% nodes on the sample. Focused release/debug regression and debug/release clippy passed. `cargo test --release --locked && cargo test --locked` reached the platform's 180-second timeout during the debug suite: release suites had finished, debug completion is unknown/incomplete. The last exact-head comprehensive gate and latest hosted CI are on predecessor `e52849c`; F-63 has no full exact-head gate/CI yet. PR #5 remains open, stacked, not merged. Kilo lacks review credits; CodeRabbit is skipped. Audit incomplete because the requested cutoff elapsed with full verification still pending.
+
+- F-63 commit-ID correction: the pushed source/test head is `66c5f71`, not `a6d20a1` (a transcription error in the preceding status note). Verification status remains unchanged.
+
+## 2026-11-23 10:35 UTC — F-63 exact-head gate/CI closeout
+
+The earlier F-63 status that said full gate/hosted CI were pending is superseded: `scripts/final_gate.sh /tmp/gates/8804fc9-final` on commit `8804fc9` completed exact-head clean with `FAILS=0`. The comprehensive gate's release/debug tests, clippy, perft and all listed functional/resource/clock/self-play/game probes passed. Hosted CI on the same code head passed Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. The earlier combined cargo test command did time out while running debug tests, but the later exact-head full gate completed them successfully. Kilo review still lacks credits and CodeRabbit is skipped.
+
+## 2026-11-23 11:00 UTC — F-64 root-threat holdout and focused verification
+
+A fresh seed-6222026 capture-biased legal-game set exposed one remaining exact mate-distance miss: valid 14-piece FEN `6k1/r7/2p2p2/1p2r3/3q4/N4PP1/2P4P/5K1R b - - 2 20`. The independent python-chess proof is `...Qd2` then mate against all 11 White replies (mate on a1/e1 depending on the reply). F-63/F-62 code searched the quiet root move with LMR and reported mate 4 at depth 6. A scratch <=11-reply candidate finds mate 2 with bestmove `d4d2`.
+
+Compared the previous candidate with this candidate on all eight stored oracle-verified legal-game sample files: 631 positions, 1→0 mate-score mismatches, aggregate nodes 333,006,299→333,784,342 (+0.234%). New seed-6222026 holdout: 1/60→0/60. Seed-5222026's 60-position holdout: 0/60 for both. These are correlated tactical data, not an Elo/strength result. Fixed benchmark signature and nodes remain `141943aa23b3fc68` / 2,914,999.
+
+Changed only the root low-reply threshold from 10 to 11 (still guarded at <=14 pieces) and added `root_quiet_mate_threat_with_eleven_replies_is_not_reduced`. Focused release/debug test, fmt, diff-check, and debug/release clippy pass. Full exact-head gate/hosted CI/push are pending; no release-readiness or rating claim.
+
+## 2026-11-23 11:14 UTC — F-64 exact-head closeout
+
+Code/test head `97f3c0427ce6ca93f99d39803c92b3c747120a69` passed `scripts/final_gate.sh /tmp/gates/97f3c04-final` clean exact-head: `dirty-at-start 0`, `FAILS=0`, exit 0. All local gate steps completed (fmt, debug/release clippy/build/tests, Python harness tests, perft/legal differential, search sweep, UCI/fuzz/resource/clock, TT/mate probes, self-play and full games). Release SHA-256: `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`.
+
+Hosted PR checks on code head `97f3c04` passed Ubuntu, Windows, MSRV 1.80, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo review is action-required for insufficient credits and CodeRabbit skipped. PR #5 is open and unmerged. F-64 evidence is limited to oracle-verified tactical searches and benchmark node counts; no Elo, complete search-correctness, or release-readiness claim.
+
+## 2026-11-23 11:35 UTC — F-65 low-material NMP follow-up
+
+A fresh capture-biased legal-game sample (seed 9222026) found a second null-move false fail-high outside the <=8-piece guard: on the 13-piece legal position `1n5r/3kp3/3Np3/8/6P1/1P1P4/2P5/rN2K3 b - - 0 21`, engine score was cp 1186 / `a1b1`, while python-chess proves `...Rh2` forces mate in two against all 15 legal replies. Root-restricted search with `h8h2` confirms the mate. An isolated NMP guard through 12 pieces still misses; through 13 finds `mate 2` / `h8h2` at depth 6. Expanded the low-material exclusion to <=13 pieces and added a dedicated protocol regression.
+
+On nine stored legal-game oracle datasets (691 positions), prior code had 1 mismatch and the <=13 candidate 0; total nodes 398,286,083→398,205,218 (-0.02%). Fresh seed-9222026 sample: 1/60→0/60. Fixed bench signature remains `141943aa23b3fc68`; nodes increase from 2,914,999 to 2,986,470 (+2.45%). No Elo/strength claim. Focused release/debug test, fmt and both clippy profiles pass; full exact-head gate/CI pending.
+
+## 2026-11-23 11:49 UTC — F-65 exact-head closeout
+
+Code/test head `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed `scripts/final_gate.sh /tmp/gates/8c8f8a1-final`: clean start/end, `FAILS=0`, exit 0. This covered format, debug/release clippy/build/tests, Python checks, perft/legal-move differential, search sweep, UCI/fuzz/resource/clock, TT/mate probes, self-play and full-game probes. Release binary SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`.
+
+Hosted checks on `8c8f8a1` passed Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 calibration and all opponent builds. Kilo is action-required for insufficient credits; CodeRabbit skipped. Additional fresh seed-10222026 oracle sample: 60 positions, 0 mate-score mismatches under both F-64 and F-65. PR #5 remains open/unmerged. These are tactical checks, not a strength measurement.
+
+## 2026-11-23 11:58 UTC — F-66 qsearch move-list reuse
+
+Avoided duplicate move generation at two main-search exits: depth<=0 and low-depth futility. The search already had a legal `MoveList` for the unchanged position, so it now passes it to qsearch; recursive qsearch remains unchanged and still generates per-child lists. This preserves the terminal check and draw/stand-pat handling while reducing redundant entry work.
+
+Scratch candidate passed full release/debug Rust suites, debug/release clippy and formatting. Fixed depth-10 bench signature/nodes are identical (`141943aa23b3fc68`, 2,986,470). Five paired A/B bench runs: median time 7.86s→6.86s; median NPS 379,840→435,080 (+14.5%) in this sandbox. A prior five-run block showed +12.2%; timings are noisy and environment-specific. No strength claim. Exact-head comprehensive gate/CI pending.
+
+## 2026-11-23 12:13 UTC — F-66 exact-head closeout
+
+Code head `c4c124ec2eb9222375cebe20151430e7371fd5e2` passed `scripts/final_gate.sh /tmp/gates/c4c124e-final` clean exact-head (`dirty-at-start 0`, `FAILS=0`, exit 0). Formatting, debug/release clippy/build/tests, all Python tooling, perft/legal differential, search sweep, UCI/fuzz/resource/clock, TT/mate, self-play and full-game probes passed. Release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`.
+
+Hosted CI on that code head passed Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 and all opponent builds. Kilo is action-required for insufficient credits; CodeRabbit skipped. PR #5 remains open/unmerged. The measured qsearch-entry throughput change is a sandbox benchmark only; no Elo or broad performance claim.
+
+## 2026-11-23 12:18 UTC — F-66 fresh tactical behavior comparison
+
+After the exact-head gate, compared F-66 (`c4c124e`) with the pre-reuse F-65 binary (`55dac3c`) on two fresh capture-biased legal-game oracle sets, seeds 11222026 and 12222026, 60 proven mate-in-1/2 positions each at depth 6. Both binaries returned exact oracle mate distances for all 120 positions, and aggregate node totals were identical within each set (102,465,537 for seed 11222026; 32,870,468 for seed 12222026). This supports preserving search behavior across the qsearch reuse change; correlated tactics do not establish strength.
+
+## 2026-11-23 12:22 UTC — F-66 additional A/B and rejected micro-optimization
+
+Compared pre-reuse F-65 (`55dac3c`) and F-66 on 100 fresh random legal positions from seed 2112026, depth 5: bestmove, score and node count matched on all 100; aggregate nodes were 1,165,553 for each, exit 0. This supports behavior preservation, not strength.
+
+An early-exit legal-reply-count experiment for the root <=11 safeguard was measured in five paired fixed-depth runs: median 453,241 NPS existing vs 448,818 NPS candidate (-0.98%), median 6.59 s vs 6.65 s. Rejected without changing move generation; no perft/gate result is claimed for the unadopted scratch code.
+
+## 2026-11-23 12:23 UTC — F-66 additional perft/legal validation
+
+Ran fresh perft random differential seeds 12 and 13 on the F-66 release binary against python-chess: respectively 334 positions/1,002 depth checks and 406/1,218, zero failures. Legal-move differential seed 32: 7,832 accepted valid positions, all exact move-set matches; seven oracle-valid positions rejected for the documented material bound; 622 oracle-invalid positions rejected. These extra checks do not represent a movegen source change.
+
+## 2026-11-23 12:41 UTC — current branch head gate rerun
+
+Re-ran the exact comprehensive final gate against `6bfc8335059e4f4090aa6c9b715ba14c04395c32`, tree `be5388ce90f2157b5bad58fb7f7d8b58107de8e4`. `scripts/final_gate.sh /tmp/gates/6bfc833-final`: exit 0, clean start, `FAILS=0`; formatting, debug/release clippy/build/tests, Python harness, perft/legal, search, UCI/protocol, resource/fuzz, TT/mate, self-play and complete game probes. Release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`.
+
+## 2026-11-23 12:44 UTC — hosted checks on audit-only follow-up
+
+Hosted CI for `da8c37fffcc0f7a50d96eab2494ac147950799e9`: Ubuntu, Windows, MSRV 1.80, Windows release artifact, verify-flawless, SF10 calibration, and 12 opponent builds all passed. Kilo review remains blocked by insufficient credits, and CodeRabbit skipped. Code/test tree unchanged from exact-head gate at 6bfc833.
+
+## 2026-11-23 12:48 UTC — F-66 list-state audit and latest CI
+
+Audit of `generate_legal`/`make_move`/`unmake_move` supports saved-list validity: generation restores board arrays and scalar state, pops its temporary history hash, and returns only `Move` values. The F-66 depth-zero/futility handoff invokes qsearch immediately with that same position. No code change indicated. Hosted CI on bfbc9c3 passed Ubuntu, Windows, MSRV, mandatory artifact, verify-flawless, SF10 calibration, and 12 opponent builds; Kilo credit block and CodeRabbit skip are the only exceptions.
+
+## 2026-11-23 12:50 UTC — current final hosted status
+
+Hosted CI on `2456223f5daf60b2cd138373b7fef6a8f13aae58` passed all platform, MSRV, artifact, verification, calibration and opponent-build checks. Kilo account-credit limitation and CodeRabbit skip remain; no engineering/CI failure was found.
+
+## 2026-11-23 12:55 UTC — randomized depth-7 equivalence
+
+Ran pre-reuse F-65 vs F-66 on 92 fresh random legal positions at depth 7: bestmove, score, and nodes all exactly matched, with aggregate 5,581,590 nodes per engine and clean exits. This extends the depth-5 100-position A/B and remains behavior-preservation evidence only.
+
+## 2026-11-22 — F-67 reproduced and corrected; mission remains in progress
+
+- Reproduced the fifty-move claim miss at FEN `8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 98 40`, with `go searchmoves b4g4 depth 1`: before the fix the score was +1268 cp. The quiet check leaves one quiet king evasion; the defending side may claim before making that move at clock 99.
+- Fixed announced-move claim handling in main search and quiescence. The clock-99 legal list is reused where possible, TT scores/pruning are skipped for claimable nodes, and qsearch keeps its existing saved-move-list path. Checkmate at clock 100 remains terminal. Added two regressions.
+- Targeted validation so far: `cargo fmt`; all 9 `draw_rule_tests`; `tt::tests::clock_unsafe_entries_suppress_score_but_keep_move`; release build. The release UCI line returns score 0 cp and `bestmove b4g4` at clocks 98/99/100. These are targeted checks only; exact-head full gate, saved tactical FEN sweep, fresh independent legal-game holdout, and hosted CI remain pending.
+- PR #4 is still open, so no PR #5 retargeting/integration/merge is authorized. PR #5 stays open. No Elo, full correctness, or release-readiness claim.
+
+## 2026-11-22 — F-67 expanded adversarial checks
+
+- TT score safety now treats 99 as the earliest claim boundary at store and probe, and tests exercise low-clock-to-near-claim reuse. Added a counterexample guard: at clock 99 a checked position with only legal captures cannot claim by announcing one; its depth-1 score matches clock 98.
+- Built the release binary from the modified source. The original restricted UCI line (`b4g4`, depth 1) returns exactly 0 cp and a legal bestmove at clocks 98, 99, and 100. Qsearch claim and checkmate-precedence regressions pass.
+- Audited 15 saved tactical FENs from F-41/F-44/F-56/F-59–F-65 and F-67: all legal bestmoves and independently proved mate distances (mate 1/2/3 as applicable) match; F-67's restricted claim line is 0 cp.
+- Fresh independent seed-20261122 legal-game sample: python-chess proved 11 mate-in-one and 13 mate-in-two positions; depth-6 FlawLessChess matched all 24 exact mate distances and returned legal bestmoves (2,155,784 nodes; clean process exit). This is tactical behavior evidence only, not an Elo or complete-correctness claim.
+- Exact-head `scripts/final_gate.sh`, hosted checks, and final dependency-boundary review remain pending. PR #4 is confirmed open/unmerged, PR #5 remains open on its existing stacked base; no retarget/merge.
+
+## 2026-11-22 — explicit dispositions for saved selective-search findings
+
+The current saved-FEN replay confirms F-41/F-44 examples, F-56, F-59–F-65, and F-67 as listed above. F-61's mate-in-two is covered by F-62's <=14-piece root safeguard; the separate F-62 sixth-sample residual is covered by F-63's <=8-piece NMP exclusion. Current depth-6 results match the independent mate distances on both. This closes those named cases, not all LMR/NMP/selective-search risk. Remaining unverified/accepted historical items remain separately described in the ledger; no complete-search-correctness or release-readiness claim.
+
+## 2026-11-22 — F-67 code-head comprehensive gate
+
+`scripts/final_gate.sh /tmp/gates/a891f82-final` passed on code/log commit `a891f82c71e807c56f3d57cdb0996beb0956653a`, tree `186ddb7d92c0c4920a5a1a5806e9f39ff6d439fb`; dirty at start 0, exact head/tree clean at end, exit 0, `FAILS=0`. Rust debug/release tests and clippy, Python harness tests, perft/legal differential, search and UCI sweeps, mate-in-one, TT bestmove, clock/resource, self-play and full-game probes all passed. Release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. Gate artifacts are in `/tmp/gates/a891f82-final`. This entry is an append-only result record; a documentation-only follow-up head will receive its own exact-head gate. Hosted CI remains pending.
+
+## 2026-11-22 — exact audit-head gate rerun
+
+The audit-only follow-up `63eaa1f99aed35452d5f6a3d5d61f5a6504f5868` passed the complete `scripts/final_gate.sh /tmp/gates/63eaa1f-final`: tree `3c003b15cf89deb56ba81969c3a2033a4710a41f`, clean at start/end, exit 0, `FAILS=0`, release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. The appended gate record is documentation-only; exact validation will be repeated for the final audit-note head. Hosted CI remains pending.

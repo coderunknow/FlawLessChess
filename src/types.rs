@@ -195,11 +195,20 @@ impl Ord for Move {
     }
 }
 
-/// Fixed-capacity move list. 256 slots is the proven safe upper bound for legal moves in a position
-/// (the practical max is 218) but we size for 256 for headroom.
+/// Capacity of a [`MoveList`].
+///
+/// Positions are only accepted by `Position::from_fen` when they respect the material limits of a
+/// real game (at most 16 pieces per side, at most 8 pawns, and no more promoted pieces than missing
+/// pawns; see `position.rs`). Under those limits a side has at most 9 queens and 15 non-king pieces,
+/// so the pseudo-legal move count is bounded by 9*27 + 6*14 + 8 = 335 < 512 (queen, rook and king
+/// maximum mobility on an empty board). 512 therefore holds every move list the generator can
+/// produce for an accepted position.
+pub const MOVE_LIST_CAPACITY: usize = 512;
+
+/// Fixed-capacity move list (see [`MOVE_LIST_CAPACITY`] for the sizing argument).
 pub struct MoveList {
-    pub moves: [Move; 256],
-    pub scores: [i32; 256],
+    pub moves: [Move; MOVE_LIST_CAPACITY],
+    pub scores: [i32; MOVE_LIST_CAPACITY],
     pub len: usize,
 }
 
@@ -218,14 +227,16 @@ impl core::fmt::Debug for MoveList {
 impl MoveList {
     pub const fn new() -> Self {
         MoveList {
-            moves: [Move::NULL; 256],
-            scores: [0; 256],
+            moves: [Move::NULL; MOVE_LIST_CAPACITY],
+            scores: [0; MOVE_LIST_CAPACITY],
             len: 0,
         }
     }
     #[inline]
     pub fn push(&mut self, m: Move) {
-        debug_assert!(self.len < 256);
+        // A hard check (not debug-only): an overflow here would otherwise be a release-mode
+        // index panic on the main thread. Unreachable for FENs accepted by `Position::from_fen`.
+        assert!(self.len < MOVE_LIST_CAPACITY, "move list overflow");
         self.moves[self.len] = m;
         self.len += 1;
     }

@@ -70,3 +70,9 @@ All performance claims must eventually be validated there (or labeled as sandbox
   1.10.0; venv python-chess 1.11.2; SF WASM hashes re-verified identical; tests 29/29 green;
   DIFTEST PASSED (2295 perft-d2, 0 mismatches); bench 2,221,199 nodes; clippy clean after the
   StoreRequest bundling fix.
+
+## Naming note (2026-11-19)
+
+- Product: FlawLessChess. Verified remote: `coderunknow/FlawLessChess` (GitHub redirects the old name `Flawless-Chess-Engine`).
+- Cargo package: `flawless` (binary `flawless`); the approved `Flawless-Chess-Engine` package name is not used because renaming would break crate imports and CI paths. Pending user decision.
+

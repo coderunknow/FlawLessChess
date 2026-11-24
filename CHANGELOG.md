@@ -2,6 +2,163 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
+## [Unreleased] — independent audit remediation (2026-11-20)
+
+- **Fixed (F-52, from external review of `bf026f8`): three engine defects and one probe gap.** `go ponder nodes N` now counts its cap from `ponderhit` (it was spent while pondering, so the search returned at once). `go movestogo` beyond `u64::MAX` saturates instead of falling back to 40 moves. `position fen` now rejects en-passant targets whose pawn came from an occupied square or whose halfmove clock is not 0 (`f6 0 1` with a bishop on `f7` was accepted). `uci_malformed_probe.py` no longer accepts `bestmove (none)` for a fully restricted search. Tests: `protocol_regressions` ponder cap, `uci` movestogo, `correctness` FEN (3).
+- **Fixed (LOW, F-51): a refused search thread held `go ponder` until `stop`, even with a clock, movetime, depth or node limit.** `ponderhit` now releases that answer, because a limited ponder has no search left to wait for. A bare `go ponder` is still held until `stop`. Regression test `refused_thread_answers_go_ponder_with_clock_at_ponderhit`.
+- **Fixed (MEDIUM, F-49): time checks ran only every 1024 nodes.** At small budgets (a 300 ms sudden-death clock, where the planned budget is the 1 ms floor), one move could overrun by up to ~5 ms, and a long game could run out of time. The clock is now checked every 128 nodes; the measured worst-case overrun at a 1 ms budget fell from about 5 ms to about 2.5 ms. The time-budget policy and the bench signature are unchanged.
+
+- **Changed (owner decision 2026-11-22, F-46): `go searchmoves` is strict.** When no named move is legal, the engine
+  answers `bestmove 0000` and prints `info string searchmoves names no legal move in this position; no move searched`
+  on stdout (it used to search all legal moves). Malformed tokens are reported on stdout, and the list runs to the next
+  `go` keyword. This supersedes the F-09 widening. Tests: `protocol_regressions` searchmoves (4), search unit tests (2).
+- **Fixed (LOW, F-47): `table_entries` multiplied before clamping.** Library callers with a huge size overflowed; the
+  size is now clamped to 1..=1024 MiB first. Test: `tt::size_tests_f40::table_entries_clamp_before_multiplying`.
+- **Fixed (test tooling, F-48): probes could pass silently or wait without limit.** The mate-proof probe now classifies
+  every position (unverified claims exit 3, not 0); the FEN fuzzer checks enough legal positions; the UCI probes stop at
+  the first handshake stall; new `scripts/failure_mode_probe.py` runs every engine probe against broken engines
+  (51/51 pairs as expected). Not an engine change.
+- **Fixed (LOW, F-45): `setoption name Hash` rounded the size down without saying so.** `Hash 100` allocated 64 MiB
+  silently. The engine now stores and reports the size it allocates (`info string option Hash 100 MiB allocates 64 MiB …`).
+  The size rule has one definition (`tt::effective_table_mib`). Tests: `tt::size_tests_f40::effective_table_mib_matches_the_allocation`,
+  `protocol_regressions::hash_rounding_is_reported_on_stdout`.
+- **Fixed (MEDIUM, F-12): `flawless moves` and `flawless hash` stopped at the first non-UTF-8 stdin line.** Later
+  FENs got no reply. Each bad or overlong line now gets one `error` reply and the batch continues. Tests:
+  `tests/cli_batch.rs` (3 tests).
+- **Fixed (LOW, F-13): a failed stderr write panicked the engine (exit 101).** Diagnostics now use `err_line!`, which
+  ignores write errors, so an oversized input line no longer ends the session. Test:
+  `protocol_regressions::stderr_write_failure_does_not_stop_the_session_on_an_oversized_line` (fails on the previous code).
+- **Fixed (LOW, F-14): a root position with insufficient material returned an empty PV.** Single-PV search now
+  searches the root (interior nodes keep the draw rule), so `bestmove` comes from the search. Test:
+  `protocol_regressions::insufficient_material_root_is_searched_and_yields_a_pv` (fails on the previous code).
+  Bench node total: 2,311,437 (signature unchanged `849a85bf7e8e1eba`).
+- **Fixed (MEDIUM, F-15): a negative `wtime`/`btime`/`movetime` made the search unbounded.** The value failed to parse,
+  so `go` had no time limit and never answered without `stop`. A negative time is now 0 (answer at once); values above
+  `u64::MAX` saturate. Test: `protocol_regressions::negative_time_values_answer_at_once` (fails on the previous code).
+  Probe: `scripts/uci_extreme_args_probe.py`.
+- **Fixed (MEDIUM, F-16): a refused hash-table allocation aborted the engine.** `setoption name Hash value 1024` under
+  a low memory limit killed the process (SIGABRT). The refusal is now reported on stdout and the previous table is kept;
+  start-up halves the default table until the allocator accepts it. Test:
+  `protocol_regressions::hash_allocation_refusal_does_not_abort_the_engine` (Linux; fails on the previous code).
+- **Fixed (MEDIUM, F-17): a refused search thread panicked `go`.** The engine now answers with the first legal move and a
+  stdout notice instead of exiting 101. Same test.
+- **Hardened:** stdout-ordering locks recover from poisoning instead of panicking. Piece-bitboard invariant test over
+  random legal games: `correctness::piece_bitboards_stay_in_sync_over_random_games`.
+- **CI:** the test workflow declares `permissions: contents: read`; `dtolnay/rust-toolchain` is pinned to a commit SHA
+  (was `@master`) in `ci.yml` and `rating-run.yml`.
+
+- **Fixed (LOW, F-10): closed stdout panicked the engine.** When the reader closed the pipe, the next
+  `println!` panicked with `Broken pipe` (exit 101). All protocol and CLI output now goes through
+  `out_line!`, which exits with status 0. Test: `protocol_regressions::closed_stdout_ends_the_process_quietly`
+  (fails on the previous code with the panic).
+- **Fixed (MEDIUM, S-14): search scores were not colour-symmetric.** Equal-score moves were ordered by raw square
+  numbers, so a position and its mirror could search differently at depth 4 (2 of 40 positions in the first probe,
+  6 of 120 in a later probe). A colour-relative tie-break removes this with no LMR change. Tests:
+  `correctness::search_scores_are_colour_symmetric_on_recorded_pairs` (11 pairs, `tests/data/search_symmetry_pairs.tsv`)
+  and the existing 303-pair static-evaluation check. The bench signature changes to `849a85bf7e8e1eba`.
+- **Fixed (LOW, S-08): `go nodes N` spent up to 1,023 extra nodes.** The cap is now checked on every node in
+  search and quiescence, so the search spends exactly N nodes. Tests: `correctness::node_cap_is_spent_exactly`,
+  `protocol_regressions::go_nodes_limit_is_spent_exactly_and_reported`.
+- **Fixed (LOW, CodeRabbit on 7d5b489): an oversized input line could leave a stale position in use.** A dropped line may be a
+  `position` command, so the position is now marked invalid: `go` answers `bestmove 0000` until a valid `position` arrives.
+  Test: `protocol_regressions::oversized_position_line_does_not_leave_the_old_position_in_use`.
+- **Test hardening (CodeRabbit on 7d5b489):** the closed-stdout test waits with bounded reads and kills the child on failure; the ponder
+  test no longer asserts an exact count (the search is uncapped until `ponderhit`; the exact cap is tested elsewhere).
+- **Tests:** `protocol_regressions::ponder_node_cap_is_enforced_after_ponderhit` now asserts the exact cap (20,000)
+  after the first `info depth`. `protocol_regressions::mixed_searchmoves_restricts_to_the_legal_named_move` covers
+  mixed legal and illegal `searchmoves`.
+
+- **Fixed (HIGH): a legal-looking FEN could crash the engine in release builds.** `position fen` accepted
+  up to 27 white pieces (`KQQQQQBk/Q5RB/Q6Q/Q6Q/Q6Q/Q6Q/Q1QQ3Q/QR3QQQ w - - 0 1` has 22 queens), overflowing the
+  fixed move list (`MoveList`). FEN parsing now rejects material no game can reach (more than 16 pieces,
+  more than 8 pawns, or promoted pieces exceeding the missing pawns). `MoveList` capacity is 512 with a
+  documented bound (335 pseudo-legal moves) and a hard check on push. Tests: `correctness` material tests,
+  `protocol_regressions::impossible_material_fen_is_rejected_without_crashing`.
+- **Fixed (HIGH): a non-UTF-8 input line ended the UCI session.** Stdin is now read as bytes with a 64 KiB
+  line bound; invalid UTF-8 is decoded lossily, and oversized lines are dropped with an `info string`.
+  Tests: `protocol_regressions::non_utf8_input_line_does_not_end_the_session`,
+  `oversized_input_line_is_dropped_and_session_continues`, and the `uci` line-reader unit tests.
+- **Fixed (HIGH): `go wtime N` (or `btime` alone) had no time limit.** A single side's clock now bounds the
+  search. Test: `protocol_regressions::single_side_clock_bounds_the_search`.
+- **Changed: the advertised Hash maximum is 1024 MiB (was 4096).** The transposition table is capped at
+  1 GiB, so 4096 was accepted and silently capped. Values outside 1..=1024 are rejected with an `info string`
+  on stdout. Test: `protocol_regressions::hash_limit_is_advertised_and_enforced`.
+- **Fixed: Threads, Hash and MultiPV rejections are reported on stdout** (they were on stderr, which GUIs do
+  not show). The build is single-threaded: `Threads` other than 1 is reported and ignored. Test:
+  `protocol_regressions::threads_other_than_one_is_reported_on_stdout`.
+- **Fixed (LOW): clock arithmetic saturates** (`clock_limits` could wrap on enormous clocks). Test:
+  `uci::tests::clock_limits_saturate_instead_of_wrapping`.
+- **Fixed (LOW): the search thread has a 16 MiB stack** (was the 2 MiB default).
+- **Added tests:** CPW perft references (startpos d1–d4, Kiwipete d1–d3, positions 3–6), castling-rights
+  tests (stale rights generate no castling), the ponder node cap after `ponderhit`
+  (`protocol_regressions::ponder_node_cap_is_enforced_after_ponderhit`), and the illegal-only `searchmoves`
+  process test.
+- **CI:** `persist-credentials: false` on the checkouts of the `test` and `msrv` jobs.
+- **Fixed (MEDIUM): FENs with two checkers on one line through the king, or with three checkers, were accepted.**
+  Found by differential fuzzing against python-chess. Such positions cannot occur in a legal game. Tests:
+  `correctness::fen_rejects_two_checkers_on_one_line_through_the_king`, `fen_rejects_more_than_two_checkers`,
+  and `fen_accepts_a_legal_double_check_from_knight_and_queen`.
+- **Added: verification tools** `scripts/fuzz_legal_differential.py` (random legal games vs python-chess legal move
+  sets), `scripts/fuzz_uci_grammar.py` (random UCI sessions), `scripts/fullgame_en_passant_probe.py` (full engine game
+  with a forced en passant capture; in CI), `scripts/eval_symmetry_probe.py` (informational search symmetry), and the
+  static-evaluation colour-symmetry test over 303 pairs (`tests/data/eval_symmetry_fens.tsv`).
+
+## [0.1.0] — pre-V1 (2026-11-20 audit remediation; tag and Release pending the gates in FINAL_AUDIT_PROGRESS.md)
+
+**Pre-V1. Not v1.0.0. The V1 rating gate is not met and no absolute rating is claimed.**
+Product name: FlawLessChess. UCI engine name: Flawless. Cargo package: `flawless`.
+
+- **Fixed: `go movetime N` returned after only 39–100% of N (measured on this branch's pre-fix search code).** Iterative deepening stopped on a
+  growth prediction that was meant only for clock budgets. A fixed-time search now runs until the
+  requested time (measured 100–101% of N at 300, 1000 and 3000 ms). Clock-based searches are unchanged.
+  Regression tests: `tests/movetime_smoke.rs` (real process, interactive waits; fails on the old rule).
+- **Fixed: `ponderhit` answered immediately after `go ponder movetime N` or a clock-free `go ponder`.**
+  `last_clocks` was recorded on every `go` (zeros when no clock was sent), so `ponderhit` recalculated
+  a ~20 ms budget. A movetime ponder now keeps its deadline; a bare `go ponder` waits for `stop`.
+  Regression tests: `ponder_movetime_ponderhit_keeps_the_movetime_deadline`, `bare_go_ponder_keeps_searching_until_stop`.
+- **Fixed: `go ponder nodes N` ignored its node cap after `ponderhit`.** The ponderhit fallback left
+  `infinite` set, so the cap was never checked. Regression test: `ponder_node_cap_is_enforced_after_ponderhit`.
+- **Fixed: `go searchmoves` naming only illegal moves returned `bestmove 0000`** in a position with legal moves.
+  The search now keeps all legal root moves in that case. Regression test: `searchmoves_with_no_legal_move_still_searches_the_position`.
+- **Added: en passant forced-root test** (`t_en_passant_capture` in `scripts/uci_protocol_probe.py`) and a Linux resource
+  probe step in CI. Full-game en passant is still NOT VERIFIED (no played game in the set contains one).
+- **Fixed: no-argument launch starts UCI mode** (see the next section).
+- **Added:** `tests/movetime_smoke.rs` (8 real-process timing and lifecycle tests); CI steps for
+  `scripts/uci_protocol_probe.py`, `scripts/uci_malformed_probe.py` and `scripts/selfplay_games.py`
+  (python-chess referee, full games).
+- **Added:** the Windows artifact manifest records the product name, package version and the
+  `--version` output of the exact exe; the artifact job refuses an exe whose version differs from
+  `Cargo.toml`.
+- **Added:** `docs/WINDOWS_GUI_TEST.md` (Arena / Cute Chess test checklist) and
+  `docs/audit/2026-11-19-v0.1.0-release-candidate.md` (gate table).
+- **Version:** `0.1.0-dev.1` → `0.1.0`. `flawless --version` prints `Flawless 0.1.0`.
+- **Not claimed:** GUI playability (not yet tested by the project), Windows artifact integrity (not yet
+  inspected by hand), independent review (pending), V1 status (not met).
+
+## [Unreleased] — UCI no-argument startup compatibility + Windows x64 artifact (2026-11-19)
+
+- **Fixed: launching `flawless` with no command-line arguments now starts UCI mode** (stdin/stdout).
+  Previously it printed usage to stderr and exited with code 2, so conventional UCI GUIs that start
+  a custom engine as `Process.start(path, [])` and then send `uci` failed with
+  `Engine "…exe" exited while searching (exit code 2)` (reproduced from a user diagnostic bundle).
+  `flawless uci` behaves exactly as before; the handshake bytes are identical in both modes.
+- **CLI**: `-h` / `--help` are now explicit (stdout, exit 0) and list the subcommands. Unknown
+  commands still exit 2 with the message on stderr, now with a pointer to `--help`. `perft`,
+  `divide`, `bench`, `eval`, `bench_eval`, `moves`, `hash` and `version` / `--version` are unchanged.
+- **Tests**: `tests/uci_smoke.rs` now runs the real executable with zero arguments through the
+  full lifecycle (uci → uciok, isready → readyok, position startpos, go depth 2 → legal bestmove,
+  quit → exit 0), checks no unsolicited stdout and no usage banner, checks no-arg/explicit-`uci`
+  handshake parity, EOF exit, and CLI regressions. The new no-argument tests fail on the previous
+  binary and pass on this one.
+- **CI**: new job `windows-x64-artifact` (windows-latest, `x86_64-pc-windows-msvc`, Rust 1.99.0)
+  builds `flawless.exe`, verifies the PE machine type is x86-64 (0x8664), smoke-tests the exact file,
+  and uploads `flawless.exe`, `SHA256SUMS.txt` and `BUILD-MANIFEST.txt` as the workflow artifact
+  `flawless-windows-x64-<commit-sha>`. The upload is mandatory (no `continue-on-error`).
+- **Engine binary identity changed** by this release (source change in `src/main.rs`). Search,
+  evaluation and the bench signature (`141943aa23b3fc68`) are unchanged. Previously registered
+  ENGINE-2 binary hashes in the rating documents no longer identify this build; no rating evidence
+  is reused or re-authorized by this change.
+
 ## [Unreleased] — Flawless identity migration + correctness audit (2026-11-14)
 
 - **Identity migration** (ADR-0002): engine, package, library and binary renamed to **Flawless**;

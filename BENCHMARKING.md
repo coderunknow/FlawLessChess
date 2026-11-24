@@ -136,3 +136,70 @@ The initial reduced-suite bytes were rejected by the Python standard-library sel
 - Anchor verification run 44066217113 built the matching PR merge tree: bench signature 141943aa23b3fc68; binary SHA-256 168dc0ab22749f8dc7a6be5248cd7426f9f2bfd3fda8077bc6218959ad6e41d7. This is a source/binary identity, not a strength or throughput comparison.
 - Current RATING-100 power inputs belong to ENGINE-1 SHA-256 9663697da62e33229d516af3681c442e268287c59d6b97ff2cd13256b564d428. The report is now engine-pinned; the generator checks both SCREEN-2 manifests and raw data hashes, and dispatch tooling refuses any binary SHA mismatch. It cannot authorize ENGINE-2.
 - ENGINE-2-specific screening and controls are still absent. No game-count or games/hour performance result has been measured for this candidate.
+
+## 2026-11-20 — S-14 colour-relative move tie-break (current bench reference)
+
+- Change: `relative_move_key` in `src/search.rs` orders equal-score moves by a colour-relative key, so the search
+  no longer depends on the side's raw square numbering. Found by `scripts/eval_symmetry_probe.py` (see FAILURE_LEDGER S-14).
+- Historical pre-F-56 reference: fixed-depth-10 bench signature `849a85bf7e8e1eba` (12 fixed positions; node counts varied across revisions and machines). It replaced `141943aa23b3fc68` at the time, before the F-56 search correction below.
+- Comparison on this change: disabling LMR also makes the depth-4 probe symmetric (0/120), but needs 45,805,850 nodes
+  for the same bench (about 18× more nodes, 117 s). LMR stays enabled.
+- The `141943aa23b3fc68` entry above is historical and is kept unchanged.
+
+
+### 2026-11-21 — TT allocation change (F-20, `unsafe` in `src/tt.rs`): before/after
+
+- Script: `/tmp/audit/tt_bench.py` (scratch; not in the repo). For each size: 5 cold starts; `setoption Hash N`, `isready`;
+  the first `go movetime 1` is timed (the table is allocated at the first `go`); RSS is read at idle and after a
+  `go movetime 500` search. Linux, 2 vCPU sandbox (not the reference machine).
+- Before: release build of the pre-change `src/tt.rs` (`52d6510`). After: working tree at this change.
+
+| Hash MiB | first-go ms before (median) | first-go ms after (median) | idle RSS MiB before / after | RSS after 500 ms before / after |
+|---|---|---|---|---|
+| 64 | 2.2 | 1.9 | 4.9 / 4.8 | 38.3 / 39.8 |
+| 256 | 1.8 | 2.9 | 4.8 / 4.8 | 50.2 / 44.9 |
+| 1024 | 2.2 | 2.9 | 4.8 / 4.8 | 49.8 / 33.2 |
+
+- Reading: the allocation stays lazy in both builds (about 2 ms for a table of up to 1 GiB, so pages are not written).
+  The RSS-after-search columns vary from run to run in both builds (33–50 MiB); no systematic difference is shown.
+  This is a sandbox measurement, not a claim about the reference machine.
+
+## 2026-11-23 — F-56: do not LMR-reduce quiet checking moves
+
+The search now leaves a late quiet move unreduced when it gives check. Independently verified random-game tactical samples showed that LMR hid forced mates in legal positions with more than six pieces; the existing sparse-position exemption did not cover them. The depth-10 fixed benchmark now reports signature `141943aa23b3fc68` and 4,677,558 nodes on this sandbox (vs `849a85bf7e8e1eba` and 4,135,406 nodes immediately before the change, +13.1%). This is a deterministic best-move/node benchmark change and an observed tactical-search correction, not an Elo or general strength claim. Hosted exact-head identity verification is pending until the change is committed and pushed.
+
+## 2026-11-23 — F-57 stop after a proven mate in one
+
+The F-56 follow-up adds a safe single-PV iterative-deepening stop when a completed iteration proves a mate in one; MultiPV still searches alternatives. This resolves a seed-41 gate timeout where the engine had already found mate in one but continued into deeper iterations. The fixed-depth-10 benchmark still has signature `141943aa23b3fc68`; it reports 2,853,010 nodes on this sandbox because mate-in-one positions now stop before depth 10. This node count is not directly comparable with builds that always searched every benchmark position through depth 10.
+
+## 2026-11-23 — F-59 isolated sparse-reply LMR probe
+
+A temporary candidate exempting a quiet move from LMR only when there are at most eight pieces on board and at most two legal replies after the move retained the fixed depth-10 bench signature `141943aa23b3fc68` and 2,853,010 nodes. An all-position reply-count experiment recovered the target but changed performance; it was discarded. Measurements are sandbox-specific and not an Elo claim.
+
+## 2026-11-23 — F-60 root-only low-reply LMR experiment
+
+On the same three legal-game tactical samples (272 oracle-proven mates in one/two), F-59: 144,806,495 nodes, 5 score mismatches; root-only <=11-piece/<=4-reply safeguard: 133,933,543 nodes, 0 mismatches. A full-tree low-reply guard used 241,350,555 nodes on the same sample and was rejected. A separate 100-position sample remained imperfect (F-59 3 misses; root-only candidate 1 miss; 30.95M vs 32.42M nodes). Fixed bench remains `141943aa23b3fc68`, 2,853,010 nodes. These capture-biased legal-game tactical samples are not representative strength tests; timings/nodes are sandbox-specific.
+
+## 2026-11-23 — F-60/F-61 follow-up samples
+
+On two additional seeded legal-game samples (71 oracle-proven mates each), the root-only <=13-piece/<=10-reply safeguard changed mate-score mismatches from 3→0 and 4→1. Against F-59 across all five samples (443 correlated positions), misses were 12→1, nodes 189.2M→209.7M, elapsed ~235s→248s. A remaining 14-piece mate-in-two is recovered by depth 7 but missed at depth 6. Broader root LMR removal was rejected: 21,391,393 nodes vs 2,853,010 on fixed bench, signature changed. Search results are sandbox-specific tactical evidence; no Elo claim.
+
+## 2026-11-23 — F-62 14-piece root guard
+
+The 14-piece safeguard recovered `Bh3 Kh1 Qg2#` at depth 6. On five legal-game oracle samples (443 correlated mate-in-one/two positions), F-62 scored all correctly vs 12 F-59 mismatches, at 211.18M vs 189.19M nodes (+11.6%). Sixth sample had one shared residual in 68 cases. Fixed bench remains `141943aa23b3fc68`, 2,853,010 nodes. Measurement is sandbox-specific; no Elo claim.
+
+## 2026-11-22 — F-67 draw-rule correctness fix
+
+A focused depth-1 UCI regression for an announced fifty-move claim now returns 0 cp where the prior build reported +1268 cp. No benchmark was run to attribute a throughput effect; the change performs a one-time legal move generation at halfmove clock 99 and reuses it through the main-search/qsearch boundary when available. Do not infer performance or Elo impact from this correctness probe. The comprehensive final gate is pending.
+
+### F-67 validation addendum
+
+The updated TT claim-boundary guard and search regression passed targeted tests; no dedicated throughput run was made. The 24-position holdout and saved tactical FEN reruns are correctness probes only and do not support Elo, strength, or broad performance conclusions.
+
+### F-67 comprehensive-gate note
+
+The exact code head passed the full local gate with release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`. This correctness gate does not contain a dedicated performance comparison for F-67; no throughput or Elo attribution is made.
+
+### F-67 audit-head gate rerun
+
+The audit-note-only head also passed the comprehensive local gate and reproduced release SHA-256 `686235c9d5171182fc60668dfa23e518149fce9f6054497a9b4b43aaa0486df0`; this adds no new performance evidence.

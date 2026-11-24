@@ -539,3 +539,35 @@ The previously recorded ENGINE-2 entry's "NOT YET FROZEN" statement was accurate
 This freezes the binary identity for the ENGINE-2 source tree only. It is not an Elo estimate, playing-strength gain, NPS improvement, or authorization to run games. No ENGINE-2 screening or candidate-specific control has been run. ENGINE-1's CTRL-2-R / SCREEN-3 evidence does not transfer to ENGINE-2.
 
 The RATING-100 power assessment remains ENGINE-1-specific. Its screening inputs are SCREEN-2 manifests with engine SHA-256 9663697da62e33229d516af3681c442e268287c59d6b97ff2cd13256b564d428. New guards in power_analysis.py, make_batch_dispatch.py, and rating-run.yml require that exact power-report engine SHA to equal the proposed dispatch binary. A report computed from ENGINE-1 cannot authorize ENGINE-2. A fresh ENGINE-2 assessment must use its own preregistered screening evidence and still satisfy the prospective power requirement before any confirmatory dispatch.
+
+## CLOCK-1 — per-move floor amendment to ENGINE-1 (registered 2026-11-21, after owner decision; no game authorized by this entry)
+
+- **Owner decision:** on 2026-11-21 the owner chose "Amend ENGINE-1 and fix" for defect F-32 (FAILURE_LEDGER F-32), with the trade-off stated in the question below. The owner was told that this changes a frozen formula and invalidates the ENGINE-1 hash evidence (see Consequences).
+- **Trigger (measured, not inferred):** sudden-death games, zero increment, no `movestogo`, 200-ply cap, 3 games per base, `scripts/selfplay_clock_probe.py`, on the build whose `src/` is identical to commit a938e45 (the ENGINE-1-era source):
+  - base 300 ms: 3 of 3 games flagged (plies 32, 33, 34);
+  - base 1000 ms: 2 of 3 flagged (plies 101, 114);
+  - base 2000 ms: 1 of 3 flagged (ply 187);
+  - base 5000 ms: 0 of 3.
+  Cause: the fixed 20 ms soft floor in `clock_limits` exceeds the per-move share `(t − reserve)/mtg` for every clock under about 1.1 s, so each move spent 20 ms until the reserve was gone.
+- **Change (the only formula change):** the soft floor `20 ms` becomes `clamp(t / (4·movestogo), 1 ms, 20 ms)`, so `soft = max(floor, (t − reserve)/mtg + inc/2, capped at usable)`, then `min(t)`. Unchanged: the reserve `clamp(t/16, 300 ms, 8 s)`, the hard limit `min(4·soft, (t − reserve)/2, t − reserve/2)` floored at soft, the increment cap (F-23), and the time-control registrations (anchors, batches, openings, seeds).
+- **Scope (measured):** a grid of 25,680 `(t, increment, movestogo)` points, old and new formula compared directly: 1,776 changed, all with `t ≤ 1495 ms`, and every change is a point where the old 20 ms floor was the output (or where `min(t)` clamped it). Unchanged at 40/15 (`t = 15000 ms`, `increment 150 ms`, `movestogo 40`) and at every `t ≥ 3200 ms` with `movestogo 40`.
+- **Acceptance (run on the CLOCK-1 build):**
+  - tests: `tests/clock_smoke.rs` 3/3; new regressions `clock_floor_f32_short_clock_keeps_reserve_over_a_period`, `clock_floor_f32_exact_values_below_the_old_floor_range`, `clock_floor_f32_huge_movestogo_does_not_overflow` pass; `clock_limits_respect_remaining_time` is updated from its pinned `(20, 20)` at 250 ms to `(1, 1)` (owner-approved expected value); `clock_limits_engine1_no_flag_death_march` unchanged and passing;
+  - mutation: restoring the fixed 20 ms floor fails the three exact or period tests above and `clock_limits_respect_remaining_time`;
+  - self-play, sudden death, same 3-game series: 300 ms 3 of 3 clean (63 plies, 0.19–0.21 s total think, 196–240 ms left); 1000 ms 3 of 3 clean (115–200 plies); 2000 ms 3 of 3 clean (176–200 plies);
+  - self-play, other forms: 5000 ms 0 flags (192 plies); 15000 ms + 150 ms increment, `movestogo 40` 2 of 2 clean (200 plies each, 6.9–7.9 s left); 60000 ms + 1000 ms increment clean.
+- **Known cost (stated, not measured in Elo):** on clocks of 300 ms to about 1 s, the engine now spends about 1 ms to 17 ms per move instead of 20 ms, and total thinking time per game falls (300 ms: about 0.2 s per game; 1 s: about 1.1 to 1.4 s per game). Playing strength at very short clocks is expected to be lower. Strength at 40/15 is not affected by the formula.
+- **Consequences for frozen evidence:**
+  - the change alters the engine binary, so the ENGINE-1 hash `9663697da62e33229d516af3681c442e268287c59d6b97ff2cd13256b564d428` and the ENGINE-2 (SEE) candidate hash `168dc0ab…` do not describe the CLOCK-1 binary;
+  - the RATING-100 power report and its guard in `scripts/power_analysis.py` stay pinned to ENGINE-1 and will fail closed on the CLOCK-1 binary; this is intended;
+  - no screening, control, or confirmatory game is authorized by this entry. Before any use of the CLOCK-1 binary in rating evidence, its hash must be frozen in a later append-only entry, and screening and controls must be re-registered on that hash.
+- **Question put to the owner (verbatim options):** (a) amend ENGINE-1 and fix; (b) keep the formula and document the limit; (c) defer to a later release. Owner selected (a).
+
+### CLOCK-1 binary identity freeze — ATTEMPTED, NOT FROZEN (2026-11-21, append-only)
+
+- Purpose: the CLOCK-1 entry above says the new binary's hash must be frozen in a later append-only entry before any rating use. The owner's F-32 decision also asked for the refreeze and a gate and CI run on the new head.
+- Head checked: `000266e` (source identical to the gated tree; later commits are ledger and docs only). Full local gate PASS (45 steps, FAILS=0; FAILURE_LEDGER.md). CI on `000266e`: `CI` run 44886526755 success; `anchor-verify` run 44886526780 success; its job `verify-flawless` (136792890005) success.
+- Required by line 512 of this file: a successful exact-head anchor-verification run must publish the binary SHA-256. That value is NOT readable from this sandbox. Attempts, all failed with blob-storage EOF: `gh run download 44886526780 -n flawless-verify-44886526780` (blob URL), `gh api .../actions/artifacts/14700342084/zip`, and `gh api .../actions/jobs/136792890005/logs`. The check-run summary is empty.
+- Therefore no hash is frozen by this entry. The local release SHA-256 of `000266e` (`0d9c508d…`, local build only) is NOT the hosted identity and is not recorded here as a freeze.
+- Consequences (unchanged): ENGINE-1 hash `9663697d…` and ENGINE-2 (SEE) hash `168dc0ab…` still describe the pre-CLOCK-1 binary. No screening, control, rating, or confirmatory game is authorized. The RATING-100 power guard continues to fail closed.
+- Next step, when the manifest is readable: take the SHA-256 of the `verify-flawless` binary from the exact-head anchor-verification run for the final head, append a new entry with that value, its run ID, and the source commit, and only then re-register screening on it.

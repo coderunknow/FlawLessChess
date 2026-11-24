@@ -408,3 +408,311 @@ DRAFT ONLY — no code changes under this entry.
 - CI run 44067826990 passed Ubuntu but failed Windows in the power-analysis smoke when checking the committed SCREEN-2 games.jsonl against merged_sha256. Git for Windows checked out LF JSONL as CRLF, while the evidence aggregator computed manifest hashes on Linux LF bytes.
 - The power analyzer now hashes logical UTF-8 JSONL content after canonicalizing only line endings to LF. Record content, ordering, whitespace and record boundaries remain covered by SHA-256. Exact LF attributes were added for the two source evidence files, plus tests for CRLF portability and actual record tampering.
 - No evidence was modified or rewritten; no confirmatory game ran. The power report remains ENGINE-1-specific and BLOCKED. Full exact-head CI is required.
+
+
+## 2026-11-19 — UCI startup contract: no arguments means UCI mode
+
+- **Decision:** the engine's default startup is the UCI protocol loop. Conventional UCI GUIs (for example CrispChess Extended's generic launcher, `Process.start(profile.path, [])`) start the executable with no arguments and then send `uci` on stdin. A missing argument is therefore a valid launch, not a usage error.
+- **Evidence:** user diagnostic bundle `diagnostic-report.zip` (Google Drive, 2026-11-19): `engine.process.lost` 41 ms after start, then `initialize.failed` with `Engine "flawlessv1 patch2.exe" exited while searching (exit code 2)` and the usage text on stderr. Reproduced locally on the pre-change binary: no arguments → exit 2; `uci` → full handshake.
+- **Implementation:** `src/main.rs` dispatches `None` and `Some("uci")` to `flawless::uci::run_uci()`. `-h`/`--help` print help to stdout (exit 0). Unknown commands keep exit 2 with the diagnostic on stderr. No banner or other text is written to stdout in UCI mode; diagnostics stay on stderr.
+- **Rejected alternative:** matching the executable filename or special-casing the GUI. The contract is the engine's own default, so the fix applies to every launcher that follows the UCI convention.
+- **Dependency and search impact:** none. Zero external dependencies; no search, evaluation or move-generation code changed. Bench signature `141943aa23b3fc68` is unchanged.
+- **Identity impact:** the release binary changes, so ENGINE-2 hash pins in the rating documents do not describe this build. No rating evidence is reused.
+- **Verification boundary:** local Linux results and exact-head CI (Linux, Windows, MSRV, Windows x64 artifact) are recorded in `docs/audit/2026-11-19-uci-no-args-compatibility.md`.
+
+## 2026-11-19 — movetime soft-budget behaviour (observed, deliberately unchanged)
+
+- Observation: `go movetime N` returns after roughly 38–100% of N (interactive, startpos/kiwipete/pos3). Cause: iterative deepening stops when the predicted next iteration (3× the last iteration time) would exceed the soft limit (`src/search.rs`).
+- Decision: keep the current behaviour. Changing it alters the timing under which the rating evidence was collected. Any change needs its own evidence and a preregistration note.
+
+## 2026-11-19 — REVERSAL of the movetime "keep current behaviour" entry above
+
+- The earlier entry decided to keep the soft-budget early stop for `go movetime`. The user then authorised a fix. The earlier entry is kept unchanged as history.
+- Decision now: `SearchLimits.fixed_time` is set only for `go movetime`. For such searches the growth-prediction stop is disabled; the hard deadline (= N) ends the search, so the search runs to about N (measured 100–101% at 300/1000/3000 ms).
+- Clock-based searches (`wtime`/`btime`) keep the prediction rule. `ponderhit` clears `fixed_time` when it recalculates clock limits.
+- Known consequence: a fixed-time search can still stop early at `MAX_DEPTH`/`max_depth` 64, or on a forced single-move root, which is legal UCI behaviour.
+- Evidence: `tests/movetime_smoke.rs` (fails when the old rule is restored, verified by mutation in a scratch copy); `benches/movetime-20261119/movetime-after-fix.txt`; bench signature `141943aa23b3fc68` unchanged (fixed depth).
+
+## 2026-11-19 — naming decision (user answer)
+
+- The Cargo package stays `flawless` (binary `flawless`). The user declined a rename because it would break crate imports and CI paths.
+- `Cargo.toml` `repository` now points to the verified remote `https://github.com/coderunknow/FlawLessChess`. The earlier `Flawless-Chess-Engine` URL is recorded as historical and was not used by CI.
+- The product name remains FlawLessChess.
+
+## 2026-11-20 — Audit remediation decisions
+
+- Hash: the advertised maximum is lowered from 4096 to 1024 MiB to match the real 1 GiB TT ceiling (`MAX_HASH_MB`). Raising it needs a TT change and a memory test first.
+- MoveList: capacity 512, not 256. The bound is 335 pseudo-legal moves (reachable positions under the FEN material limits: at most 16 pieces and 8 pawns per side); the hard check in `push` makes any future violation a panic in debug and release, never silent corruption.
+- FEN material limits: >16 pieces per side, >8 pawns per side, or promoted pieces exceeding the missing pawns are rejected. Such positions cannot arise from a legal game from startpos. Positions from other sources may be rejected, which is the intended trade-off.
+- Naming: the Cargo package stays `flawless` (ADR 0002). The GitHub repository and product name are `FlawLessChess` / `Flawless-Chess-Engine`. This is not a rename.
+- Threads: stays a single-threaded build. The option is advertised as 1..1 and non-1 values are reported on stdout. No multithreaded search is claimed.
+
+## 2026-11-20 — searchmoves with no legal named move (PR #4 Codex P2)
+
+- Question: `go searchmoves` names only illegal moves. Options were (a) return `bestmove 0000` (the defect the mission lists), (b) refuse the request, (c) search all legal moves.
+- Decision: (c). A null move answers nothing in a position that has legal moves. Refusing leaves the GUI with no move. Widening keeps the engine playing, and the widening is announced on stdout with `info string searchmoves names no legal move in this position; searching all legal moves` before the search starts.
+- Known departure: the UCI text says `searchmoves` restricts the search. In this one case it does not. The departure is documented in README (Known limitations) and tested: `illegal_only_searchmoves_still_returns_a_legal_move` asserts the notice; `legal_searchmoves_are_respected_without_widening_notice` is the control.
+- Revisit if a GUI reports a problem with widening; the alternative is option (b).
+
+## 2026-11-20 — Output on a closed stdout ends quietly; search node cap is exact
+
+- Question: when the GUI or reader closes stdout, should the engine panic (Rust `println!` default) or exit?
+- Decision: exit with status 0 and no panic message. The `out_line!` macro is the only output path for protocol
+  and CLI text. A GUI that has closed the pipe no longer needs the engine, so a panic adds only a nonzero exit
+  and noise on stderr. Errors and diagnostics still go to stderr through `eprintln!`, which is unchanged.
+- Question: should `go nodes N` spend exactly N nodes, or stop at the 1024-node check cadence?
+- Decision: exactly N. The cap is checked on every node in search and quiescence, so UCI output and the bench
+  reflect the requested limit. The cost is one comparison per node, and the bench change (`849a85bf7e8e1eba`) includes it.
+- Related: S-14 colour symmetry fixed by a colour-relative move tie-break, not by disabling LMR (LMR off costs 18× the nodes).
+
+## 2026-11-20 (late) — Batch input, stderr writes, root search with insufficient material, lock poisoning
+
+- Question: what should `flawless moves` and `flawless hash` do with a stdin line that is not UTF-8 or is too long?
+- Decision: answer that line with one `error` line and keep reading. A batch of FENs is a list of independent requests;
+  one bad line must not drop the replies to the rest. Same bounded reader and 64 KiB cap as the UCI loop.
+- Question: should a failed write to stderr end the process?
+- Decision: no. Diagnostics go through `err_line!`, which ignores write errors, the same policy as `out_line!` for
+  stdout (F-10). A failed diagnostic must never change the protocol outcome.
+- Question: with insufficient material at the root, should single-PV search return at once?
+- Decision: no. The root is searched like any other position, so the PV and `bestmove` come from the search. Only
+  interior nodes take the insufficient-material draw (`ply > 0`). This mirrors the repetition rule, which already
+  exempts the root (R-02a). Cost: the bench node total changes by 30 (2,311,437); the signature does not change.
+- Question: what should a poisoned stdout-ordering mutex do?
+- Decision: recover and continue. The lock guards only the order of stdout writes and holds no data. A panic elsewhere
+  must not turn into a second panic at the next print.
+- Note on the ponder clock (not changed): `go ponder movetime N` counts the movetime from `go`, so `ponderhit` does not
+  restart it. Recorded in FAILURE_LEDGER as an open GUI-conformance question.
+
+## 2026-11-20 (late, stretch 2) — Negative time values mean "no time left"
+
+- Question: what should `go wtime -1000` (or `go movetime -5`) do?
+- Decision: answer at once, as `wtime 0` does. A negative time is how a GUI reports that the clock has run out; treating
+  it as "no limit" would search forever and lose on time. Overflow above `u64::MAX` saturates to a huge limit.
+- Not changed: `go mate N` is parsed and ignored (see FAILURE_LEDGER). Unparseable values are still dropped.
+
+## 2026-11-20 (late, stretch 3) — Memory refusal is reported, not fatal
+
+- Question: when the allocator refuses the transposition table, or the OS refuses the search thread, should the engine
+  abort?
+- Decision: no. A refused table keeps the previous table (for `setoption`) or halves until the allocator accepts it (at
+  start-up and in fallbacks). A refused search thread answers with the first legal move, with a stdout notice. The engine
+  must stay usable for a GUI on a small machine. The notices go on stdout so a GUI can see them.
+- Question: how to make a fallible allocation without `unsafe`?
+- Decision: reserve the size with `try_reserve_exact` and release it, then allocate normally. The allocation that
+  follows is the same size in a single-threaded process, so it normally succeeds; the lazy zeroing is kept.
+  A `std::alloc::alloc_zeroed` path would be fallible too, but needs `unsafe` and a benchmark, and was not needed.
+
+## 2026-11-21 (stretch 4) — F-20: one fallible zeroed allocation for the table (supersedes the probe decision above)
+
+- Problem: the probe-then-allocate pattern in `try_resize` (reserve, release, then `vec![0; n]`) left a window in which
+  the second allocation could be refused and abort the process. CodeRabbit and Codex both flagged it (F-20).
+- Decision: `zeroed_entries` (`src/tt.rs`) calls `std::alloc::alloc_zeroed` once, checks for null, and wraps the result in
+  `Box<[u64]>`. This is the only `unsafe` in `src/`. Its invariants, tests, fallback, and benchmark are written out at the
+  function (see its doc comment) and in BENCHMARKING.md.
+- The table is still lazily zeroed by the OS. The old `clear()` call on resize wrote every entry; it is no longer
+  used, so laziness no longer depends on the compiler removing a `memset` after `calloc`. The counters are reset
+  explicitly.
+- Rejected alternative: eager `try_reserve` plus `resize(n, 0)`. Fallible, but it writes every page at resize (about
+  1 GiB resident at Hash 1024 at the first search). That is a resource change that needs an owner's decision.
+
+## 2026-11-21 (stretch 5) — F-23: the increment never widens the planned spend past the usable clock
+
+- Question: with an increment larger than the remaining clock, should the engine spend the whole clock?
+- Decision: no. The planned spend (soft, and hard) stays within `t - reserve`, whatever the increment. The increment
+  share (`inc/2`) still counts toward the plan, but only inside the usable clock. The reserve is what protects against
+  per-move overhead and a flag; spending the whole clock on one move gives the GUI nothing to absorb it.
+- Effect: only when `usable/movestogo + inc/2 > usable`, i.e. `movestogo` 1 or a very large increment. Normal
+  schedules (for example 40 moves in 15 minutes) are unchanged; the existing expected values still pass.
+- Evidence: unit regression `clock_limits_never_plan_past_the_usable_clock_with_large_increment`; process timing in
+  FAILURE_LEDGER F-23.
+
+## 2026-11-21 (stretch 6) — F-24: a clock slice granted at ponderhit counts from the hit
+
+- Question: when the GUI sends `ponderhit`, does our clock slice start at `go` or at the hit?
+- Decision: at the hit. Our clock runs only during our own turn, so the time spent pondering is the opponent's time. The
+  slice (`clock_limits`) is counted from `ponderhit` through `SearchLimits.clock_origin`. The code already said so
+  ("the budget becomes a clock slice now"); the elapsed time was measured from `go`, so the slice was used up at once.
+- Not changed: `go ponder movetime N` still counts from `go` (the open conformance question recorded before; the test
+  `ponder_movetime_ponderhit_keeps_the_movetime_deadline` pins it). A fixed movetime is not our clock.
+- Known behaviour: an iteration already running at the hit is not cut at soft; it ends at its own completion or at the
+  hard limit (completed iterations are always kept). For a 20 s clock the answer after the hit took about 1.9 s (hard),
+  not 0.47 s (soft). Within our clock and the designed hard limit. The owner may want the soft limit applied to that
+  iteration; that would change search completion, so it is recorded here, not changed.
+
+## 2026-11-21 (stretch 7) — FEN form: duplicated castling letters and trailing fields are refused; stale castling rights are kept
+
+- Question: what should `position fen` do with `KK`, a seventh field, or a castling right with no rook (or the king off
+  its home square)?
+- Decision: refuse a duplicated castling letter and more than six FEN fields (malformed input, no contract conflicts).
+- Decision kept: stale castling rights are accepted, as the contract in `tests/correctness.rs` (AUDIT-FEN-02) requires:
+  they are ignored for castling, and no castling move is generated. Movegen was checked against python-chess on the
+  stale and boundary cases (identical move sets). The stricter rule (refuse stale rights, as python-chess does, and as
+  the en-passant check does here) is a real option; it changes AUDIT-FEN-02 and needs the owner's decision.
+
+## 2026-11-21 (stretch 8) — Rejected or ignored UCI input is visible on stdout (F-26)
+
+- Question: which silent UCI input cases should become visible? Rule applied: input the engine does not act on is
+  reported on stdout as an `info string` (F-06), and the existing behaviour is otherwise kept.
+- Decisions: (a) `position startpos` followed by tokens other than `moves` is refused (all-or-nothing, R-07), because
+  the start position is not what the GUI asked for; (b) an unknown option gets an `info string`, always, on stdout;
+  (c) a `go` limit with a missing or unparseable value is reported and ignored (the search is unbounded, as before), and
+  a keyword is never consumed as a value. Unknown `go` tokens were already reported on stderr only; they are unchanged
+  (UCI says to ignore them, and GUIs send harmless extras).
+- Not changed: `go depth` with a bad value remains an unbounded search (until `stop`), not a refusal. A refusal would
+  need a new `bestmove` rule; the owner may prefer it.
+
+## 2026-11-21 (stretch 9) — The engine never blocks on stderr (F-30); UCI notices are on stdout
+
+- Question: the engine wrote every refused `position` to stderr as well as stdout, unconditionally. A GUI that does not
+  read the engine's stderr fills the pipe after a few hundred refusals, and the engine then blocks on the write and stops
+  answering (reproduced: 300 refusals answered, 1,000 hung). Which channel carries UCI diagnostics?
+- Decision: stdout is the channel the GUI always reads, so every notice the GUI needs is an `info string` on stdout.
+  stderr carries a copy only after `debug on` (the same rule as unknown commands). The search-panic line keeps its
+  stdout copy only; startup/allocation messages (table refused, fatal no memory) became stdout `info string` lines.
+  The CLI one-shot commands (`perft`, `divide`, `eval`, `bench`) are unchanged: they write a bounded number of lines.
+- Not changed: `debug on` still writes to stderr, so a GUI that enables debug and never drains stderr can still stall;
+  that is the price of diagnostics the GUI asked for. Owner may prefer a bounded or non-blocking debug channel.
+- Tests: `refused_positions_do_not_block_when_stderr_is_not_drained` (1,500 refusals, stderr piped and never read), and the
+  F-13 stderr write-failure test now sends `debug on` first, so its stderr path still runs.
+
+## 2026-11-21 — CLOCK-1: per-move floor in clock_limits (F-32 fix, owner-approved)
+
+- Decision: owner selected "Amend ENGINE-1 and fix" for F-32 (sudden-death flags under the fixed 20 ms soft floor).
+- Change: soft floor `20 ms` → `clamp(t / (4·movestogo), 1 ms, 20 ms)`. Nothing else in the budget formula changes. Hard limit, reserve, and increment cap are unchanged.
+- Evidence and scope: PREREGISTRATION.md, entry CLOCK-1 (2026-11-21). Grid: 1,776 of 25,680 points changed, all with `t ≤ 1495 ms`; the 40/15 point and every `t ≥ 3200 ms` at movestogo 40 are unchanged.
+- Accepted cost: shorter thinking time on clocks of 300 ms to about 1 s (about 1 ms to 17 ms per move). Strength at those clocks is expected to fall. Not measured in Elo.
+- Frozen-evidence rule: the engine binary changes, so ENGINE-1 (`9663697d…`) and SEE-candidate (`168dc0ab…`) hashes no longer describe the head. No rating or screening is authorized by this entry. A new hash must be frozen and re-screened before rating use.
+- Pinned test value `clock_limits_respect_remaining_time` changed from `(20, 20)` to `(1, 1)` at 250 ms. This is the owner-approved expectation change, recorded here and in the test comment. The test was not weakened.
+
+## 2026-11-21 — audit: `go ponder movetime N` measured again (decision still open; not changed)
+- Measured on release (`ad000f1`-era, reader-thread harness): `go ponder movetime 1000` with no `ponderhit` for 4 s: no bestmove (the engine does not exit in ponder mode, as the UCI spec requires). After `ponderhit`: bestmove after 0.0 s (`b1c3 ponder b8c6`), because the 1000 ms budget was spent while pondering.
+- The UCI spec (wbec-ridderkerk.nl UCIProtocol, `ponder`) requires no exit in ponder mode. It does not say when a `movetime` budget starts. So this is not clearly a violation.
+- Decision: unchanged. The existing decision (2026-11-21 F-24 entry) and the test `ponder_movetime_ponderhit_keeps_the_movetime_deadline` pin the current rule. Changing it would change a pinned expectation, so it is escalated to the owner in the final report instead.
+- Effect on play: a GUI that ponders with `movetime` gets no extra thinking after `ponderhit`. Clock-based ponder (`wtime`/`btime`) is unaffected (F-24).
+
+## 2026-11-21 — F-39: out-of-range `go depth` / `go nodes` values saturate (were ignored → unlimited)
+- Found by audit (`go depth 4294967296` on the release binary printed `info string go depth: ... ignored` and then searched until `stop`, while `go depth 100` stops at 64). Cause: `depth` parsed as `i32` and `nodes` as a plain `u64` parse, so a digit-only overflow or a negative value failed and was dropped. With no depth, no nodes and no clock, `cmd_go` sets `infinite`.
+- Decision: the rule already used for time values applies to these two as well. A digit-only value beyond the type saturates (depth to `i32::MAX`, then clamped to 64; nodes to `u64::MAX`). A negative depth saturates to `i32::MIN` (clamped to 1, as `-1` already was). A negative node count is 0, as a negative time is 0 (answers at once).
+- Not changed: `go movestogo` (parsed as `u64`, overflow already saturates through the parser; it is not `Option<u32>`), `setoption` values, and the `go ponder movetime` decision above.
+- Tests: `out_of_range_go_depth_and_nodes_saturate_instead_of_being_ignored`, `negative_go_depth_and_nodes_answer_at_once` (tests/protocol_regressions.rs). Both time out (20 s) on the pre-fix source and pass on the fix.
+
+## 2026-11-21 — F-40: Hash sizes round down to a power of two (the table never exceeds the request)
+- Found by audit: `try_resize` rounded the entry count up, so a non-power-of-two Hash allocated up to 2× the requested size (`Hash 513` → 1 GiB). The engine reported the requested size.
+- Decision: round down. The table is at least half the requested size and never more; the 1 GiB cap and the 1024-entry floor are unchanged. Power-of-two sizes are unchanged, so the bench signature `849a85bf7e8e1eba` is unchanged.
+- Cost: `Hash 100` now gives 64 MiB, not 128 MiB. A user who wants the full 100 MiB gets 64 MiB; the info string on the reduction path is not printed for this (the table is smaller than requested by design, not refused).
+
+## 2026-11-21 — F-41: futility pruning is off while alpha is a mate score; LMR mate misses left for the owner
+- Fixed: futility pruning at depth <= 2 now requires `alpha.abs() < MATE_BOUND` (as reverse futility and null-move already did). Before, a mate-in-3 alpha pruned the quiet mate in two. The bench signature (fen, depth, bestmove) is unchanged.
+- Not changed, owner decision: LMR can reduce a quiet move that is the only mating move to a child at depth 0 or 1, where the mate is invisible (quiescence does not search quiet checks). Evidence and examples: FAILURE_LEDGER F-41 OPEN entry. A fix changes bestmoves and therefore the pinned bench signature `849a85bf7e8e1eba` (anchor-verify.yml). Options for the owner: (a) never reduce checking moves; (b) child depth >= 2 for reduced moves; (c) keep as is and document the depth-limited mate blindness. This is a search-strength change, not a legality issue; the engine's moves stay legal.
+
+## 2026-11-22 — `go searchmoves` is strict (owner decision; supersedes the F-09 widening decision of 2026-11-20)
+- Decision (owner, 2026-11-22): a restricted search must not widen. A named list with no legal move answers `bestmove 0000` and prints `info string searchmoves names no legal move in this position; no move searched` on stdout before the bestmove. Malformed tokens are reported on stdout. A bare `searchmoves` keeps the all-moves search and is announced.
+- Consequence: a restricted search returns only a move from the named legal set. Nothing outside the list is ever returned.
+- Superseded: the F-09 decision of 2026-11-20 (widening to all legal moves). The F-09 entries in FAILURE_LEDGER.md stay as history; the correction is F-46.
+- Frozen-evidence rule (applies): the engine binary changed (the `searchmoves` parser and root filter; `table_entries`). Only restricted-search behaviour and the table-size clamp changed; the bench signature `849a85bf7e8e1eba` and its node count are unchanged. The frozen ENGINE-1 and SEE-candidate hashes in PREREGISTRATION.md do not describe this binary. No rating or screening is authorized by this entry. A new hash must be frozen and appended to PREREGISTRATION.md before any rating use.
+
+## 2026-11-22 — Probe policy: a verdict other than verified is not a pass; a dead engine stops the run
+- Decision: every probe that drives an engine must fail (non-zero exit) within its bound against broken engines. A protocol- or robustness-only probe must instead pass against a null-move engine (it has no move-quality check). The check for this is `scripts/failure_mode_probe.py` (manual; about 15 min).
+- A mate claim the oracle cannot reach within `--limit` is INCONCLUSIVE (exit 3). It is neither a pass nor a defect; the report must say so.
+- A dead or unresponsive engine ends the probe run at the first stall, not after one timeout per case.
+- Not changed: committed gate deadlines (bench, time budgets, the 60 s per-position search wait). Changed only probe-internal handshake waits (`eval_symmetry_probe.py`: 120 s → 10 s). The `go ponder movetime` decision remains open and unchanged.
+
+## 2026-11-23 — F-56: retain full-depth search for quiet checking moves
+
+- Decision for this audit: exempt quiet checks from LMR when the move is otherwise reducible. The owner explicitly requested actual valuable bug fixes and engine improvement. The previous LMR owner-decision is superseded for this narrow class by a reproducible forced-mate failure in legal, >6-piece positions and a fresh independent holdout.
+- Reason: a reduced child can miss the forcing continuation because qsearch only follows captures/promotions and does not search quiet checks. The six observed baseline misses in two independently generated legal-game samples all began with a quiet checking move; restoring full depth found the oracle-proven exact mate in all six.
+- Cost/measurement: depth-10 bench nodes rise 13.1% (4,135,406 → 4,677,558) and the fixed best-move signature changes to `141943aa23b3fc68`. This accepts a measurable nodes/time trade-off for tactical correctness, without claiming a general Elo improvement. Frozen rating evidence is not reused.
+- Verification before exact-head gate: the regression fails on the baseline binary and passes on the candidate; candidate resolves 6/6 baseline misses across two legal-game samples (fresh holdout: 0/83 vs baseline 2/83). Targeted release integration test, fmt, and debug/release clippy pass. Full gate is still pending.
+
+## 2026-11-23 — F-57: stop single-PV iterations after a proven mate in one
+
+- Trigger: the F-56 gate showed a depth-6 randomized legal position where the engine had already proven `mate 1` at depth 3, then spent more than a minute trying to complete depth 6. A mate in one is the maximum possible root score.
+- Decision: end single-PV iterative deepening when a completed iteration reports at least `MATE_SCORE - 1`. Keep MultiPV searching, because its purpose is to report alternative root moves. Preserve the completed iteration and normal UCI bestmove path.
+- Acceptance: independent legal-move proof for `Qbe5#`; new protocol regression requests depth 6 and requires the mate-in-one result promptly. Seed-41 TT/bestmove differential: 400/400 positions, 0 failures after the change. Formatting and both clippy profiles pass; exact-head full gate pending.
+- Benchmark identity stays `141943aa23b3fc68`; node count 2,853,010 reflects early termination on forced mate-in-one positions and should not be compared as a pure speed delta against a build that always completed depth 10.
+
+- Gate follow-up (2026-11-23 05:58 UTC): the F-57 early stop correctly invalidated a legacy test's fixed-depth-4 output expectation. Updated it to assert the latest completed iteration and exact mate score. Three targeted release regressions pass. The full gate attempt on `a4ecafc` remains `FAILS=2` (the same stale assertion in release and debug); no clean full-gate rerun fits before this task's cutoff.
+
+## 2026-11-23 — F-58: preserve `go infinite` after a mate-in-one proof
+
+F-57's safe finite-search early exit was also being applied to `go infinite`, which silently stopped analysis after a mate-in-one proof even though UCI mode must continue until `stop`. Keep the early exit for finite single-PV searches only (`!limits.infinite`); ponder remains active because it is represented as infinite until `ponderhit`. MultiPV remains unchanged. A UCI regression demands a depth-2 info line after the mate proof and then stops cleanly. Focused release regression, fmt, and debug/release clippy pass; full gate pending.
+
+## 2026-11-23 — F-59 sparse forcing quiet moves
+
+After a fresh 72-position python-chess mate-in-two sample exposed one depth-6 miss, tested a narrowly bounded LMR exception: for otherwise reducible quiet moves only, when there are at most eight occupied squares, count legal replies after the move; if there are at most two, search at full depth. It recovers the exact `Re2 Kd5 Rd3#` line at depth 6. The same isolated candidate has 0 misses on both the 83-position and 72-position samples, versus current 0/83 and 1/72 misses. An unbounded legal-reply check also recovered the mate but expanded the fixed benchmark workload and was rejected; piece-count gating preserves benchmark signature `141943aa23b3fc68` and 2,853,010 nodes. These tactical samples do not establish playing strength.
+
+## 2026-11-23 — F-59 exact-head validation follow-up
+
+Committed candidate `6b6479d` passed the clean exact-head comprehensive gate: `/tmp/gates/6b6479d-final/summary.txt`, `dirty-at-start 0`, `FAILS=0`. On its release binary, independent random-endgame mate-distance probe seeds 2, 3, 20 and 21 (120 oracle-proven mate-in-1/2 positions each, depth 6) had 0 score mismatches across 480 positions (107 mate in one, 373 mate in two). Seeds 20–21 are fresh samples. This improves tactical regression confidence but is not a playing-strength or Elo measurement.
+
+## 2026-11-23 — F-60: low-reply quiet root-threat safeguard
+
+A fourth legal-game sample uncovered verified root LMR misses in 10–11 piece positions: a quiet rook move leaving two legal replies (`Rg5`, then mate) and a quiet knight move leaving four replies (each permits the same rook mate). Full-tree low-reply detection found all cases but inflated the 272-position tactical sample from 133.9M nodes (root-only) to 241.4M. Chosen candidate only exempts otherwise-reducible late quiet root moves when there are <=11 pieces and <=4 opponent replies. On the first 272 oracle-proven mate-in-one/two positions this candidate had 0 score mismatches vs 5 for F-59 and slightly fewer aggregate nodes (133,933,543 vs 144,806,495); the fixed depth-10 bench signature/nodes remain `141943aa23b3fc68` / 2,853,010. A fresh 100-position sample had one remaining miss (13 pieces, ten replies); it is recorded as open, not claimed solved. Broad root-LMR removal and global reduction changes were rejected after major benchmark cost or new mate-distance misses. No Elo claim.
+
+## 2026-11-23 — F-60 exact gate, F-61 low-material limit
+
+F-60 commit `4c565be` passed the clean exact-head comprehensive gate (`/tmp/gates/4c565be-final`, `FAILS=0`); CI passed Ubuntu, Windows, MSRV 1.80, Windows artifact, anchor verification and all opponent builds. The Kilo review check is `action_required` due insufficient credits; CodeRabbit is skipped. Further seeds: root-only <=13-piece/<=10-reply safeguard fixed 3/3 F-59 misses on 71 positions (seed 2222026), and 3/4 on another 71 positions (seed 7222026); the last miss was a 14-piece mate in two found at depth 7. Root LMR-off/cap alternatives were rejected for large bench cost/signature changes. F-61 narrows the remaining scope but is not yet fixed; no strength claim.
+
+## 2026-11-23 — F-62: extend root-threat guard to 14 pieces
+
+A fresh seed-7222026 game sample produced a 14-piece mate-in-two false negative (`Bh3 Kh1 Qg2#`), even though the quiet root move leaves a single legal reply. Extending the low-reply root safeguard from 13 to 14 pieces recovers it at depth 6. On 443 positions across the first five samples, the candidate is exact on every oracle-proven mate in one/two (F-59 had 12 score mismatches); sample nodes rise 11.6%, but the fixed depth-10 signature and node count remain unchanged. A sixth, 68-position sample found one different residual where F-59 and F-62 both miss at depth 6; root-restricted analysis finds the mate, but disabling root LMR globally does not recover it in the unrestricted search. It is logged as an unresolved selective-search issue, not folded into a broader heuristic without diagnosis.
+
+## 2026-11-23 — F-63: suppress null-move pruning in <=8-piece positions
+
+The final sixth-sample mate miss was reproduced as an NMP false fail-high: on `4kr2/7p/1p5K/8/8/4P3/1N4r1/8 b - - 1 28`, disabling NMP alone changes depth 6 from cp 1221 to the oracle-proven mate in two (`Rf3`/`Rf1`). The F-62 root guard already searches these root moves unreduced. A scratch candidate disabling NMP only when <=8 pieces had 0/511 mate-score mismatches vs 1/511 on F-62, with a 0.03% aggregate-node increase across the sampled positions. Adopted with a protocol regression. Focused release/debug regression and clippy pass; release suite completed, but the combined test command hit 180s during the debug suite. Full exact-head gate/CI remains pending; no strength claim.
+
+## 2026-11-23 — F-64: extend the root quiet-threat safeguard by one reply
+
+A fresh 60-position capture-biased legal-game holdout (seed 6222026) found a 14-piece mate-in-two that the <=10-reply root correction still missed: `6k1/r7/2p2p2/1p2r3/3q4/N4PP1/2P4P/5K1R b - - 2 20`, `Qd2` followed by mate against every one of 11 legal replies. The old candidate reported mate in four at depth 6; an isolated threshold-11 build finds mate in two and the exact `d4d2` move. Expanded the guard only from <=10 to <=11 legal replies, still root-only and <=14 pieces. Across eight saved oracle-verified legal-game samples (631 positions), exact mate-score mismatches went 1→0, aggregate nodes +0.234%. Fixed bench signature/node count unchanged; no Elo claim. Focused release/debug regression and clippy pass; exact-head final gate pending.
+
+## 2026-11-23 11:14 UTC — F-64 exact-head validation
+
+Commit `97f3c0427ce6ca93f99d39803c92b3c747120a69` passed the clean exact-head comprehensive gate at `/tmp/gates/97f3c04-final` (`dirty-at-start 0`, `FAILS=0`); the release binary SHA-256 is `80b32250fe9cc7026488965190a57a5ecdd9ff2a4c93da5bd15fad4760581b25`. Hosted Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 calibration and all opponent builds passed on this code head. Kilo lacks review credits; CodeRabbit skipped. No rating or release-readiness claim.
+
+## 2026-11-23 — F-65: extend the low-material null-move exclusion to 13 pieces
+
+A fresh seed-9222026 legal-game holdout found a 13-piece NMP false fail-high: `1n5r/3kp3/3Np3/8/6P1/1P1P4/2P5/rN2K3 b - - 0 21`. Python-chess proves `...Rh2` mates in two against all 15 replies. The prior build reported cp 1186 / `a1b1`; a selective experiment still missed with NMP disabled through 12 pieces, but the <=13 exclusion found mate 2 / `h8h2`. Extended the low-material NMP guard from <=8 to <=13 while preserving all other guards. Across nine stored legal-game oracle sets (691 positions), mate-score mismatches 1→0 and aggregate nodes fell 0.02%; fixed depth-10 bench nodes rose 2.45% (signature unchanged). Correlated tactics are not Elo evidence. Regression and focused debug/release validation pass; full gate/CI pending.
+
+## 2026-11-23 11:49 UTC — F-65 exact-head validation
+
+The code/test commit `8c8f8a1b3227aa3a8ba4f8d798e6ffb15911b06b` passed the clean exact-head final gate (`/tmp/gates/8c8f8a1-final`, `FAILS=0`, exit 0); release SHA-256 `137112f172882be8300c57a153c2ba0fb9fbf152298f0048b15ae0417b639ca8`. Hosted Ubuntu, Windows, MSRV, Windows artifact, verify-flawless, SF10 and all opponent-build checks passed. Fresh seed-10222026 holdout also had 0/60 mismatches for both prior and new candidates. Kilo lacks review credits; CodeRabbit skipped. No rating or readiness claim.
+
+## 2026-11-23 — F-66: reuse the main-search move list at quiescence entry
+
+At main-search depth<=0 and low-depth futility cutoffs, the search had just generated legal moves and qsearch regenerated them again without any intervening position mutation. Added a path for qsearch to consume that existing list; qsearch recursion still generates its own child lists. Full Rust test suites and both clippy profiles passed on an isolated scratch candidate. Depth-10 bench signature/nodes unchanged. Five interleaved A/B bench pairs in this sandbox: median 7.86s→6.86s and 379,840→435,080 nps (+14.5%); a separate five-run block gave +12.2%. This supports the optimization but is noisy, not a general speed guarantee. Exact-head gate pending.
+
+## 2026-11-23 12:13 UTC — F-66 exact-head validation
+
+`c4c124ec2eb9222375cebe20151430e7371fd5e2` passed the exact-head clean final gate (`/tmp/gates/c4c124e-final`, `FAILS=0`, exit 0); release SHA-256 `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Hosted Ubuntu, Windows, MSRV, Windows artifact, anchor verification, SF10 calibration and all opponent-build checks passed. Kilo review lacks credits; CodeRabbit skipped. No strength/release claim.
+
+## 2026-11-23 12:18 UTC — F-66 behavior-preservation follow-up
+
+Compared F-65-before-reuse (`55dac3c`) against F-66 on fresh seeds 11222026 and 12222026 (60 oracle-proven legal-game mates each, depth 6). Both binaries had zero exact mate-score mismatches on both sets and identical aggregate nodes per set (102,465,537; 32,870,468). This supports result preservation, not playing strength.
+
+## 2026-11-23 12:22 UTC — F-66 extra equivalence check; reply-counter candidate rejected
+
+Pre-reuse F-65 vs F-66 on 100 fresh random legal positions (seed 2112026, depth 5): exact bestmove, score and nodes matched in every position; 1,165,553 nodes each. A separate idea to early-exit legal reply counting at the root was measured in five paired fixed-bench runs and was slightly slower (median 448,818 vs 453,241 NPS, -0.98%), so it was rejected. No movegen change was made.
+
+## 2026-11-23 12:23 UTC — F-66 extra perft/legal differential
+
+Fresh F-66 release checks: perft random seed 12 (334 positions, 1,002 depth checks) and seed 13 (406 positions, 1,218 checks), both 0 failures vs python-chess; legal differential seed 32 (7,832 exact accepted move-set matches, seven oracle-valid rejections justified by material bounds, 622 invalid positions rejected). No movegen code change or strength claim.
+
+## 2026-11-23 12:41 UTC — exact-head gate rerun
+
+The complete `scripts/final_gate.sh /tmp/gates/6bfc833-final` passed from clean head `6bfc8335059e4f4090aa6c9b715ba14c04395c32` / tree `be5388ce90f2157b5bad58fb7f7d8b58107de8e4`: exit 0, dirty-at-start 0, `FAILS=0`. Release SHA-256 unchanged at `39fbac27cd010ec1cc623f748dfd06a40b46770bbee1a92a6cb05b1c0fd6e3ab`. Evidence in `/tmp/gates/6bfc833-final`.
+
+## 2026-11-23 12:44 UTC — latest hosted CI
+
+On `da8c37fffcc0f7a50d96eab2494ac147950799e9`, hosted Ubuntu/Windows/MSRV, mandatory Windows release artifact, verify-flawless, SF10 calibration and all 12 opponent builds passed. Kilo review failed immediately due the known account-credit block; CodeRabbit skipped. Only audit text followed the clean exact-head gate.
+
+## 2026-11-23 12:48 UTC — saved move-list validity audit and final CI
+
+Inspected `generate_legal` and make/unmake: each candidate is applied then undone before the returned legal `MoveList` is consumed; unmake restores piece/occupancy arrays, side, rights, ep state, clocks, hash, and the temporary repetition-history entry is popped. The cached list is passed directly to qsearch on the unchanged position, before any board mutation; list values are moves, not stale scores. No defect found and no movegen edit made. Latest hosted CI at bfbc9c3 passed every platform, MSRV, artifact, verification, calibration and opponent-build job; Kilo remains blocked on credits and CodeRabbit skipped.
+
+## 2026-11-23 12:50 UTC — final hosted verification
+
+All required hosted code/build checks passed on final audit head `2456223f5daf60b2cd138373b7fef6a8f13aae58`: Linux/Windows CI, Rust 1.80 MSRV, Windows x64 release artifact, verify-flawless, SF10 calibration and all 12 opponent builds. Kilo review credit block and skipped CodeRabbit are external review-status exceptions; no CI failure to fix.
+
+## 2026-11-23 12:55 UTC — deeper F-66 A/B holdout
+
+At depth 7 on 92 deterministic random legal positions (seed 2112026), F-65 pre-reuse and F-66 matched exact bestmove, score, and node count for every position; total nodes 5,581,590 each, both exits 0. No strength inference.

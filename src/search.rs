@@ -7,7 +7,8 @@
 //! Draws honored inside search: repetition (2-fold along the search path), fifty-move rule,
 //! insufficient material; checkmate/stalemate handled by the no-legal-moves branch, which is
 //! checked BEFORE any pruning heuristic so a terminal node can never be pruned or mis-scored.
-//! Mate takes precedence over claimable draw rules when the side to move is in check.
+//! Mate takes precedence over claimable draw rules when the side to move is in check. The
+//! fifty-move claim includes announcing a quiet move from halfmove clock 99.
 
 use crate::attack;
 use crate::eval::{
@@ -36,6 +37,18 @@ pub struct SearchLimits {
     pub hard_ms: u64,
     pub infinite: bool,
     pub ponder: bool,
+    /// True for `go movetime N`: the budget is a fixed per-move time, not a clock slice.
+    /// Such a search runs iterative deepening until the hard deadline instead of stopping
+    /// early on the growth prediction (which is meant only to protect clock budgets).
+    pub fixed_time: bool,
+    /// Start of the clock budget. `None` means the start of the search. `ponderhit` sets it to
+    /// the time of the hit: the clock slice then counts from the hit, not from `go` (F-24).
+    /// Only the budgets (`soft_ms`/`hard_ms`) use it; `info time` keeps the search start.
+    pub clock_origin: Option<Instant>,
+    /// Set by `ponderhit` on a node-capped `go ponder`: the cap counts from the hit, so the search
+    /// rebases its node cap to (nodes at the hit + `max_nodes`) on the next node (F-52). The
+    /// search thread does the rebase because only it knows its node count.
+    pub rebase_nodes_on_hit: bool,
 }
 
 impl Default for SearchLimits {
@@ -47,6 +60,9 @@ impl Default for SearchLimits {
             hard_ms: u64::MAX,
             infinite: false,
             ponder: false,
+            fixed_time: false,
+            clock_origin: None,
+            rebase_nodes_on_hit: false,
         }
     }
 }
@@ -81,6 +97,9 @@ pub struct Searcher<'a> {
     history: [[i32; 64 * 64]; 2],
     lmr: [[i32; 256]; MAX_PLY as usize + 1],
     nodes: u64,
+    /// `max_nodes` from the limits at construction. Enforced exactly, per node, by
+    /// `node_cap_reached`; `go ponder` ignores it until `ponderhit`.
+    node_cap: u64,
     seldepth: i32,
     start: Instant,
     /// Legal moves allowed at the root (from `go searchmoves`). Applied at ply 0 only.
@@ -88,6 +107,9 @@ pub struct Searcher<'a> {
     /// Best move found at ply 0 in the most recent completed search call. Used for
     /// restricted-root PV construction instead of stale TT entries.
     root_best: Option<Move>,
+    /// Null-move descendants are hypothetical positions, not a legal game path. Repetition
+    /// adjudication must not use the game/search history while this flag is set (F-53).
+    null_move_search: bool,
 }
 
 impl<'a> Searcher<'a> {
@@ -96,6 +118,10 @@ impl<'a> Searcher<'a> {
         stop: &'a AtomicBool,
         limits: Arc<Mutex<SearchLimits>>,
     ) -> Self {
+        let node_cap = match limits.lock() {
+            Ok(l) => l.max_nodes,
+            Err(e) => e.into_inner().max_nodes,
+        };
         Searcher {
             tt,
             stop,
@@ -105,10 +131,12 @@ impl<'a> Searcher<'a> {
             history: [[0; 64 * 64]; 2],
             lmr: build_lmr_table(),
             nodes: 0,
+            node_cap,
             seldepth: 0,
             start: Instant::now(),
             root_moves: None,
             root_best: None,
+            null_move_search: false,
         }
     }
 
@@ -123,11 +151,22 @@ impl<'a> Searcher<'a> {
         self.nodes
     }
 
+    /// Null-move search is a selective-search heuristic, not a legal path from the game's
+    /// history. A matching historical hash under it does not constitute a real repetition.
+    #[inline]
+    fn is_repetition(&self, pos: &Position, ply: i32) -> bool {
+        ply > 0 && !self.null_move_search && pos.is_repetition()
+    }
+
+    /// Clock check cadence: every 128 nodes (F-49). At the 1 ms floor budget a 1024-node
+    /// cadence let a single move overrun by up to ~5 ms; 128 nodes bounds the overrun to about
+    /// 2.5 ms at a negligible cost (one `Instant` read per 128 nodes).
     #[inline]
     fn check_time(&mut self) {
-        if self.nodes & 1023 != 1023 {
+        if self.nodes & 127 != 127 {
             return;
         }
+        self.rebase_node_cap_on_hit();
         if self.should_stop_now() {
             self.stop.store(true, Ordering::Relaxed);
         }
@@ -136,18 +175,60 @@ impl<'a> Searcher<'a> {
     #[inline]
     fn should_stop_now(&self) -> bool {
         let l = self.lim();
-        // go infinite / go ponder / bare go: clocks and node caps are inert until an
-        // external stop (or ponderhit, which flips infinite) arrives.
+        // go infinite / go ponder / bare go: clocks are inert until an external stop (or
+        // ponderhit, which flips infinite) arrives.
         if l.infinite {
             return false;
         }
-        self.start.elapsed().as_millis() as u64 >= l.hard_ms || self.nodes >= l.max_nodes
+        self.budget_ms(&l) >= l.hard_ms
+    }
+
+    /// Milliseconds spent against the clock budget: since `clock_origin` if set (ponderhit),
+    /// otherwise since the search started.
+    #[inline]
+    fn budget_ms(&self, l: &SearchLimits) -> u64 {
+        l.clock_origin.unwrap_or(self.start).elapsed().as_millis() as u64
+    }
+
+    /// Exact node cap, checked at every node before the node is counted, so a search never
+    /// visits more than `max_nodes` nodes (S-08: the previous check ran every 1024 nodes and
+    /// overshot small caps, e.g. `go nodes 1` searched 1024). While `go ponder` is waiting for
+    /// `ponderhit` the cap is inert, as for any infinite search; it applies after the hit.
+    #[inline]
+    fn node_cap_reached(&mut self) -> bool {
+        if self.nodes < self.node_cap {
+            return false;
+        }
+        self.rebase_node_cap_on_hit();
+        if self.nodes < self.node_cap {
+            return false;
+        }
+        if self.lim().infinite {
+            return false;
+        }
+        self.stop.store(true, Ordering::Relaxed);
+        true
+    }
+
+    /// F-52: a node-capped `go ponder` counts its `max_nodes` from `ponderhit`, not from `go`
+    /// (S-07). `ponderhit` sets `rebase_nodes_on_hit`; the search thread, which alone knows its
+    /// node count, rebases here once. Called every 128 nodes and whenever the cap is reached, so
+    /// the rebase lags the hit by at most 127 nodes.
+    fn rebase_node_cap_on_hit(&mut self) {
+        let l = self.lim();
+        if !l.rebase_nodes_on_hit {
+            return;
+        }
+        self.node_cap = self.nodes.saturating_add(l.max_nodes);
+        if let Ok(mut shared) = self.limits.lock() {
+            shared.rebase_nodes_on_hit = false;
+        }
     }
 
     #[inline]
     fn soft_ms_reached(&self) -> bool {
         let l = self.lim();
-        self.start.elapsed().as_millis() as u64 >= l.soft_ms
+        self.budget_ms(&l) >= l.soft_ms
     }
 
     #[inline]
@@ -203,12 +284,20 @@ impl<'a> Searcher<'a> {
         for i in 0..moves.len {
             moves.scores[i] = self.move_order_score(pos, moves.moves[i], tt_move, ply);
         }
-        // stable insertion sort by descending score (lists are short; branch-friendly)
+        // Stable insertion sort by descending score (lists are short; branch-friendly). Equal
+        // scores are ordered by a colour-relative key (S-14), not by generation order: generation
+        // is by absolute square, a colour mirror reverses it, and LMR reduces by move index, so
+        // generation order made a position and its mirror search differently.
         for i in 1..moves.len {
             let s = moves.scores[i];
             let m = moves.moves[i];
             let mut j = i;
-            while j > 0 && moves.scores[j - 1] < s {
+            while j > 0
+                && (moves.scores[j - 1] < s
+                    || (moves.scores[j - 1] == s
+                        && relative_move_key(pos.side, moves.moves[j - 1])
+                            > relative_move_key(pos.side, m)))
+            {
                 moves.scores[j] = moves.scores[j - 1];
                 moves.moves[j] = moves.moves[j - 1];
                 j -= 1;
@@ -236,8 +325,15 @@ impl<'a> Searcher<'a> {
         }
 
         let legal = generate_legal(pos);
+        let root_fifty_claim = legal.len > 0
+            && (pos.is_fifty_move() || (pos.halfmove == 99 && has_claiming_move(pos, &legal)));
         let mut roots: Vec<Move> = legal.iter().copied().collect();
+        // Root order is the tie-break order for equal scores (S-14): use the colour-relative key.
+        roots.sort_by_key(|&m| relative_move_key(pos.side, m));
         if let Some(ref only) = root_moves {
+            // `searchmoves` is strict (owner decision, 2026-11-22): the root set is exactly the legal
+            // moves that the list names. If that intersection is empty, the root set is empty and
+            // the search returns `Move::NULL` below. It never widens to all legal moves.
             roots.retain(|m| only.contains(m));
         }
         self.root_moves = if root_moves.is_some() {
@@ -278,7 +374,7 @@ impl<'a> Searcher<'a> {
             if depth > max_depth {
                 break;
             }
-            let iter_begin = self.start.elapsed().as_millis() as u64;
+            let iter_begin = self.budget_ms(&self.lim());
             // aspiration window after depth 5
             let (mut alpha, mut beta) = if depth >= 6 {
                 (prev_score - 25, prev_score + 25)
@@ -288,7 +384,8 @@ impl<'a> Searcher<'a> {
             let mut completed = false;
 
             if multi_pv > 1 {
-                let lines = self.multipv_iteration(pos, depth, &roots, multi_pv, cb);
+                let lines =
+                    self.multipv_iteration(pos, depth, &roots, multi_pv, root_fifty_claim, cb);
                 if self.stop.load(Ordering::Relaxed) && depth > 1 {
                     break;
                 }
@@ -347,15 +444,22 @@ impl<'a> Searcher<'a> {
             if !completed {
                 break;
             }
+            // An exact mate in one is the maximum possible root score, so deeper iterations
+            // cannot improve the move and can waste enormous effort (notably after retaining
+            // full-depth searches for quiet checks, F-56).
+            if multi_pv == 1 && !self.lim().infinite && best.score_cp >= MATE_SCORE - 1 {
+                break;
+            }
             // Soft budget (R-08): stop before an iteration that is predicted to overrun it.
             // Completed iterations are always kept; the hard limit still applies inside the tree.
             let l = self.lim();
-            let now = self.start.elapsed().as_millis() as u64;
+            let now = self.budget_ms(&l);
             let iter_ms = now.saturating_sub(iter_begin);
-            if !l.infinite
-                && (self.soft_ms_reached()
-                    || now.saturating_add(iter_ms.saturating_mul(SOFT_GROWTH_FACTOR)) > l.soft_ms)
-            {
+            // For a fixed movetime the soft budget equals the time to spend, so only the
+            // deadline itself ends the search; the growth prediction would stop it early.
+            let predicted_overrun = !l.fixed_time
+                && now.saturating_add(iter_ms.saturating_mul(SOFT_GROWTH_FACTOR)) > l.soft_ms;
+            if !l.infinite && (self.soft_ms_reached() || predicted_overrun) {
                 break;
             }
             depth += 1;
@@ -373,6 +477,7 @@ impl<'a> Searcher<'a> {
         depth: i32,
         roots: &[Move],
         multi_pv: usize,
+        root_fifty_claim: bool,
         cb: &mut dyn FnMut(&SearchProgress),
     ) -> Vec<(Move, i32)> {
         let mut results: Vec<(Move, i32)> = Vec::with_capacity(roots.len());
@@ -381,8 +486,11 @@ impl<'a> Searcher<'a> {
                 break;
             }
             let undo = pos.make_move(rm);
-            let score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1);
+            let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1);
             pos.unmake_move(rm, &undo);
+            if root_fifty_claim && score < DRAW_SCORE {
+                score = DRAW_SCORE;
+            }
             if self.stop.load(Ordering::Relaxed) {
                 // aborted mid-search: the returned score is garbage; discard it
                 break;
@@ -429,7 +537,7 @@ impl<'a> Searcher<'a> {
                 }
             }
             let key = pos.hash;
-            match self.tt.probe_move(key) {
+            match self.tt.probe_move(key, pos.halfmove) {
                 Some(m) => {
                     let legal = generate_legal(&mut pos);
                     if !legal.iter().any(|&x| x == m) {
@@ -445,6 +553,9 @@ impl<'a> Searcher<'a> {
     }
 
     fn search(&mut self, pos: &mut Position, depth: i32, alpha: i32, beta: i32, ply: i32) -> i32 {
+        if self.node_cap_reached() {
+            return alpha;
+        }
         self.nodes += 1;
         if ply as usize >= self.seldepth as usize {
             self.seldepth = ply;
@@ -457,25 +568,36 @@ impl<'a> Searcher<'a> {
             return self.static_eval(pos);
         }
         // Draw rules (FIDE 5.2.2 / 9.2 / 9.3), applied in the order the rules require:
-        //  * insufficient material: a certain draw at every node, checked or not;
+        //  * insufficient material: a certain draw at every node below the root. The root
+        //    searches its moves like the repetition rule below, so it always yields a PV and a
+        //    bestmove that come from the search (audit finding F-14: single-PV search returned
+        //    at the root with an empty PV, while MultiPV searched it);
         //  * in-tree repetition (2-fold along the search path) is scored as a draw at every
         //    ply EXCEPT the root, so the root always searches its moves (R-02a). A checked node
         //    with no legal reply is still checkmate (mate precedence, R-02b);
         //  * fifty-move is a CLAIMABLE draw, not a forced one: the side to move may claim it or
-        //    play on, and a mate it can deliver takes precedence (R-02b). Such a node is searched
-        //    normally, its value is clamped to >= DRAW, and TT score cutoffs and pruning are
-        //    skipped there (R-12).
+        //    play on, including by announcing a quiet move at clock 99; a mate takes precedence
+        //    (R-02b). Such a node is searched normally, its value is clamped to >= DRAW, and TT
+        //    score cutoffs and pruning are skipped there (R-12).
         let in_chk = in_check(pos);
-        if pos.insufficient_material() {
+        if ply > 0 && pos.insufficient_material() {
             return DRAW_SCORE;
         }
-        if ply > 0 && pos.is_repetition() {
+        if self.is_repetition(pos, ply) {
             if in_chk && generate_legal(pos).len == 0 {
                 return -MATE_SCORE + ply;
             }
             return DRAW_SCORE;
         }
-        let fifty_claim = pos.is_fifty_move();
+        // A player may claim on the 100th halfmove by announcing a quiet, non-pawn move
+        // while the current clock is 99. Generate once at this boundary so the claim option
+        // is included in score handling and unsafe TT cutoffs/pruning are disabled. At 100,
+        // terminal detection below still gives checkmate precedence.
+        let mut horizon_moves = (pos.halfmove >= 99).then(|| generate_legal(pos));
+        let fifty_claim = pos.is_fifty_move()
+            || horizon_moves
+                .as_ref()
+                .is_some_and(|moves| pos.halfmove == 99 && has_claiming_move(pos, moves));
         let mut alpha = alpha;
         let alpha_entry = alpha;
         let is_pv = beta - alpha > 1;
@@ -483,12 +605,11 @@ impl<'a> Searcher<'a> {
         // Transposition table probe first: terminal nodes are deterministic, so a
         // sufficient-depth entry is equally valid there — and this keeps TT-cutoff
         // nodes off the movegen path.
-        // Zobrist excludes the halfmove clock; entries whose stored subtree can reach the
-        // fifty-move horizon are flagged CLOCK-UNSAFE at store time and never provide a
-        // score here, so score cutoffs are always clock-context-compatible. Move ordering
-        // via the TT move is always safe.
+        // Position::hash excludes the halfmove clock because it is also the repetition key.
+        // The TT adds the clock to its own contextual key, so only matching clock contexts can
+        // reuse a score or move; this avoids bounding extensions and quiescence by nominal depth.
         let key = pos.hash;
-        let probe = self.tt.probe(key, ply);
+        let probe = self.tt.probe(key, ply, pos.halfmove);
         let tt_move = probe.best_move;
         if let Some(score) = probe.score {
             if probe.depth >= depth && !is_pv && !fifty_claim {
@@ -503,7 +624,7 @@ impl<'a> Searcher<'a> {
 
         // Terminal (no legal moves) BEFORE any pruning/fail-soft heuristic:
         // mate takes precedence over draw rules; stalemate is a draw.
-        let mut moves = generate_legal(pos);
+        let mut moves = horizon_moves.take().unwrap_or_else(|| generate_legal(pos));
         if ply == 0 {
             if let Some(ref only) = self.root_moves {
                 let mut j = 0usize;
@@ -525,11 +646,14 @@ impl<'a> Searcher<'a> {
             };
         }
         if depth <= 0 {
-            return self.quiesce(pos, alpha, beta, ply);
+            return self.quiesce_with_moves(pos, alpha, beta, ply, Some(moves));
         }
 
-        // Null-move pruning (not in check, not PV, non-trivial material)
+        // Null-move pruning (not in check, not PV, non-trivial material). Skip it in positions
+        // with at most thirteen pieces (F-63/F-65): false fail-highs hid forced mates in two in
+        // low-material positions, despite the side to move having non-pawn material.
         if depth >= 3
+            && pos.occ_all.count_ones() > 13
             && !in_chk
             && !fifty_claim
             && beta < MATE_BOUND
@@ -541,7 +665,10 @@ impl<'a> Searcher<'a> {
             let prev_ep_included = pos.ep_included;
             pos.make_null_move();
             let reduction = 2 + depth / 4;
+            let was_null_move_search = self.null_move_search;
+            self.null_move_search = true;
             let score = -self.search(pos, depth - 1 - reduction, -beta, -beta + 1, ply + 1);
+            self.null_move_search = was_null_move_search;
             pos.unmake_null_move(prev_ep, prev_ep_included);
             if self.stop.load(Ordering::Relaxed) {
                 return alpha;
@@ -551,17 +678,23 @@ impl<'a> Searcher<'a> {
             }
         }
 
-        // Futility pruning at low depths
-        if depth <= 2 && !in_chk && !is_pv && !fifty_claim {
+        // Futility pruning at low depths. Not while alpha is a mate score (F-41): with alpha at a
+        // mate-in-N value every ordinary line looks futile, and the quiet mating move that would
+        // beat it was pruned before it was searched (mate-in-2 reported as mate-in-3).
+        // Sparse positions (kings plus at most four other pieces): no static prunes and no LMR.
+        // With these on, the depth-6 search missed quiet mates in three (F-44); the node cost is
+        // small here, and the rule is off in ordinary middlegames, so the bench signature is kept.
+        let sparse = pos.occ_all.count_ones() <= 6;
+        if depth <= 2 && !in_chk && !is_pv && !fifty_claim && alpha.abs() < MATE_BOUND && !sparse {
             let s = self.static_eval(pos);
             if s + 150 * depth <= alpha {
-                return self.quiesce(pos, alpha, beta, ply);
+                return self.quiesce_with_moves(pos, alpha, beta, ply, Some(moves));
             }
         }
 
         // Reverse futility pruning (static null-move): far-above-beta quiet
         // positions fail high without searching. Non-PV, not in check, mate-bound safe.
-        if depth <= 3 && !in_chk && !is_pv && !fifty_claim && beta.abs() < MATE_BOUND {
+        if depth <= 3 && !in_chk && !is_pv && !fifty_claim && beta.abs() < MATE_BOUND && !sparse {
             let s = self.static_eval(pos);
             if s - 150 * depth >= beta {
                 return beta;
@@ -582,12 +715,32 @@ impl<'a> Searcher<'a> {
             let capture = is_capture(pos, m);
             let undo = pos.make_move(m);
 
-            // Late move reductions (quiet moves, not in check, late in the list)
+            // Late move reductions (quiet moves, not in check, late in the list). Do not reduce a
+            // quiet move that gives check: it is a forcing move, and a reduced child can stop
+            // before proving a forced mate (F-56); quiescence does not search quiet checks.
             let searched_count = searched_count_usize as i32;
             let mut reduction = 0i32;
-            if depth >= 3 && searched_count >= 3 && !capture && m.promo == PROMO_NONE && !in_chk {
+            if depth >= 3
+                && searched_count >= 3
+                && !capture
+                && m.promo == PROMO_NONE
+                && !in_chk
+                && !in_check(pos)
+                && !sparse
+            {
                 reduction = self.lmr[(depth as usize).min(MAX_PLY as usize)]
                     [(searched_count as usize).min(255)];
+                // A late quiet root move that leaves few legal replies can be a forcing threat
+                // without giving check (F-59/F-60/F-61). Root LMR hid proven mate-in-two moves in
+                // legal positions. Bound this correction to low-material root candidates: the
+                // extra movegen is cheap there, and limiting it to ply 0 avoids tree-wide cost.
+                if reduction > 0
+                    && ply == 0
+                    && pos.occ_all.count_ones() <= 14
+                    && generate_legal(pos).len <= 11
+                {
+                    reduction = 0;
+                }
             }
 
             let score = if searched_count == 0 {
@@ -679,9 +832,43 @@ impl<'a> Searcher<'a> {
     }
 
     fn quiesce(&mut self, pos: &mut Position, alpha: i32, beta: i32, ply: i32) -> i32 {
-        // Fifty-move is a claimable draw (see `search`): the value is at least DRAW.
-        let claim = pos.is_fifty_move();
-        let v = self.quiesce_core(pos, alpha, beta, ply);
+        self.quiesce_with_moves(pos, alpha, beta, ply, None)
+    }
+
+    /// Reuse legal moves already generated by the main search when it descends into quiescence.
+    /// `initial_moves` is from the unchanged `pos` and has already passed terminal detection.
+    fn quiesce_with_moves(
+        &mut self,
+        pos: &mut Position,
+        alpha: i32,
+        beta: i32,
+        ply: i32,
+        initial_moves: Option<MoveList>,
+    ) -> i32 {
+        // At halfmove 99, a claim is available if the player can announce a quiet,
+        // non-pawn move that reaches 100. At/after 100, the player can claim immediately.
+        // Reuse the main-search move list when present; only boundary qnodes without one
+        // generate a list here. An empty legal list is terminal, so checkmate takes priority.
+        let mut boundary_moves = initial_moves;
+        let claim = if pos.halfmove >= 99 {
+            if boundary_moves.is_none() {
+                boundary_moves = Some(generate_legal(pos));
+            }
+            // A restricted root list is a search constraint, not a restriction on the player's
+            // legal right to claim. In that uncommon boundary case, inspect the full legal list
+            // without replacing the restricted list consumed by qsearch itself.
+            let unrestricted_root_moves =
+                (ply == 0 && self.root_moves.is_some()).then(|| generate_legal(pos));
+            let moves = unrestricted_root_moves
+                .as_ref()
+                .or(boundary_moves.as_ref())
+                .expect("boundary moves were generated");
+            moves.len > 0
+                && (pos.is_fifty_move() || (pos.halfmove == 99 && has_claiming_move(pos, moves)))
+        } else {
+            false
+        };
+        let v = self.quiesce_core(pos, alpha, beta, ply, boundary_moves);
         if claim && v < DRAW_SCORE {
             DRAW_SCORE
         } else {
@@ -689,7 +876,17 @@ impl<'a> Searcher<'a> {
         }
     }
 
-    fn quiesce_core(&mut self, pos: &mut Position, alpha: i32, beta: i32, ply: i32) -> i32 {
+    fn quiesce_core(
+        &mut self,
+        pos: &mut Position,
+        alpha: i32,
+        beta: i32,
+        ply: i32,
+        initial_moves: Option<MoveList>,
+    ) -> i32 {
+        if self.node_cap_reached() {
+            return alpha;
+        }
         self.nodes += 1;
         if ply as usize >= self.seldepth as usize {
             self.seldepth = ply;
@@ -706,7 +903,7 @@ impl<'a> Searcher<'a> {
 
         // Terminal BEFORE the stand-pat cutoffs: stand-pat is only valid when the side
         // to move has at least one legal move. Stalemate is a draw; mate is scored.
-        let mut moves = generate_legal(pos);
+        let mut moves = initial_moves.unwrap_or_else(|| generate_legal(pos));
         if moves.len == 0 {
             return if in_chk {
                 -MATE_SCORE + ply
@@ -716,7 +913,7 @@ impl<'a> Searcher<'a> {
         }
         // Certain draws and in-tree repetition (terminal check ran first, so mate cannot be
         // masked here). Fifty-move is a claim handled by the `quiesce` wrapper.
-        if pos.insufficient_material() || (ply > 0 && pos.is_repetition()) {
+        if pos.insufficient_material() || self.is_repetition(pos, ply) {
             return DRAW_SCORE;
         }
 
@@ -758,7 +955,9 @@ impl<'a> Searcher<'a> {
                 } else {
                     0
                 };
-                if sp + capture_gain + promo_gain + 200 < alpha {
+                // Not while alpha is a mate score (F-42): a capture that mates is worth MATE, and
+                // the margin test would prune it against a mate-in-N alpha.
+                if alpha.abs() < MATE_BOUND && sp + capture_gain + promo_gain + 200 < alpha {
                     continue;
                 }
             }
@@ -779,7 +978,15 @@ impl<'a> Searcher<'a> {
     }
 }
 
+/// Colour-relative sort key of a move: squares are read from the side to move (black squares are
+/// mirrored with `^ 56`), so a move and its colour mirror get the same key. Used only to order
+/// equal move scores (S-14); see `order_and_score`.
 #[inline]
+fn relative_move_key(side: usize, m: Move) -> u32 {
+    let rel = |sq: Square| -> u32 { (if side == WHITE { sq } else { sq ^ 56 }) as u32 };
+    (rel(m.from) << 6) | rel(m.to)
+}
+
 fn captured_piece(pos: &Position, m: Move) -> Option<usize> {
     if let Some((_, p)) = pos.piece_on(m.to) {
         return Some(p);
@@ -927,6 +1134,15 @@ fn see_square_attacked(pieces: &[u64; 12], occupied: u64, by_side: usize, square
     (pawns | knights | bishops | rooks | kings) != 0
 }
 
+/// Whether `moves` contains a legal move that can be announced for a fifty-move claim
+/// from halfmove clock 99. Pawn moves and captures reset the clock instead of reaching 100.
+fn has_claiming_move(pos: &Position, moves: &MoveList) -> bool {
+    (0..moves.len).any(|i| {
+        let m = moves.moves[i];
+        !is_capture(pos, m) && pos.piece_on(m.from).is_some_and(|(_, piece)| piece != PAWN)
+    })
+}
+
 #[inline]
 pub fn is_capture(pos: &Position, m: Move) -> bool {
     captured_piece(pos, m).is_some()
@@ -1014,6 +1230,120 @@ mod draw_rule_tests {
         s.search_root(pos, None, 1, &mut |_| {})
     }
 
+    /// Regression (owner decision, 2026-11-22, strict `searchmoves`): a list that names only illegal
+    /// moves has an empty intersection with the legal moves. The search must not widen to the legal
+    /// moves; it returns `Move::NULL` and searches nothing. The previous widening (2026-11-20) is
+    /// superseded.
+    #[test]
+    fn searchmoves_with_no_legal_move_searches_nothing() {
+        let mut pos = Position::startpos();
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 2,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let illegal = Move::from_uci("e2e5").expect("parse");
+        let r = s.search_root(&mut pos, Some(vec![illegal]), 1, &mut |_| {});
+        assert_eq!(
+            r.best_move,
+            Move::NULL,
+            "an empty legal intersection must give no move, not a widened search"
+        );
+        assert_eq!(
+            r.nodes, 0,
+            "no node may be searched outside the requested root set"
+        );
+    }
+
+    /// Strict `searchmoves`: the returned move always lies in the requested set (never outside it).
+    #[test]
+    fn searchmoves_result_is_always_inside_the_requested_set() {
+        let mut pos = Position::startpos();
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 3,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let named = vec![
+            Move::from_uci("a2a3").expect("parse"),
+            Move::from_uci("h2h4").expect("parse"),
+        ];
+        let r = s.search_root(&mut pos, Some(named.clone()), 1, &mut |_| {});
+        assert!(
+            named.contains(&r.best_move),
+            "bestmove {:?} is outside searchmoves",
+            r.best_move
+        );
+    }
+
+    /// A TT score stored away from the fifty-move horizon must not cut off a search of the same
+    /// board at halfmove 98: the clock is absent from the Zobrist key, but the searched subtree
+    /// can now reach a claim. The cached move remains usable; only the score is withheld.
+    #[test]
+    fn tt_score_from_low_clock_context_does_not_cut_off_near_fifty_move_horizon() {
+        let mut pos =
+            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 98 1")
+                .expect("fen");
+        assert_eq!(
+            pos.hash,
+            Position::startpos().hash,
+            "clock must be unhashed"
+        );
+        let mut tt = TranspositionTable::new(4);
+        tt.store(crate::tt::StoreRequest {
+            key: pos.hash,
+            best_move: None,
+            score: 500,
+            depth: 5,
+            bound: BOUND_EXACT,
+            ply: 0,
+            halfmove: 0,
+        });
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut searcher = Searcher::new(&mut tt, &stop, limits);
+        let _ = searcher.search(&mut pos, 2, -100, -99, 1);
+        assert!(
+            searcher.nodes() > 1,
+            "probe-clock-dependent TT score caused an unsafe cutoff"
+        );
+    }
+
+    /// A null move is not a real game move, so a position reached by a null-search branch must
+    /// not be treated as repeated merely because that hash exists in the game's history. This
+    /// legal four-ply sequence makes the distinction concrete: after black's two king moves and
+    /// white's rook manoeuvre, a hypothetical null followed by Ra8-f8 recreates the initial hash.
+    #[test]
+    fn null_move_search_does_not_claim_game_history_repetition() {
+        let mut pos = Position::from_fen("5R2/8/8/8/7K/3p4/4P3/6k1 b - - 0 1").expect("fen");
+        for m in ["g1h1", "f8e8", "h1g1", "e8a8"] {
+            play(&mut pos, m);
+        }
+        assert!(!pos.is_repetition());
+
+        pos.make_null_move();
+        play(&mut pos, "a8f8");
+        assert!(
+            pos.is_repetition(),
+            "setup must match the historical position"
+        );
+
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut searcher = Searcher::new(&mut tt, &stop, limits);
+        searcher.null_move_search = true;
+        let _ = searcher.search(&mut pos, 0, -INF_SCORE, INF_SCORE, 1);
+        assert!(
+            searcher.nodes() > 2,
+            "search and quiescence must both ignore historical repetitions under a null move"
+        );
+    }
+
     /// R-02a: a repeated ROOT must still be searched (not scored as an instant draw).
     #[test]
     fn root_repetition_is_searched() {
@@ -1038,6 +1368,148 @@ mod draw_rule_tests {
             r.score_cp > MATE_SCORE - 100,
             "expected mate, got {}",
             r.score_cp
+        );
+    }
+
+    /// F-67: a claim can be made by announcing a quiet move that reaches 100 halfmoves.
+    /// The checking move reaches clock 99 and leaves White only the quiet king evasion g3h3;
+    /// White may claim before playing it, so the restricted checking move cannot score as a win.
+    #[test]
+    fn intended_fifty_move_claim_is_honored_after_quiet_check_evasion() {
+        let mut pos =
+            Position::from_fen("8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 98 40").expect("fen");
+        let check = Move::from_uci("b4g4").expect("move");
+        let r = {
+            let mut tt = TranspositionTable::new(4);
+            let stop = AtomicBool::new(false);
+            let limits = Arc::new(Mutex::new(SearchLimits {
+                max_depth: 1,
+                ..SearchLimits::default()
+            }));
+            let mut s = Searcher::new(&mut tt, &stop, limits);
+            s.search_root(&mut pos, Some(vec![check]), 1, &mut |_| {})
+        };
+        assert_eq!(r.best_move, check);
+        assert_eq!(r.score_cp, DRAW_SCORE, "missed intended fifty-move claim");
+    }
+
+    /// MultiPV searches each root move separately, so it must carry the unchanged root's
+    /// claim option into the displayed line score even when the selected search move resets
+    /// the clock. `searchmoves a2a3` must not hide White's claim by announcing a quiet king move.
+    #[test]
+    fn multipv_root_claim_survives_restricted_clock_resetting_move() {
+        let mut pos = Position::from_fen("7k/8/8/8/5K2/8/P7/q7 w - - 99 74").expect("fen");
+        let pawn_move = Move::from_uci("a2a3").expect("move");
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 2,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let mut progress = Vec::new();
+        let r = s.search_root(&mut pos, Some(vec![pawn_move]), 2, &mut |p| {
+            progress.push(p.clone());
+        });
+        assert_eq!(r.best_move, pawn_move);
+        assert_eq!(r.score_cp, DRAW_SCORE);
+        assert!(!progress.is_empty());
+        assert!(progress.iter().all(|p| p.score_cp >= DRAW_SCORE));
+    }
+
+    #[test]
+    fn multipv_root_claim_does_not_clamp_a_positive_score_to_draw() {
+        let mut pos = Position::from_fen("r6k/8/2Q5/8/8/8/8/6K1 w - - 99 1").expect("fen");
+        let legal = generate_legal(&mut pos);
+        assert!(has_claiming_move(&pos, &legal));
+
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits {
+            max_depth: 1,
+            ..SearchLimits::default()
+        }));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let r = s.search_root(&mut pos, None, 2, &mut |_| {});
+        assert!(r.score_cp > DRAW_SCORE, "positive score was lost: {r:?}");
+    }
+
+    /// Halfmove 99 is claimable only when a legal quiet non-pawn move can be announced.
+    /// In this checked position all four legal moves capture the checking-side queen, so the
+    /// clock advances only if the claim condition were incorrectly applied to captures.
+    #[test]
+    fn clock_99_without_eligible_quiet_move_is_not_claimable_in_multipv() {
+        let fen = "rnbq1b1r/2pQk2p/5ppn/pp2P3/1P6/P1P1PP2/6PP/RNB1KBNR b KQ - {clock} 40";
+        let mut scores = Vec::new();
+        for clock in [98, 99] {
+            let mut pos =
+                Position::from_fen(&fen.replace("{clock}", &clock.to_string())).expect("fen");
+            let legal = generate_legal(&mut pos);
+            assert_eq!(legal.len, 4);
+            assert!(!has_claiming_move(&pos, &legal));
+            let mut tt = TranspositionTable::new(4);
+            let stop = AtomicBool::new(false);
+            let limits = Arc::new(Mutex::new(SearchLimits {
+                max_depth: 1,
+                ..SearchLimits::default()
+            }));
+            let mut s = Searcher::new(&mut tt, &stop, limits);
+            let capture = Move::from_uci("e7d7").expect("capture");
+            let r = s.search_root(&mut pos, Some(vec![capture]), 2, &mut |_| {});
+            assert_eq!(r.best_move, capture);
+            scores.push(r.score_cp);
+        }
+        assert_eq!(scores[0], scores[1]);
+        assert!(scores[1] > DRAW_SCORE);
+    }
+
+    /// A clock-0 depth-1 TT bound cannot cut off the same position at clock 97. The non-PV
+    /// mate-bound window disables shallow static pruning while still allowing a TT cutoff; the
+    /// `b4g4` checking line plus quiet evasion reaches the claim boundary through extensions/qsearch.
+    #[test]
+    fn tt_score_does_not_cross_clock_before_extended_quiescence_claim() {
+        let mut pos =
+            Position::from_fen("8/6p1/6p1/6B1/1r5P/1k4K1/4q3/8 b - - 97 40").expect("fen");
+        let mut tt = TranspositionTable::new(4);
+        tt.store(crate::tt::StoreRequest {
+            key: pos.hash,
+            best_move: Some(Move::from_uci("b4g4").expect("move")),
+            score: -500,
+            depth: 1,
+            bound: BOUND_EXACT,
+            ply: 0,
+            halfmove: 0,
+        });
+        assert_eq!(tt.probe(pos.hash, 0, 97).score, None);
+
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let _ = s.search(&mut pos, 1, MATE_BOUND, MATE_BOUND + 1, 0);
+        assert!(
+            s.nodes() > 1,
+            "search did not explore beyond the root: nodes={}, stop={}",
+            s.nodes(),
+            stop.load(Ordering::Relaxed)
+        );
+    }
+
+    /// The qsearch boundary must honor intended claims too, without replacing a checkmate
+    /// at the 100-halfmove position with a draw.
+    #[test]
+    fn qsearch_honors_intended_claim_and_keeps_mate_precedence() {
+        let mut tt = TranspositionTable::new(4);
+        let stop = AtomicBool::new(false);
+        let limits = Arc::new(Mutex::new(SearchLimits::default()));
+        let mut s = Searcher::new(&mut tt, &stop, limits);
+        let mut claim =
+            Position::from_fen("8/6p1/6p1/6B1/6rP/1k4K1/4q3/8 w - - 99 40").expect("claim fen");
+        assert_eq!(s.quiesce(&mut claim, -INF_SCORE, INF_SCORE, 1), DRAW_SCORE);
+
+        let mut mate = Position::from_fen("7k/6Q1/6K1/8/8/8/8/8 b - - 100 1").expect("mate fen");
+        assert_eq!(
+            s.quiesce(&mut mate, -INF_SCORE, INF_SCORE, 1),
+            -MATE_SCORE + 1
         );
     }
 
