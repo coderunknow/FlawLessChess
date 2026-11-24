@@ -2,10 +2,29 @@
 
 **Project state: `ACTIVE / INCOMPLETE`** (V1 NOT complete; absolute rating is UNKNOWN / NOT MEASURED and the strict 2,000 Elo gate is NOT MET. SCREEN-3 run 43820645420 ended with resolver + 60/60 shard jobs successful, but its aggregate-and-commit-evidence job was skipped. CTRL-2-R run 43820392119 ended with resolver + 120/120 shard jobs successful, but its aggregate-and-commit-evidence job was also skipped. These shard artifacts are not canonical committed gate evidence. The RATING-100 amendment is implemented as a candidate design but its prospective power report remains BLOCKED; no confirmatory batch or gate plan has been dispatched. The SEE ordering candidate and new tooling await CI and fresh review.)
 
-**Current branch:** `arena/b756c5f1-asilzkkbatwabaieokwvfotrsioiij`
-**Starting commit (verified 2026-11-14):** `98b1a00203183d9c7ccb175f7d6eb8f5ef5eb429` (only an Apache-2.0 `LICENSE` present)
+**Current branch:** `arena/247fe7df-flawlesschess` (based on `main` = `6ab5b33`, the PR #5 merge
+commit; verified 2026-11-24).
+**Starting commit (verified 2026-11-14):** `98b1a00203183d9c7ccb175f7d6eb8f5ef5eb429` (only an Apache-2.0 `LICENSE` present).
 **Engine identity (UCI):** `Flawless`
 **License:** Apache-2.0 (preserved)
+
+> **Repository-state reconciliation (2026-11-24).** The entries above and much of the checklist and
+> review history in this file were written during the development of PR #1 (branch
+> `arena/b756c5f1-…`) and describe work that was in flight at that time. As of the current
+> `main` HEAD (`6ab5b33`, the PR #5 merge):
+> - Pull requests #1, #3, #4 and #5 are MERGED into `main`; PR #1 is no longer open or draft.
+> - The only open PR is #2 (`arena/8259ce1c` → `main`, head `5f952b12912dc6c77f8339fd8216aa90e6338fc0`),
+>   which is **Draft** and **CONFLICTING** with `main`. It holds the unvalidated SPEED-1 / HIST-1 /
+>   EVAL-2 experiments (fast legality filter, continuation/counter/capture history, evaluation
+>   upgrade behind ablation flags). Per the mission, PR #2 is NOT merged, NOT cherry-picked, and
+>   NOT silently closed here; it is audited against `main` in this session's report and its
+>   candidates remain for a later, gated iteration.
+> - `STATUS.md`, `MERGE_READINESS.md`, `TESTING.md`, `BENCHMARKING.md` and `AGENTS_LOG.md` still
+>   reference the pre-merge branch state and CI runs on commits (`ca61ea6`, `f2176b6`, `c24020b9`,
+>   `071f875`, `5b63e27`, …) that are not the current `main` HEAD. Those records are preserved as
+>   historical evidence; current-state claims below are re-scoped to `6ab5b33`.
+> - The V1 release gate (absolute rating > 2,000, two-sided 95% CI lower bound strictly > 2,000)
+>   remains NOT MEASURED and NOT MET; no absolute Elo claim is made.
 
 ## Checklist (binary acceptance criteria — see TASK in prompt)
 
@@ -32,7 +51,10 @@
 - [ ] RATING-100 confirmatory sample — NOT AUTHORIZED / BLOCKED. Proposed 100 counted games per anchor per batch (50 opening clusters × AB/BA), with disjoint A/B suites; all historical gate conditions and controls remain unchanged. The delta-method prospective sensitivity report is BLOCKED because full third-anchor covariance and Batch-B cluster variance are absent and power is weak near the 2,000 threshold. No confirmatory dispatch may proceed until a reviewed evidence-backed PASS exists.
 - [ ] SEE-based capture ordering candidate — implemented in source but NOT YET BUILT, TESTED, BENCHMARKED OR REVIEWED. No Elo gain or NPS improvement is claimed.
 - [ ] Reviews: CodeRabbit review 5903125228 fully dispositioned (13/13 findings; 11/11 threads replied+resolved 2026-11-14); FRESH review at the exact final SHA still required; Copilot BLOCKED (quota, lower-effort retry needs web UI); Codex RATE_LIMITED; Qodo BLOCKED (trial ended); Kilo BLOCKED (credits)
-- [x] PR #1 returned to **Draft** (2026-11-14, `gh pr ready --undo` verified): open, unmerged, draft=true. Earlier "not marked ready" claim was inaccurate (GitHub had it open/non-draft); corrected. PR stays open+unmerged; never merge/tag/release without explicit authorization.
+- [x] PR #1 ("Flawless V1 checkpoint: identity + correctness audit + CI") is **MERGED** into `main`
+  (`6ab5b33`). It is not open and not draft. The PR-stay-open statements here are historical only;
+  PR #1 must not be re-opened, re-merged, or used as the basis of a new PR without explicit
+  authorization.
 - [ ] Correctness, reliability, documentation, release gates (see TESTING.md)
 - [ ] v1.0.0 stable release (**NOT AUTHORIZED — gate not passed**)
 
@@ -145,13 +167,19 @@ Current head: see `git log --oneline -1`. PR #1 is OPEN, unmerged, **Draft** (co
 
 | Reviewer | State | Notes |
 |----------|-------|-------|
-| CodeRabbit | re-review requested 2026-11-14T09:25Z → **"Review rate limited"** on e769d9a; push-triggered reviews are DISABLED for this OSS repo ("manual review required for this OSS repository" on 89189a6/ca61ea6); `@coderabbitai resume` posted 2026-11-14T09:47Z — awaiting result. Prior substantive review 5903125228 (13/13 dispositioned) | REVIEW: do not claim pass before the bot completes on this exact final SHA — verify `gh api repos/coderunknow/FlawLessChess/commits/<sha>/check-runs` and map the reviewed SHA; manual review is the only working path (push path disabled), and it is rate limited — retry at the next hour boundary if resume fails |
-| GitHub Copilot | BLOCKED | quota insufficient at default effort (2026-11-14). Retry at LOWER effort requested by task but requires the web UI reviewers panel (effort selection); API re-request rejected (`422: not a collaborator`); docs.github.com unreachable from sandbox. No findings recorded. |
-| Codex | RATE_LIMITED | documented retry (`@codex review`) attempted 2026-11-14T05:47Z → "You have reached your Codex usage limits for code reviews." Prior run at 05a36c0: code review FAILED (usage limit), no findings available. |
-| Qodo | BLOCKED | "Qodo reviews are paused because your trial has ended." (billing-blocked, 2026-11-14). No code findings. |
-| Kilo | BLOCKED | "Kilo Code Review could not run — your account is out of credits." (2026-11-14). No code findings. |
+| CodeRabbit | **Not re-run on current `main` HEAD.** Last substantive review 5903125228 (13/13 dispositioned) was at PR #1 branch head `f07c4633`/e769d9a, before PRs #1–#5 were merged into `main` (`6ab5b33`). Push-triggered reviews are DISABLED for this OSS repo ("manual review required for this OSS repository"); `@coderabbitai resume` was posted 2026-11-14T09:47Z but the service is rate limited. No review pass may be claimed on the exact current `main` SHA until a reviewer completes there. | REVIEW: do not claim pass before a reviewer completes on `6ab5b33` (or the iteration's final HEAD). |
+| GitHub Copilot | BLOCKED | quota insufficient at default effort (2026-11-14). API re-request rejected (`422: not a collaborator`). No findings recorded. |
+| Codex | RATE_LIMITED | documented retry attempted 2026-11-14T05:47Z → usage limit; no findings available. |
+| Qodo | BLOCKED | trial ended (billing-blocked, 2026-11-14). No code findings. |
+| Kilo | BLOCKED | account out of credits (2026-11-14). No code findings. |
 
 Review policy: a reviewer FINISHED only when the service actually completes and findings are dispositioned.
+
+> **PR #1 status (corrected).** PR #1 ("Flawless V1 checkpoint: identity + correctness audit + CI",
+> branch `arena/b756c5f1-…`) is **MERGED** into `main` (`6ab5b33`). It is NOT open and NOT draft.
+> The earlier "open, unmerged, draft=true" statement in this file is stale and superseded by the
+> merge. PR #1 remains open+unmerged only as a historical record; it must not be re-opened or
+> re-merged here.
 
 ## CHECKPOINT — 2026-11-14T15:10Z (pre-waiting-boundary)
 

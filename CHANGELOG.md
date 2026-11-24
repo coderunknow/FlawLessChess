@@ -2,6 +2,23 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
+## [Unreleased] — documentation reconciliation & next-iteration plan (2026-11-24)
+
+- **Docs:** Reconciled `STATUS.md`, `MERGE_READINESS.md` references and review-state notes to the
+  actual GitHub state as of `main` = `6ab5b33` (PR #5 merge). Pull requests #1, #3, #4 and #5 are
+  merged; PR #1 is no longer open or draft. The only open PR is #2 (draft, conflicting with
+  `main`), which holds the unvalidated SPEED-1 / HIST-1 / EVAL-2 experiments (fast legality
+  filter, continuation/counter/capture history, evaluation upgrade behind ablation flags). PR #2
+  is audited against `main` but NOT merged, NOT cherry-picked, and NOT silently closed; its
+  candidates remain for a later, gated iteration.
+- **Docs:** Recorded the environment constraint that no Rust toolchain is available in this
+  sandbox (static.rust-lang.org and lichess.org are unreachable), so `cargo build/test/clippy`
+  and live Lichess game analysis could not be re-run here. No engine source was changed without
+  compile-testing, per the "correctness before complexity" principle.
+- **Plan:** Added the prioritized engineering plan for the next gated iteration (see `AGENTS_LOG.md`
+  and the final merge report). No absolute Elo claim is made; the V1 rating gate remains
+  NOT MEASURED / NOT MET.
+
 ## [Unreleased] — independent audit remediation (2026-11-20)
 
 - **Fixed (F-52, from external review of `bf026f8`): three engine defects and one probe gap.** `go ponder nodes N` now counts its cap from `ponderhit` (it was spent while pondering, so the search returned at once). `go movestogo` beyond `u64::MAX` saturates instead of falling back to 40 moves. `position fen` now rejects en-passant targets whose pawn came from an occupied square or whose halfmove clock is not 0 (`f6 0 1` with a bishop on `f7` was accepted). `uci_malformed_probe.py` no longer accepts `bestmove (none)` for a fully restricted search. Tests: `protocol_regressions` ponder cap, `uci` movestogo, `correctness` FEN (3).

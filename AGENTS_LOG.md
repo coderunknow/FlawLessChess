@@ -719,3 +719,64 @@ pushing this documentation-only commit; hosted validation is re-required on the 
 CodeRabbit's incremental check on `33cbeb3` concluded `neutral` (no new findings on the fix
 commit). The exact-head local gate was restarted on `33cbeb3` (clean tree, dirty-at-start 0) and
 will be re-run on the final head.
+
+## 2026-11-24 — next-iteration session on `main` = `6ab5b33` (PR #5 merge)
+
+### Phase 0 — actual baseline (verified)
+- HEAD `6ab5b33` "Merge pull request #5 …" = origin/main; branch `arena/247fe7df-flawlesschess`;
+  working tree clean; shallow snapshot (1 commit).
+- `gh pr list` (state all): #1 MERGED, #2 OPEN/Draft/CONFLICTING (head `5f952b1`, 66 files,
+  ~12,971 additions / 365 deletions), #3 MERGED, #4 MERGED, #5 MERGED.
+- No Rust toolchain in this sandbox: `find / -name rustc` empty; `static.rust-lang.org` TLS
+  blocked (SSL_ERROR_SYSCALL); `deb.debian.org` unreachable. `github.com`/`api.github.com` and
+  `pypi.org`/`registry.npmjs.org` reachable.
+- `lichess.org` TLS blocked → Phase 1 live game export not possible from this sandbox.
+
+### Phase 0 — PR #2 audit reconciliation (NOT merged, NOT cherry-picked)
+PR #2 "Flawless: throughput, move ordering, and evaluation work (screening evidence)" contains
+experimental categories matching the mission's SPEED-1 / HIST-1 / EVAL-2 framing. Commits on its
+branch include, among others: analytic fast legality filter (+78% nps, identical bench signature
+`141943aa23b3fc68`, tree provably unchanged); static-evaluation reuse per node through quiescence;
+precomputed file/ahead-rank masks; continuation history + counter moves + capture history;
+evaluation upgrade behind per-feature ablation flags; EVAL-2 evaluation changes; Windows static-CRT
+artifact hardening; CodeRabbit review dispositions; control/seed-robustness registrations.
+
+Reconciliation against `main` (`6ab5b33`): none of these changes are present in `main`. Per the
+mission, PR #2 is NOT merged, NOT cherry-picked, and NOT silently closed. Its candidates remain
+unvalidated on `main` and cannot be ported in this session because no compiler is available to run
+the perft/difftest/UCI/gates required to accept or reject them. They are documented here as the
+input to a later, gated iteration.
+
+### Environment constraints (binding for this session)
+- No `cargo build / test / clippy` can run → no engine source was changed without compile-testing,
+  per the "correctness before complexity" principle. No benchmark, NPS, perft, or strength number
+  was measured here; no unmeasured Elo/strength claim is made.
+- No live Lichess API → Phase 1 real-game analysis could not be executed against actual
+  Flawless games; the limitation is recorded rather than fabricating observations.
+
+### Phase 5 — prioritized engineering plan (next gated iteration)
+When a Rust toolchain is available, execute in this order, each behind its own commit with
+`cargo test` + perft + a strength screening gate:
+1. Correctness first: re-run the full existing gate suite on `6ab5b33` (fmt, clippy -D warnings,
+   release tests, perft CPW matrix, diftest vs python-chess 1.11.2, UCI protocol regressions,
+   clock/movetime smoke) and confirm green on the exact final HEAD before any change.
+2. PR #2 candidates, audited individually against `main` (feature isolation + ablation; do not
+   combine unrelated changes): (a) fast legality filter — verify identical bench signature and
+   node count, then measure NPS; (b) continuation/counter/capture history — measure fixed-time
+   strength with opening-clustered CI; (c) evaluation upgrade — gate each ablation flag on its
+   own measured result, no silent defaults. Reject any change whose CI lower bound contains zero.
+3. Only after correctness + isolated, statistically supported candidates pass: port them, each
+   with a regression test, on separate commits (correctness / search / evaluation / performance /
+   tests / documentation).
+4. Documentation: keep STATUS.md / CHANGELOG.md / AGENTS_LOG.md synchronized; record exact SHAs
+   and benchmark identifiers; never claim an unmeasured Elo.
+5. Merge readiness: one clean dev branch from `main`, focused PR to `main`, CI green on final
+   HEAD, review findings dispositioned, PR not merged without authorization.
+
+### Changes made in this session (documentation / plan only)
+- `STATUS.md`: reconciled current-state claims (PRs #1/#3/#4/#5 merged; PR #2 open/draft/conflicting;
+  current branch `arena/247fe7df-flawlesschess` at `6ab5b33`; V1 rating gate still NOT MET).
+- `CHANGELOG.md`: added `[Unreleased]` entry for documentation reconciliation + environment
+  constraints + plan (2026-11-24).
+- `AGENTS_LOG.md`: this entry.
+- No `src/` or `tests/` changes (cannot compile-test).
