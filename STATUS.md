@@ -26,6 +26,28 @@ commit; verified 2026-11-24).
 > - The V1 release gate (absolute rating > 2,000, two-sided 95% CI lower bound strictly > 2,000)
 >   remains NOT MEASURED and NOT MET; no absolute Elo claim is made.
 
+> ### Current session (2026-11-24, branch arena/247fe7df-flawlesschess — PR #6 draft)
+>
+> Three engine improvements implemented, each committed separately with full local validation
+> (fmt, clippy -D warnings, 172/172 tests, diftest 2321/0, perft(6)=119060324, bench signature
+> 141943aa23b3fc68 unchanged):
+>
+> 1. **Time management** (commit d5305ee): removed the predictive-overrun early stop that halted
+>    clock-based searches well before the soft budget. At 10 s the engine previously stopped at
+>    116 ms of a 234 ms soft budget (depth 9); it now runs to depth 10 at ~253 ms. Hard budget
+>    still caps worst-case overspend; fixed-depth/movetime searches unaffected.
+> 2. **Counter move heuristic** (commit a162baa, HIST-1 from PR #2 audit): when a quiet move
+>    causes a fail-high cutoff in reply to the opponent's previous move, store it as a counter
+>    move ordered just above killers (92,000) and below good captures. Counter table cleared each
+>    root search; not used in null-move search or quiescence.
+> 3. **Space evaluation** (commit 4038b75, EVAL-2 from PR #2 audit): reward control of important
+>    squares weighted by centrality. Colour-symmetric via square mirroring (sq ^ 56). Tapered:
+>    full weight middlegame / half endgame. Added `space` field to `EvalBreakdown` and CLI `eval`
+>    output.
+>
+> No claim of strength improvement is made for any of these changes; no rating evidence has been
+> re-measured. PR #2 (open, draft, conflicting) remains NOT merged, NOT cherry-picked, NOT touched.
+
 ## Checklist (binary acceptance criteria — see TASK in prompt)
 
 - [x] Repository recon complete (Phase 0)
