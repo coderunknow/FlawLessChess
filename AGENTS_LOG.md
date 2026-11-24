@@ -680,3 +680,28 @@ ms→1.002, 2000 ms→1.0004), selfplay 1000ms/300ms/40+15 clocks, full games wi
 referee at 20/60 ms movetime. Raw logs retained in untracked workspace copy
 `audit-evidence/pr5-integration-c37d75e-final/` (repository path unavailable; see FAILURE_LEDGER).
 No correctness fix was required on the integration head; no strength/Elo claim is made.
+
+## 2026-11-24 — independent review round 1 on the integration head (CodeRabbit, full main...HEAD diff)
+
+Requested an independent review of the combined `main...HEAD` diff at `0329d15`; CodeRabbit completed
+with conclusion `success` and posted three inline findings, all Major and all about test-harness
+robustness (no engine-code defect was found in the integrated diff):
+
+1. `tests/movetime_smoke.rs` `legal_startpos_moves` used blocking `wait_with_output()` for the
+   `moves` CLI child. VERIFIED VALID: a future regression that keeps the CLI alive would hang the
+   suite while it holds the timing lock. FIXED: stdout drained on a reader thread with a 30 s
+   `recv_timeout`; every exceptional return kills and reaps the child; the normal path preserves
+   the real exit status (kill is a no-op after normal exit).
+2. `tests/protocol_regressions.rs` closed-stderr oversized-line test used synchronous 200 KiB
+   stdin writes and deadline-free read/wait. VERIFIED VALID: a child that stops draining stdin
+   could block the test before any assertion. FIXED: stdin fed by a writer thread, stdout drained
+   by a reader thread, 60 s deadlines on both, kill+reap on every exceptional return.
+3. `tests/protocol_regressions.rs` `run_under_address_limit` killed the child without reaping on
+   timeout and used an unbounded final `wait()`. VERIFIED VALID. FIXED: kill+wait on the timeout
+   path; the final wait is preceded by a no-op-unless-alive kill so a stdout-closed-but-alive
+   child cannot block and the real exit status is preserved.
+
+Post-fix gates: fmt clean; clippy debug+release `-D warnings` clean; `cargo test` —
+movetime_smoke 12/12, protocol_regressions 51/51 green. Codex review unavailable (account usage
+limits); Kilo/Qodo unavailable (credits); CodeRabbit is the independent reviewer for this round.
+No engine source changed; no strength/Elo claim.

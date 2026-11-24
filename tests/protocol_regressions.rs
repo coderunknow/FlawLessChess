@@ -650,6 +650,11 @@ fn oversized_position_line_does_not_leave_the_old_position_in_use() {
 /// `readyok`. Here stderr is a pipe whose read end is already closed, so every write fails with
 /// EPIPE. Status messages now go through a write that ignores errors, so the session keeps
 /// answering. (A closed fd 2 cannot be produced on every platform: some runtimes reopen fds 0-2.)
+///
+/// Every step is deadline-bounded (review on the 2026-11-24 integration head): stdin is fed by a
+/// writer thread (so a child that stops draining cannot block the test before any reply), stdout
+/// is drained on a reader thread with a `recv_timeout`, and the child is killed and reaped if it
+/// does not exit, so a regression fails the test instead of hanging the suite.
 #[cfg(unix)]
 #[test]
 fn stderr_write_failure_does_not_stop_the_session_on_an_oversized_line() {
@@ -668,25 +673,55 @@ fn stderr_write_failure_does_not_stop_the_session_on_an_oversized_line() {
         .stderr(Stdio::from(writer))
         .spawn()
         .expect("spawn flawless");
-    let mut stdin = child.stdin.take().expect("stdin piped");
+    let stdin = child.stdin.take().expect("stdin piped");
     let stdout = child.stdout.take().expect("stdout piped");
     let mut big = String::from("position startpos moves e2e4");
     while big.len() < 200 * 1024 {
         big.push_str(" e2e4");
     }
     big.push('\n');
-    // Written before reading: the engine answers in order and the output is small.
-    stdin.write_all(b"uci\ndebug on\n").expect("write uci");
-    stdin
-        .write_all(big.as_bytes())
-        .expect("write oversized line");
-    stdin.write_all(b"isready\nquit\n").expect("write isready");
-    drop(stdin);
-    let mut out = String::new();
-    std::io::BufReader::new(stdout)
-        .read_to_string(&mut out)
-        .unwrap_or_default();
-    let status = child.wait().expect("wait");
+    // Written from a thread: a 200 KiB write exceeds the pipe buffer, so a child that stops
+    // draining stdin would otherwise block this test before it can observe anything.
+    let (wt, wr) = channel();
+    thread::spawn(move || {
+        let mut stdin = stdin;
+        let r = (|| -> std::io::Result<()> {
+            stdin.write_all(b"uci\ndebug on\n")?;
+            stdin.write_all(big.as_bytes())?;
+            stdin.write_all(b"isready\nquit\n")?;
+            Ok(())
+        })();
+        let _ = wt.send(r); // stdin drops here, sending EOF
+    });
+    // Drain stdout on a thread with a deadline; EOF is the normal end of the session.
+    let (rt, rr) = channel();
+    thread::spawn(move || {
+        let mut s = String::new();
+        let _ = std::io::BufReader::new(stdout).read_to_string(&mut s);
+        let _ = rt.send(s);
+    });
+    let out = match rr.recv_timeout(Duration::from_secs(60)) {
+        Ok(s) => s,
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("engine produced no complete stdout within 60 s");
+        }
+    };
+    // The write side must have completed (or failed informatively) within the deadline.
+    match wr.recv_timeout(Duration::from_secs(60)) {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => panic!("stdin writer failed before the session ended: {e}"),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("stdin writer did not finish within 60 s (child stopped draining?)")
+        }
+    }
+    // Bounded reap escalation: kill is a no-op once the child exited on its own, so the real
+    // exit status is preserved on the normal path.
+    let _ = child.kill();
+    let status = child.wait().expect("reap engine");
     assert!(
         out.lines().any(|l| l == "readyok"),
         "no readyok after an oversized line with stderr unwritable"
@@ -758,7 +793,10 @@ fn negative_time_values_answer_at_once() {
 }
 
 /// Runs the engine with its address space limited to `limit_kb` (through `sh`'s `ulimit -v`),
-/// feeds `input`, and returns stdout and the exit status. Kills the child after 30 s.
+/// feeds `input`, and returns stdout and the exit status. Every wait is deadline-bounded and the
+/// child is killed and reaped when a deadline expires (review on the 2026-11-24 integration
+/// head), so a child that closes stdout yet stays alive cannot block the test, and the failure
+/// path reaps instead of leaking a zombie.
 #[cfg(target_os = "linux")]
 fn run_under_address_limit(limit_kb: u64, input: &str) -> (String, Option<i32>) {
     use std::io::Read;
@@ -785,11 +823,17 @@ fn run_under_address_limit(limit_kb: u64, input: &str) -> (String, Option<i32>) 
     let out = match rx.recv_timeout(Duration::from_secs(30)) {
         Ok(s) => s,
         Err(_) => {
+            // Bounded failure cleanup: kill and reap the child before failing the test.
             let _ = child.kill();
+            let _ = child.wait();
             panic!("engine did not finish under a {limit_kb} KB address limit");
         }
     };
-    let status = child.wait().expect("wait");
+    // Bounded exit wait: kill is a no-op once the child has already exited (its real exit
+    // status is preserved), so `wait()` reaps promptly instead of blocking on a child that
+    // closed stdout but kept running.
+    let _ = child.kill();
+    let status = child.wait().expect("reap engine after address-limit run");
     (out, status.code())
 }
 

@@ -170,8 +170,13 @@ impl Drop for Engine {
 
 /// Startpos legal moves via the engine's own CLI (`moves`), so the check does not depend on
 /// a hand-written list.
+///
+/// The child is bounded at every step (review on the 2026-11-24 integration head): output is
+/// collected on a reader thread with a deadline, and the process is killed and reaped if it
+/// does not finish, so a regression that keeps `moves` alive cannot hang the suite while it
+/// holds the timing lock.
 fn legal_startpos_moves() -> Vec<String> {
-    use std::io::Write as _;
+    use std::io::{Read as _, Write as _};
     let mut child = Command::new(env!("CARGO_BIN_EXE_flawless"))
         .arg("moves")
         .stdin(Stdio::piped())
@@ -186,8 +191,34 @@ fn legal_startpos_moves() -> Vec<String> {
         .write_all(format!("{START_FEN}\n").as_bytes())
         .unwrap();
     drop(child.stdin.take());
-    let out = child.wait_with_output().expect("moves output");
-    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    // Drain stdout on a thread so a stalled child cannot block the read; `recv_timeout`
+    // enforces the deadline even while `read_to_end` is still waiting for more bytes.
+    let mut out_pipe = child.stdout.take().expect("moves stdout piped");
+    let (tx, rx) = channel();
+    thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = out_pipe.read_to_end(&mut buf);
+        let _ = tx.send(buf);
+    });
+    let out = match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(buf) => buf,
+        Err(_) => {
+            // Bounded failure cleanup: kill, reap, and fail the test with the reason.
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("moves CLI produced no output within 30 s of stdin EOF");
+        }
+    };
+    // The process is reaped with a bounded escalation: kill is a no-op once the child has
+    // exited on its own, so the real exit status is preserved on the normal path.
+    let _ = child.kill();
+    let status = child.wait().expect("reap moves CLI");
+    assert!(
+        status.success(),
+        "moves CLI exited with {status:?}; output: {:?}",
+        String::from_utf8_lossy(&out)
+    );
+    let text = String::from_utf8_lossy(&out).to_string();
     let mut it = text.split_whitespace();
     assert_eq!(it.next(), Some("ok"), "moves CLI output: {text:?}");
     it.next(); // move count
