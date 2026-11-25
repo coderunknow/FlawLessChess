@@ -142,10 +142,14 @@ What this iteration added and verified:
       intervals**, so the study does not measure the contribution of any of the three terms at this
       sample size. The ablation switch itself is verified; the magnitude of each term's contribution
       is not. This is a diagnostic, not a strength claim.
-- [x] The 40-game quick screen is **not** usable as a strength signal: seven hosted runs of the identical
-      profile ranged from 36.2% to 65.0%, and three of them ran on heads with no engine change at all
-      (50.0%, 65.0%, 52.5%). A fixed 100 ms movetime makes the played games machine- and jitter-dependent, so
-      the seed fixes the opening order but not the games. The quick screen stays a regression screen.
+- [x] The 40-game quick screen is **not** usable as a strength signal: **fourteen** hosted runs of the
+      identical profile on heads with a **byte-identical release binary** (the last change to `src/` on
+      the branch is the outpost refinement `98e5cd9`) ranged from **46.2% to 65.0%**, and the same
+      unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and
+      `INCONCLUSIVE` in the other thirteen. A fixed 100 ms movetime makes the played games machine- and
+      jitter-dependent, so the seed fixes the opening order but not the games. The quick screen stays a
+      regression screen. The three runs below `98e5cd9` (40.0%, 42.5%, 36.2%) are on a different engine
+      and are not part of that range.
 - [ ] **Absolute V1 rating gate: NOT MET.** Still UNKNOWN / NOT MEASURED. The relative screening result above
       is not an absolute rating and cannot be used as one.
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
