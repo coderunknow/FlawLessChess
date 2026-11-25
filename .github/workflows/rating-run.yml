@@ -213,20 +213,27 @@ jobs:
                   fail("confirmatory runs must use Batch A or Batch B")
               if cfg.get("tc") != "40/15":
                   fail("confirmatory evidence must use the registered 40/15 wall-clock time control")
-              if cfg.get("sample_design") != "rating-100-v1":
-                  fail("only the append-only rating-100-v1 sample design is eligible")
-              if count != 50 or reps != 1:
-                  fail("rating-100-v1 requires shard_count=50 and repetitions=1")
+              designs = {
+                  "rating-100-v1": (50, 1),
+                  "rating-120-v1": (60, 1),
+                  "rating-240-v1": (60, 2),
+                  "rating-360-v1": (60, 3),
+              }
+              if cfg.get("sample_design") not in designs:
+                  fail("confirmatory dispatch requires a registered sample_design")
+              want_count, want_reps = designs[cfg["sample_design"]]
+              if count != want_count or reps != want_reps:
+                  fail(f"{cfg['sample_design']} requires shard_count={want_count} and repetitions={want_reps}")
               if len(set(indices)) != len(indices) or indices != sorted(indices):
-                  fail("rating-100-v1 shard indices must be unique and sorted")
-              if any(type(x) is not int or x < 0 or x >= 50 for x in indices):
-                  fail("rating-100-v1 shard indices must be integers within 0..49")
-              full_wave = indices == list(range(50))
+                  fail("confirmatory shard indices must be unique and sorted")
+              if any(type(x) is not int or x < 0 or x >= want_count for x in indices):
+                  fail(f"confirmatory shard indices must be integers within 0..{want_count - 1}")
+              full_wave = indices == list(range(want_count))
               recovery = cfg.get("recovery_dispatch")
               if not isinstance(recovery, bool):
                   fail("confirmatory dispatch must explicitly declare recovery_dispatch true/false")
               if not recovery and not full_wave:
-                  fail("a new confirmatory dispatch must include all 50 opening shards")
+                  fail("a new confirmatory dispatch must include every opening shard")
               if cfg.get("run_evidence") is not True:
                   fail("every confirmatory dispatch must preserve immutable per-run evidence")
               power_path = "benches/rating-100-power-assessment.json"
@@ -234,6 +241,8 @@ jobs:
                   power = json.load(power_file)
               if power.get("status") != "PASS" or power.get("eligible_for_confirmatory_dispatch") is not True:
                   fail("prospective power assessment is not an evidence-backed PASS; confirmatory dispatch blocked")
+              if power.get("sample_design") != cfg.get("sample_design"):
+                  fail("dispatch sample_design differs from the reviewed power assessment")
               if power.get("engine_sha256") != cfg.get("engine_sha256"):
                   fail("prospective power assessment was computed for a different engine binary")
               approval = power.get("approval")
@@ -256,13 +265,13 @@ jobs:
                   fail("rating-100-v1 requires schedule_indices_by_shard for every dispatched shard")
               for shard_key, slots in schedule_map.items():
                   shard_index = int(shard_key)
-                  allowed_slots = {2 * shard_index, 2 * shard_index + 1}
+                  allowed_slots = {2 * want_reps * shard_index + offset for offset in range(2 * want_reps)}
                   if not isinstance(slots, list) or not slots or len(set(slots)) != len(slots):
                       fail(f"invalid schedule-index recovery list for shard {shard_key}")
                   if slots != sorted(slots) or any(type(slot) is not int or slot not in allowed_slots for slot in slots):
                       fail(f"schedule-index recovery list escapes shard {shard_key}")
                   if not recovery and set(slots) != allowed_slots:
-                      fail(f"initial dispatch must include both AB/BA indices for shard {shard_key}")
+                      fail(f"initial dispatch must include every schedule slot for shard {shard_key}")
               # Recompute recovery slots from committed, hash-verified per-run manifests.
               import sys as _sys
               _sys.path.insert(0, "scripts")
@@ -285,10 +294,13 @@ jobs:
                   missing_by_shard = read_committed_runs(
                       runs_root, batch=batch, anchor=anchor, engine_sha=cfg["engine_sha256"],
                       anchor_sha=anchor_entry["sha256"], suite_sha=cfg["opening_suite_sha256"],
-                      opening_names=opening_names)
+                      opening_names=opening_names, clusters=want_count, repetitions=want_reps)
                   expected_schedule_map = {str(k): missing_by_shard[k] for k in indices}
               else:
-                  expected_schedule_map = {str(k): [2 * k, 2 * k + 1] for k in indices}
+                  expected_schedule_map = {
+                      str(k): [2 * want_reps * k + offset for offset in range(2 * want_reps)]
+                      for k in indices
+                  }
               if schedule_map != expected_schedule_map:
                   fail("dispatch schedule-index map differs from recomputed missing schedule slots")
 
@@ -658,8 +670,8 @@ jobs:
           sys.exit(rc)
           PY
 
-      - name: Attempt strict canonical merge for the 100-game design
-        if: fromJson(needs.resolve.outputs.config).purpose == 'confirmatory' && fromJson(needs.resolve.outputs.config).sample_design == 'rating-100-v1'
+      - name: Attempt strict canonical merge for the registered design
+        if: fromJson(needs.resolve.outputs.config).purpose == 'confirmatory'
         env:
           CFG: ${{ needs.resolve.outputs.config }}
         run: |
@@ -668,8 +680,9 @@ jobs:
           c = json.loads(__import__("os").environ["CFG"])
           runs = f"benches/evidence/confirmatory/batch{c['batch']}/{c['anchor_id']}"
           canonical = f"benches/evidence/batch{c['batch']}/{c['anchor_id']}"
+          expected_games = str(c["shard_count"] * 2 * c["repetitions"])
           cmd = [sys.executable, "scripts/try_merge_confirmatory.py",
-                 "--runs-root", runs, "--out", canonical, "--expected-games", "100",
+                 "--runs-root", runs, "--out", canonical, "--expected-games", expected_games,
                  "--suite", c["opening_suite"]]
           sys.exit(subprocess.call(cmd))
 

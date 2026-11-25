@@ -15,15 +15,51 @@ import os
 import re
 import sys
 
-SUITES = {
-    "A": (
-        "benches/rating-openings-100-batchA.txt",
-        "5abdcdbddec0f22d7e6eff8974ee402363c8c3df318b8110d7204adf69f5c1df",
-    ),
-    "B": (
-        "benches/rating-openings-100-batchB.txt",
-        "ccb4901742eca25b0b10f1a3c9fdfc17b2967a1939c2d7e466c2c5495b6d4253",
-    ),
+# Sample designs eligible for confirmatory dispatch. Each design fixes its registered suites,
+# its opening-cluster count and its paired repetitions per opening (one repetition = 2 games,
+# AB/BA). The power assessment selects the design (PREREGISTRATION.md decision rule); this
+# generator and the rating-run dispatch gate refuse anything else.
+DESIGNS = {
+    "rating-100-v1": {
+        "suites": {
+            "A": ("benches/rating-openings-100-batchA.txt",
+                  "5abdcdbddec0f22d7e6eff8974ee402363c8c3df318b8110d7204adf69f5c1df"),
+            "B": ("benches/rating-openings-100-batchB.txt",
+                  "ccb4901742eca25b0b10f1a3c9fdfc17b2967a1939c2d7e466c2c5495b6d4253"),
+        },
+        "clusters": 50,
+        "repetitions": 1,
+    },
+    "rating-120-v1": {
+        "suites": {
+            "A": ("benches/rating-openings-batchA.txt",
+                  "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96"),
+            "B": ("benches/rating-openings-batchB.txt",
+                  "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4"),
+        },
+        "clusters": 60,
+        "repetitions": 1,
+    },
+    "rating-240-v1": {
+        "suites": {
+            "A": ("benches/rating-openings-batchA.txt",
+                  "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96"),
+            "B": ("benches/rating-openings-batchB.txt",
+                  "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4"),
+        },
+        "clusters": 60,
+        "repetitions": 2,
+    },
+    "rating-360-v1": {
+        "suites": {
+            "A": ("benches/rating-openings-batchA.txt",
+                  "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96"),
+            "B": ("benches/rating-openings-batchB.txt",
+                  "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4"),
+        },
+        "clusters": 60,
+        "repetitions": 3,
+    },
 }
 TIME_CONTROL = {"mode": "clock", "period_moves": 40, "period_seconds": 900.0}
 
@@ -41,7 +77,7 @@ def sha256_file(path: str) -> str:
     return digest.hexdigest()
 
 
-def read_suite(path: str, wanted_sha: str) -> list[str]:
+def read_suite(path: str, wanted_sha: str, expected_rows: int) -> list[str]:
     if sha256_file(path) != wanted_sha:
         die(f"{path}: SHA-256 does not match the append-only preregistration")
     with open(path, encoding="utf-8") as handle:
@@ -50,8 +86,8 @@ def read_suite(path: str, wanted_sha: str) -> list[str]:
             for line in handle
             if line.strip() and not line.lstrip().startswith("#")
         ]
-    if len(rows) != 50 or len(set(rows)) != 50:
-        die(f"{path}: expected exactly 50 unique opening-cluster names")
+    if len(rows) != expected_rows or len(set(rows)) != expected_rows:
+        die(f"{path}: expected exactly {expected_rows} unique opening-cluster names")
     return rows
 
 
@@ -70,14 +106,14 @@ def load_anchor_sha(pool_path: str, anchor: str) -> str:
     return value
 
 
-def validate_power(path: str, suite_a_sha: str, suite_b_sha: str, engine_sha: str) -> dict:
+def validate_power(path: str, design: str, suite_a_sha: str, suite_b_sha: str, engine_sha: str) -> dict:
     try:
         with open(path, encoding="utf-8") as handle:
             power = json.load(handle)
     except (OSError, ValueError) as exc:
         die(f"cannot read prospective power assessment: {exc}")
-    if power.get("design") != "rating-100-v1":
-        die("power assessment is for a different sample design")
+    if power.get("design") != design or power.get("sample_design") != design:
+        die(f"power assessment is not for sample design {design!r}")
     if power.get("status") != "PASS" or power.get("eligible_for_confirmatory_dispatch") is not True:
         die("prospective power assessment is not an evidence-backed PASS")
     suites = power.get("opening_suites", {})
@@ -103,6 +139,8 @@ def read_committed_runs(
     anchor_sha: str,
     suite_sha: str,
     opening_names: list[str],
+    clusters: int,
+    repetitions: int,
 ) -> dict[int, list[int]]:
     """Return missing frozen schedule indices per opening shard.
 
@@ -159,9 +197,10 @@ def read_committed_runs(
         if manifest.get("n_attempts") != len(records):
             die(f"{run_name}: n_attempts disagrees with games.jsonl")
 
+        schedule_len = clusters * 2 * repetitions
         for game in counted:
             index = game.get("schedule_index")
-            if type(index) is not int or not 0 <= index < 100:
+            if type(index) is not int or not 0 <= index < schedule_len:
                 die(f"{run_name}: counted record has invalid schedule_index {index!r}")
             if index in seen:
                 die(f"duplicate counted schedule_index {index} across committed runs")
@@ -171,17 +210,20 @@ def read_committed_runs(
                 die(f"{run_name}: counted slot {index} has wrong seated engine identities")
             if game.get("result") not in ("1-0", "0-1", "1/2-1/2"):
                 die(f"{run_name}: invalid counted result at schedule_index {index}")
-            shard_index = index // 2
+            slots = 2 * repetitions
+            shard_index = index // slots
+            offset = index - shard_index * slots
             expected_opening = opening_names[shard_index]
-            expected_pair = "AB" if index % 2 == 0 else "BA"
+            expected_pair = "AB" if offset % 2 == 0 else "BA"
             if game.get("opening") != expected_opening or game.get("color_pair") != expected_pair:
                 die(f"{run_name}: schedule_index {index} does not match "
                     f"{expected_opening}/{expected_pair}")
             seen[index] = game
 
     missing_by_shard = {}
-    for shard_index in range(50):
-        expected_indices = {shard_index * 2, shard_index * 2 + 1}
+    slots = 2 * repetitions
+    for shard_index in range(clusters):
+        expected_indices = {shard_index * slots + offset for offset in range(slots)}
         missing = sorted(expected_indices - set(seen))
         if missing:
             missing_by_shard[shard_index] = missing
@@ -191,6 +233,8 @@ def read_committed_runs(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hash", required=True, help="frozen engine binary SHA-256")
+    parser.add_argument("--design", required=True, choices=sorted(DESIGNS),
+                        help="sample design selected by the reviewed power assessment")
     parser.add_argument("--target-commit", required=True, help="full 40-character source commit")
     parser.add_argument("--batch", required=True, choices=("A", "B"))
     parser.add_argument("--seed", required=True, type=int)
@@ -212,9 +256,13 @@ def main() -> int:
     if args.revision < 1:
         die("--revision must be positive")
 
-    suite_path, suite_sha = SUITES[args.batch]
-    opening_names = read_suite(suite_path, suite_sha)
-    power = validate_power(args.power_assessment, SUITES["A"][1], SUITES["B"][1], args.hash)
+    design = DESIGNS[args.design]
+    clusters = design["clusters"]
+    repetitions = design["repetitions"]
+    suite_path, suite_sha = design["suites"][args.batch]
+    opening_names = read_suite(suite_path, suite_sha, clusters)
+    power = validate_power(args.power_assessment, args.design,
+                           design["suites"]["A"][1], design["suites"]["B"][1], args.hash)
     anchor_sha = load_anchor_sha(args.pool, args.anchor)
 
     if os.path.exists(args.out):
@@ -235,6 +283,7 @@ def main() -> int:
     missing_by_shard = read_committed_runs(
         runs_root, batch=args.batch, anchor=args.anchor, engine_sha=args.hash,
         anchor_sha=anchor_sha, suite_sha=suite_sha, opening_names=opening_names,
+        clusters=clusters, repetitions=repetitions,
     )
     if args.recovery:
         if not os.path.isdir(runs_root) or not any(
@@ -242,24 +291,29 @@ def main() -> int:
         ):
             die("no prior per-run evidence exists; use a full dispatch instead of --recovery")
         if not missing_by_shard:
-            die("all 100 counted schedule indices are already present in committed evidence")
+            die(f"all {clusters * 2 * repetitions} counted schedule indices are already "
+                "present in committed evidence")
         indices = sorted(missing_by_shard)
     else:
         if os.path.isdir(runs_root) and any(
             name.startswith("run-") for name in os.listdir(runs_root)
         ):
             die("prior per-run evidence already exists; use --recovery to fill missing schedule indices")
-        indices = list(range(50))
-        missing_by_shard = {index: [index * 2, index * 2 + 1] for index in indices}
+        indices = list(range(clusters))
+        slots = 2 * repetitions
+        missing_by_shard = {
+            index: [index * slots + offset for offset in range(slots)] for index in indices
+        }
 
     dispatch = {
         "schema": 1,
         "revision": args.revision,
         "purpose": "confirmatory",
-        "sample_design": "rating-100-v1",
+        "sample_design": args.design,
         "description": (
-            f"100 counted games = 50 disjoint opening clusters × 1 paired repetition × AB/BA; "
-            f"{len(indices)} of 50 two-game shards for batch {args.batch}, anchor {args.anchor}; "
+            f"{clusters * 2 * repetitions} counted games = {clusters} disjoint opening clusters "
+            f"x {repetitions} paired repetition(s) x AB/BA; "
+            f"{len(indices)} of {clusters} shards for batch {args.batch}, anchor {args.anchor}; "
             f"40/15 wall-clock; engine SHA-256 {args.hash}; source commit {args.target_commit}."
         ),
         "preregistration": "PREREGISTRATION.md#rating-100-amendment-2026-11-16",
@@ -269,14 +323,14 @@ def main() -> int:
         "anchor_id": args.anchor,
         "white_engine": "flawless",
         "black_engine": args.anchor,
-        "shard_count": 50,
+        "shard_count": clusters,
         "shard_indices": indices,
         "schedule_indices_by_shard": {
             str(index): missing_by_shard[index] for index in indices
         },
         "opening_suite": suite_path,
         "opening_suite_sha256": suite_sha,
-        "repetitions": 1,
+        "repetitions": repetitions,
         "seed": args.seed,
         "tc": "40/15",
         "recovery_dispatch": bool(args.recovery),
