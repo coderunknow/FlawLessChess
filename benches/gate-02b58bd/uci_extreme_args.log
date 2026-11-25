@@ -1,26 +1,26 @@
 ok   go depth 0                                                             reply=bestmove b1c3          t=  0.001s rc=0 
 ok   go depth 1                                                             reply=bestmove b1c3          t=  0.001s rc=0 
-ok   go depth 99999999999                                                   reply=STOP->bestmove g1f3 po t=  3.020s rc=0 
+ok   go depth 99999999999                                                   reply=STOP->bestmove g1f3 po t=  3.012s rc=0 
 ok   go depth -1                                                            reply=bestmove b1c3          t=  0.001s rc=0 
-ok   go depth 2147483647                                                    reply=STOP->bestmove g1f3 po t=  3.049s rc=0 
+ok   go depth 2147483647                                                    reply=STOP->bestmove g1f3 po t=  3.020s rc=0 
 ok   go movetime 0                                                          reply=bestmove b1c3          t=  0.001s rc=0 
 ok   go movetime 1                                                          reply=bestmove b1c3 ponder b t=  0.002s rc=0 
-ok   go movetime 18446744073709551615                                       reply=STOP->bestmove g1f3 po t=  3.007s rc=0 
+ok   go movetime 18446744073709551615                                       reply=STOP->bestmove g1f3 po t=  3.000s rc=0 
 ok   go movetime -5                                                         reply=bestmove b1c3          t=  0.001s rc=0 
 ok   go nodes 0                                                             reply=bestmove b1a3          t=  0.001s rc=0 
 ok   go nodes 1                                                             reply=bestmove b1a3          t=  0.001s rc=0 
-ok   go nodes 18446744073709551615                                          reply=STOP->bestmove g1f3 po t=  3.049s rc=0 
+ok   go nodes 18446744073709551615                                          reply=STOP->bestmove g1f3 po t=  3.033s rc=0 
 ok   go wtime 0 btime 0                                                     reply=bestmove b1c3          t=  0.001s rc=0 
-ok   go wtime 1 btime 1                                                     reply=bestmove b1c3 ponder b t=  0.002s rc=0 
-ok   go wtime 18446744073709551615 btime 18446744073709551615               reply=STOP->bestmove g1f3 po t=  3.035s rc=0 
-ok   go wtime 9223372036854775807 btime 9223372036854775807 winc 9223372036 reply=STOP->bestmove g1f3 po t=  3.038s rc=0 
+ok   go wtime 1 btime 1                                                     reply=bestmove b1c3 ponder b t=  0.001s rc=0 
+ok   go wtime 18446744073709551615 btime 18446744073709551615               reply=STOP->bestmove g1f3 po t=  3.008s rc=0 
+ok   go wtime 9223372036854775807 btime 9223372036854775807 winc 9223372036 reply=STOP->bestmove g1f3 po t=  3.000s rc=0 
 ok   go wtime 1000 btime 1000 movestogo 0                                   reply=bestmove b1c3 ponder b t=  0.701s rc=0 
-ok   go wtime 1000 btime 1000 movestogo 18446744073709551615                reply=bestmove b1c3 ponder b t=  0.004s rc=0 
+ok   go wtime 1000 btime 1000 movestogo 18446744073709551615                reply=bestmove b1c3 ponder b t=  0.003s rc=0 
 ok   go wtime 1000 btime 1000 movestogo 1                                   reply=bestmove b1c3 ponder b t=  0.701s rc=0 
 ok   go wtime -1000 btime -1000                                             reply=bestmove b1c3          t=  0.001s rc=0 
-ok   go mate 0                                                              reply=STOP->bestmove g1f3 po t=  3.003s rc=0 
-ok   go mate 1                                                              reply=STOP->bestmove g1f3 po t=  3.001s rc=0 
-ok   go mate 99999999999999999999                                           reply=STOP->bestmove g1f3 po t=  3.030s rc=0 
+ok   go mate 0                                                              reply=STOP->bestmove g1f3 po t=  3.000s rc=0 
+ok   go mate 1                                                              reply=STOP->bestmove g1f3 po t=  3.007s rc=0 
+ok   go mate 99999999999999999999                                           reply=STOP->bestmove g1f3 po t=  3.014s rc=0 
 ok   go depth 3 movetime 100 nodes 50                                       reply=bestmove b1c3          t=  0.001s rc=0 
 ok   setoption name Hash value 0                                            rc=0 info=info string option Hash expects 1..1024 MiB, got "0" 
 ok   setoption name Hash value -1                                           rc=0 info=info string option Hash expects 1..1024 MiB, got "-1" 

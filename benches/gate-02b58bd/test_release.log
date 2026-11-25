@@ -58,7 +58,7 @@ test uci::tests::info_nps_is_a_rate_when_no_time_has_passed ... ok
 test uci::tests::movestogo_overflow_saturates_instead_of_falling_back_to_40 ... ok
 test search::draw_rule_tests::fifty_move_claim_value_is_at_least_draw ... ok
 
-test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
 
      Running unittests src/main.rs (target/release/deps/flawless-1e9712328a1a0256)
 
@@ -79,10 +79,10 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 3 tests
 test divide_depth_one_totals_the_root_move_count ... ok
-test divide_depth_two_totals_perft_two ... ok
 test divide_depth_zero_is_refused_with_usage ... ok
+test divide_depth_two_totals_perft_two ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
 
      Running tests/clock_smoke.rs (target/release/deps/clock_smoke-c39cc1ff271e44e4)
 
@@ -91,17 +91,17 @@ test clock_command_returns_bestmove_within_budget ... ok
 test tight_clock_returns_quickly ... ok
 test clock_with_increment_and_movestogo ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
 
      Running tests/correctness.rs (target/release/deps/correctness-4b43e9884c3e3fbb)
 
 running 45 tests
-test castling_rights_with_rooks_generate_exactly_the_castles ... ok
 test castling_right_is_ignored_when_king_is_off_its_home_square ... ok
+test castling_rights_with_rooks_generate_exactly_the_castles ... ok
 test castling_through_check_illegal ... ok
 test checkmate_and_stalemate_detection ... ok
-test clock_limits_never_panics_at_zero_time ... ok
 test ep_capture_legality_pin ... ok
+test clock_limits_never_panics_at_zero_time ... ok
 test fen_accepts_a_legal_double_check_from_knight_and_queen ... ok
 test fen_accepts_genuine_en_passant_targets ... ok
 test fen_accepts_promoted_piece_counts_that_are_reachable ... ok
@@ -142,25 +142,25 @@ test static_evaluation_is_colour_symmetric ... ok
 test tempo_is_awarded_to_the_side_to_move_for_both_colours ... ok
 test search_scores_are_colour_symmetric_on_recorded_pairs ... ok
 
-test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
 
      Running tests/movetime_smoke.rs (target/release/deps/movetime_smoke-55a5e02f0ee6e2ea)
 
 running 12 tests
-test bare_go_ponder_keeps_searching_until_stop ... ok
 test explicit_stop_ends_a_long_movetime_promptly ... ok
+test bare_go_ponder_keeps_searching_until_stop ... ok
 test infinite_then_stop_returns_one_legal_bestmove ... ok
+test movetime_uses_its_budget_within_tolerance ... ok
 test movetime_bestmove_reports_a_completed_iteration ... ok
 test ponder_movetime_ponderhit_keeps_the_movetime_deadline ... ok
 test ponder_node_cap_is_enforced_after_ponderhit ... ok
-test movetime_uses_its_budget_within_tolerance ... ok
 test ponderhit_starts_the_clock_slice_at_the_hit ... ok
 test quit_during_movetime_exits_cleanly_and_promptly ... ok
-test terminal_positions_return_null_move_promptly ... ok
 test repeated_movetime_searches_in_one_process ... ok
+test terminal_positions_return_null_move_promptly ... ok
 test very_short_movetime_still_returns_a_legal_move ... ok
 
-test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.20s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.55s
 
      Running tests/protocol_regressions.rs (target/release/deps/protocol_regressions-195946d1c00d2074)
 
@@ -170,8 +170,8 @@ test closed_stdout_ends_the_process_quietly ... ok
 test fixed_depth_search_finds_mate_in_one_and_reports_depth_lines ... ok
 test go_infinite_continues_after_proving_mate_in_one ... ok
 test go_bad_value_is_reported_and_the_next_keyword_survives ... ok
-test go_ponder_continues_after_proving_mate_in_one ... ok
 test go_nodes_limit_is_spent_exactly_and_reported ... ok
+test go_ponder_continues_after_proving_mate_in_one ... ok
 test hash_limit_is_advertised_and_enforced ... ok
 test hash_allocation_refusal_does_not_abort_the_engine ... ok
 test hash_rounding_is_reported_on_stdout ... ok
@@ -185,14 +185,14 @@ test low_reply_quiet_mate_threats_are_not_reduced ... ok
 test mate_score_is_compared_as_a_whole_token ... ok
 test malformed_setoption_is_reported_on_stdout ... ok
 test mixed_searchmoves_restricts_to_the_legal_named_move ... ok
-test negative_go_depth_and_nodes_answer_at_once ... ok
 test negative_time_values_answer_at_once ... ok
+test negative_go_depth_and_nodes_answer_at_once ... ok
 test non_utf8_input_line_does_not_end_the_session ... ok
 test null_move_pruning_does_not_hide_thirteen_piece_mate_in_two ... ok
 test null_move_pruning_does_not_hide_sparse_mate_in_two ... ok
 test oversized_input_line_is_dropped_and_session_continues ... ok
-test out_of_range_go_depth_and_nodes_saturate_instead_of_being_ignored ... ok
 test oversized_position_line_does_not_leave_the_old_position_in_use ... ok
+test out_of_range_go_depth_and_nodes_saturate_instead_of_being_ignored ... ok
 test ponder_node_cap_is_enforced_after_ponderhit ... ok
 test position_without_startpos_or_fen_is_refused_visibly ... ok
 test proven_mate_in_one_stops_deeper_single_pv_iterations ... ok
@@ -217,7 +217,7 @@ test unknown_option_is_reported_on_stdout ... ok
 test unsupported_go_mate_is_reported_on_stdout ... ok
 test sparse_quiet_mate_in_three_is_found_at_depth_six ... ok
 
-test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.13s
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.04s
 
      Running tests/uci_smoke.rs (target/release/deps/uci_smoke-3372ae34f18414bd)
 
@@ -234,7 +234,7 @@ test seeded_fuzz_command_sequences ... ok
 test unknown_commands_do_not_crash ... ok
 test ponderhit_or_stop_racing_search_end_emits_exactly_one_bestmove ... ok
 
-test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.86s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.57s
 
    Doc-tests flawless
 

@@ -1107,3 +1107,23 @@ The honest statement of what the ablation study establishes:
   paired difference over the shared openings and a time control that makes the played games
   reproducible; the artifacts of this run cannot be downloaded from the development sandbox, so that
   paired analysis was not performed here.
+
+### Addendum to the addendum: the unchanged-engine run set grew
+
+The quick profile now runs on every push to this branch, so every push adds one more run of the
+**same byte-identical release binary**. The corrected table above was written when eleven such runs
+had been observed; three more have since appeared, and they widen the range:
+
+| Head | W/D/L | Score | Classification |
+|---|---|---|---|
+| `13f8162` | 12/13/15 | 46.2% | INCONCLUSIVE |
+| `25d7d66` | 24/9/7 | 61.3% | INCONCLUSIVE |
+| `02b58bd` | 22/8/10 | 55.0% | INCONCLUSIVE |
+
+**On an unchanged engine the profile therefore ranges from 46.2% to 65.0% over fourteen runs**, and
+the same unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run
+(`6aae7f7`) and `INCONCLUSIVE` in the other thirteen. This is a lower bound: every further push adds
+another run, and the spread is not expected to narrow.
+
+The three runs above `98e5cd9` in the earlier table (`504924b` 40.0%, `78f42ca` 42.5%, `dcdc4b4`
+36.2%) remain on a *different* engine and are not part of this range.

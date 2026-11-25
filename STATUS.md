@@ -62,9 +62,11 @@ commit; verified 2026-11-24).
 >    attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the undefended case
 >    were added as regressions.
 >
-> Local gate suite: fmt clean, clippy `-D warnings` clean, `cargo test --release --locked`
-> 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness 112/112,
-> benchmark suite 30/30, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
+> Local gate suite on `02b58bd`: **50/50 steps, FAILS=0** (raw output retained under
+> `benches/gate-02b58bd/`). Within it: fmt clean, clippy `-D warnings` clean, `cargo test --release
+> --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
+> 112/112, benchmark suite 37/37, weakness-diagnostic suite 20/20, benchmark-request resolver suite
+> 17/17, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
 > `141943aa23b3fc68`, identical to the pinned baseline `6ab5b33`.
 >
 > Hosted relative evidence, read back:
@@ -516,10 +518,14 @@ summary is published to a pull request comment.
 | `c2cc288` | **no engine change** | 16/9/15 | 51.2% | INCONCLUSIVE |
 | `3e0fe75` | **no engine change** | 15/13/12 | 53.8% | INCONCLUSIVE |
 | `f0316b0` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
+| `13f8162` | **no engine change** | 12/13/15 | 46.2% | INCONCLUSIVE |
+| `25d7d66` | **no engine change** | 24/9/7 | 61.3% | INCONCLUSIVE |
+| `02b58bd` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
 
-  **On an unchanged engine the profile ranges from 48.8% to 65.0%** (eleven runs, listed above), and
-  the same unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run
-  and `INCONCLUSIVE` in ten others. The 36.2% low and the
+  **On an unchanged engine the profile ranges from 46.2% to 65.0%** (fourteen runs, listed above; a
+  lower bound, since every further push adds another run), and the same unchanged engine produced the
+  label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and `INCONCLUSIVE` in the other
+  thirteen. The 36.2% low and the
   `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label come from `dcdc4b4`, which is **before** the outpost
   refinement and therefore a *different* engine: that pair must not be read as "the same code scoring
   36.2% and 65.0%". The overall observed range across all heads is 36.2%–65.0%, but it spans two

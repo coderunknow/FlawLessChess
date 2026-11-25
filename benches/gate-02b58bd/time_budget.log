@@ -1,0 +1,9 @@
+OK   movetime 50 start            elapsed=    50.9 ms  bestmove=b1c3
+OK   movetime 500 kiwipete        elapsed=   501.0 ms  bestmove=d5e6
+OK   movetime 2000 start          elapsed=  2003.1 ms  bestmove=g1f3
+OK   wtime 10000 mtg 40           elapsed=   452.4 ms  bestmove=b1c3
+OK   wtime 2000 inc 100           elapsed=   250.0 ms  bestmove=d5e6
+OK   wtime 300 sudden death       elapsed=     1.5 ms  bestmove=b1c3
+OK   wtime 60                     elapsed=     1.6 ms  bestmove=b1c3
+OK   btime 1500 black to move     elapsed=    87.1 ms  bestmove=b8c6
+8/8 cases passed

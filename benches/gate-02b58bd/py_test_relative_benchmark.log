@@ -23,7 +23,7 @@ relative Elo estimate (not absolute/official): +190.8 to +190.8 95% CI
 opening clusters: 100; method: percentile cluster bootstrap over opening positions
 validation errors:
   - seed 20261125: opening order digest mismatch (manifest 6b650cefc6c31fdeb933c5bbfe94f30636a1a5bbbd8b944349adc63692aad742, file feeaa54fdd50cc0ac52717ee9b9d9b1abb6068f55458d27a640814bb3baffb5b)
-  - seed 20261125: cannot read the saved opening order: /tmp/tmpbpp54a3a/runs/replicate-2/openings.used.txt:3: illegal move 'c4d5' at ply 5 in rnbqkb1r/ppp1pppp/7n/3p4/7P/P7/1PPPPPP1/RNBQKBNR w KQkq - 0 3
+  - seed 20261125: cannot read the saved opening order: /tmp/tmpsp_d3agb/runs/replicate-2/openings.used.txt:3: illegal move 'c4d5' at ply 5 in rnbqkb1r/ppp1pppp/7n/3p4/7P/P7/1PPPPPP1/RNBQKBNR w KQkq - 0 3
 
 === RELATIVE ENGINE BENCHMARK ===
 status: POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY (valid=False)
@@ -34,4 +34,4 @@ opening clusters: 100; method: percentile cluster bootstrap over opening positio
 validation errors:
   - replicate ablation masks differ (['', 'space']); runs cannot be combined
 
-30 checks passed, 0 failed
+37 checks passed, 0 failed

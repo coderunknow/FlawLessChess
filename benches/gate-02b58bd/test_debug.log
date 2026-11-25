@@ -58,7 +58,7 @@ test uci::tests::info_nps_is_a_rate_when_no_time_has_passed ... ok
 test uci::tests::movestogo_overflow_saturates_instead_of_falling_back_to_40 ... ok
 test search::draw_rule_tests::fifty_move_claim_value_is_at_least_draw ... ok
 
-test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.39s
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.30s
 
      Running unittests src/main.rs (target/debug/deps/flawless-d9f43ff04413f85e)
 
@@ -73,16 +73,16 @@ test hash_answers_every_line_when_one_is_not_utf8 ... ok
 test moves_answers_an_overlong_line_and_continues ... ok
 test moves_answers_every_line_when_one_is_not_utf8 ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
 
      Running tests/cli_divide.rs (target/debug/deps/cli_divide-cf89fb1a60e664d0)
 
 running 3 tests
-test divide_depth_one_totals_the_root_move_count ... ok
-test divide_depth_zero_is_refused_with_usage ... ok
 test divide_depth_two_totals_perft_two ... ok
+test divide_depth_zero_is_refused_with_usage ... ok
+test divide_depth_one_totals_the_root_move_count ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
 
      Running tests/clock_smoke.rs (target/debug/deps/clock_smoke-905c961e7f68b162)
 
@@ -91,7 +91,7 @@ test clock_command_returns_bestmove_within_budget ... ok
 test clock_with_increment_and_movestogo ... ok
 test tight_clock_returns_quickly ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
 
      Running tests/correctness.rs (target/debug/deps/correctness-48927b833758ff91)
 
@@ -100,14 +100,14 @@ test castling_right_is_ignored_when_king_is_off_its_home_square ... ok
 test castling_rights_with_rooks_generate_exactly_the_castles ... ok
 test castling_through_check_illegal ... ok
 test clock_limits_never_panics_at_zero_time ... ok
-test ep_capture_legality_pin ... ok
 test checkmate_and_stalemate_detection ... ok
-test fen_accepts_a_legal_double_check_from_knight_and_queen ... ok
+test ep_capture_legality_pin ... ok
 test fen_accepts_genuine_en_passant_targets ... ok
+test fen_accepts_a_legal_double_check_from_knight_and_queen ... ok
 test fen_accepts_promoted_piece_counts_that_are_reachable ... ok
 test fen_rejects_en_passant_target_whose_pawn_came_from_an_occupied_square ... ok
-test fen_rejects_material_that_no_game_can_reach ... ok
 test fen_rejects_en_passant_target_with_nonzero_halfmove_clock ... ok
+test fen_rejects_material_that_no_game_can_reach ... ok
 test fen_rejects_more_than_two_checkers ... ok
 test fen_rejects_two_checkers_on_one_line_through_the_king ... ok
 test fen_roundtrip_canonical ... ok
@@ -142,25 +142,25 @@ test static_evaluation_is_colour_symmetric ... ok
 test tempo_is_awarded_to_the_side_to_move_for_both_colours ... ok
 test search_scores_are_colour_symmetric_on_recorded_pairs ... ok
 
-test result: ok. 39 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 5.30s
+test result: ok. 39 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 4.53s
 
      Running tests/movetime_smoke.rs (target/debug/deps/movetime_smoke-441587d5c10b56ad)
 
 running 12 tests
 test explicit_stop_ends_a_long_movetime_promptly ... ok
-test infinite_then_stop_returns_one_legal_bestmove ... ok
 test bare_go_ponder_keeps_searching_until_stop ... ok
 test movetime_bestmove_reports_a_completed_iteration ... ok
-test movetime_uses_its_budget_within_tolerance ... ok
+test infinite_then_stop_returns_one_legal_bestmove ... ok
 test ponder_movetime_ponderhit_keeps_the_movetime_deadline ... ok
+test movetime_uses_its_budget_within_tolerance ... ok
 test ponder_node_cap_is_enforced_after_ponderhit ... ok
 test ponderhit_starts_the_clock_slice_at_the_hit ... ok
 test repeated_movetime_searches_in_one_process ... ok
-test quit_during_movetime_exits_cleanly_and_promptly ... ok
 test terminal_positions_return_null_move_promptly ... ok
+test quit_during_movetime_exits_cleanly_and_promptly ... ok
 test very_short_movetime_still_returns_a_legal_move ... ok
 
-test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.11s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.50s
 
      Running tests/protocol_regressions.rs (target/debug/deps/protocol_regressions-ebea798496666a24)
 
@@ -217,7 +217,7 @@ test unknown_option_is_reported_on_stdout ... ok
 test unsupported_go_mate_is_reported_on_stdout ... ok
 test sparse_quiet_mate_in_three_is_found_at_depth_six ... ok
 
-test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 38.23s
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.19s
 
      Running tests/uci_smoke.rs (target/debug/deps/uci_smoke-a7ad62c44a964a5a)
 
@@ -234,7 +234,7 @@ test seeded_fuzz_command_sequences ... ok
 test unknown_commands_do_not_crash ... ok
 test ponderhit_or_stop_racing_search_end_emits_exactly_one_bestmove ... ok
 
-test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.81s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 34.42s
 
    Doc-tests flawless
 

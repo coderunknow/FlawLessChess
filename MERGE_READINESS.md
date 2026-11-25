@@ -87,13 +87,13 @@ Current PR head: see `git log --oneline -1` / `gh pr view 1 --json headRefOid`.
 rating gate, the pooled extended benchmark and an independent review, and they are listed below.
 
 **Tested revision.** The full local gate suite (`scripts/final_gate.sh`) was run on commit
-`f0316b0defd5ff652218ae27ad122f1462bfa5c0` (tree `540b9936190019b65f09ad498729b72037e5eba0`): **48 of 48
+`02b58bd16cda93281ff7c08307431e19631fffaf` (tree `f389c4a9eee9eeded421cd0c9ea758455b6c16a8`): **50 of 50
 steps passed, FAILS=0**, including the final check that the head, the tree and the working tree were
 unchanged during the run. The release binary digest was
 `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`. The raw output of that run — the
-summary and the log of every step — is retained in the repository under `benches/gate-f0316b0/`, and
-`benches/gate-f0316b0/summary.txt` names the commit and the tree it ran on. The commits that follow it
-change the request marker, the records and the review fixes; none of them touches `src/`, so the
+summary and the log of every step — is retained in the repository under `benches/gate-02b58bd/`, and
+`benches/gate-02b58bd/summary.txt` names the commit and the tree it ran on. The commit that follows
+this one changes only these records; it does not touch `src/` or any script the gate covers, so the
 engine that produced the numbers is the engine on this branch.
 
 What this iteration added and verified:
@@ -107,13 +107,14 @@ What this iteration added and verified:
 - [x] The quick regression screen runs on every pull request of this repository (fork pull requests
       are excluded, because the job runs the pull request's own code with a `pull-requests: write`
       token). It remains a screen and not a strength measurement.
-- [x] Local gate suite on the exact head `f0316b0`, with the raw output retained under
-      `benches/gate-f0316b0/`: **48/48 steps, FAILS=0** (fmt, clippy debug and
+- [x] Local gate suite on the exact head `02b58bd`, with the raw output retained under
+      `benches/gate-02b58bd/`: **50/50 steps, FAILS=0** (fmt, clippy debug and
       release, release and debug builds, release and debug test suites, every Python harness suite,
       the perft and legal-move differentials, the UCI protocol and fuzz probes, the clock and
       time-budget probes, the self-play probes, the full-game probe, and the head/tree/clean-tree
       check). Within it: `cargo test --release --locked` 183/183, difftest 2,275 positions d=2 with 0
-      mismatches, perft(6) 119,060,324, match harness 112/112, benchmark suite 30/30, release binary
+      mismatches, perft(6) 119,060,324, match harness 112/112, benchmark suite 37/37, the
+      weakness-diagnostic suite 20/20, the benchmark-request resolver suite 17/17, release binary
       digest `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`.
 - [x] The 20 CodeRabbit review findings from the previous head are **dispositioned**: 19 were fixed in
       `67bee13` (workflow seed handling, PR scope, `SEED_BASE`, the rustfmt annotation encoding, the

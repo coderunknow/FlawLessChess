@@ -1,0 +1,22 @@
+ok   the PGN names the candidate as White
+ok   the PGN names the opponent
+ok   the PGN carries the result
+ok   the PGN carries the move history
+ok   the record parses as PGN
+ok   every move of the record replays from the start position
+ok   the replayed position is the position after the recorded moves
+ok   the diagnostic runs (rc=0)
+ok   a truncated game is not counted as a loss
+ok   a truncated game flags no material loss
+ok   the truncated game is recorded with the result '*'
+ok   the truncated game is marked unfinished
+ok   the truncated game is not marked as a loss
+ok   the truncated game is recorded with the result '*'
+ok   the truncated game is marked unfinished
+ok   the truncated game is not marked as a loss
+ok   the losing-games file is written
+ok   the losing-games file is empty when there is no loss
+ok   the diagnostic runs over the stale file (rc=0)
+ok   the stale losing games are replaced, not left in place
+
+20 checks passed, 0 failed
