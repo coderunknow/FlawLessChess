@@ -87,12 +87,14 @@ Current PR head: see `git log --oneline -1` / `gh pr view 1 --json headRefOid`.
 rating gate, the pooled extended benchmark and an independent review, and they are listed below.
 
 **Tested revision.** The full local gate suite (`scripts/final_gate.sh`) was run on commit
-`99bef0133f1bc5e2f1d5aab6a5ffc122df349cc7` (tree `cfd3ef51263e782c4efbd675d2f01afa9b409af4`): **50 of 50
+`c6ef5bbbfe16a6433d5ccd597b17266c93977b45` (tree `f83b722295a0717d695c5bed2e490e8e7dd7d1e6`): **51 of 51
 steps passed, FAILS=0**, including the final check that the head, the tree and the working tree were
 unchanged during the run. The release binary digest was
-`09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`. The raw output of that run — the
-summary and the log of every step — is retained in the repository under `benches/gate-99bef01/`, and
-`benches/gate-99bef01/summary.txt` names the commit and the tree it ran on. The commit that follows
+`284fdd226d65f8b366d59bf933e3c37d57450091e9df222a4808e675f31a4893`. A byte digest is not a stable
+engine identity across build environments (it moves with the linker); the stable identity is the bench
+signature `141943aa23b3fc68`, which `anchor-verify.yml` pins and CI re-checks at every head. The raw
+output of that run — the summary and the log of every step — is retained in the repository under
+`benches/gate-c6ef5bb/`, and `benches/gate-c6ef5bb/summary.txt` names the commit and the tree it ran on. The commit that follows
 this one changes only these records and the retained evidence; it does not touch `src/` or any script
 the gate covers, so the engine that produced the numbers is the engine on this branch.
 
@@ -107,15 +109,23 @@ What this iteration added and verified:
 - [x] The quick regression screen runs on every pull request of this repository (fork pull requests
       are excluded, because the job runs the pull request's own code with a `pull-requests: write`
       token). It remains a screen and not a strength measurement.
-- [x] Local gate suite on the exact head `99bef01`, with the raw output retained under
-      `benches/gate-99bef01/`: **50/50 steps, FAILS=0** (fmt, clippy debug and
+- [x] Local gate suite on the exact head `c6ef5bb`, with the raw output retained under
+      `benches/gate-c6ef5bb/`: **51/51 steps, FAILS=0** (fmt, clippy debug and
       release, release and debug builds, release and debug test suites, every Python harness suite,
       the perft and legal-move differentials, the UCI protocol and fuzz probes, the clock and
       time-budget probes, the self-play probes, the full-game probe, and the head/tree/clean-tree
       check). Within it: `cargo test --release --locked` 183/183, difftest 2,275 positions d=2 with 0
       mismatches, perft(6) 119,060,324, match harness 112/112, benchmark suite 37/37, the
-      weakness-diagnostic suite 31/31, the benchmark-request resolver suite 33/33, release binary
-      digest `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`.
+      weakness-diagnostic suite 31/31, the benchmark-request resolver suite 33/33, the run-table
+      suite 105/105, release binary digest
+      `284fdd226d65f8b366d59bf933e3c37d57450091e9df222a4808e675f31a4893` (this build environment;
+      the stable engine identity is the bench signature `141943aa23b3fc68`).
+
+  The definitive gate on `fc7407c` (the previous head) is retained in the session log rather than in
+  the repository: its substantive 50 steps passed, and its only failure was the end-of-run clean-tree
+  check, which caught this session's own mid-run refresh of `benches/quick-run-summaries.json` and
+  `STATUS.md` (the fixture gained the `fc7407c` quick-run row while the gate was running). The run
+  was repeated on the next committed head (`c6ef5bb`, above) with a clean tree and passed 51/51.
 - [x] The 20 CodeRabbit review findings from the previous head are **dispositioned**: 19 were fixed in
       `67bee13` (workflow seed handling, PR scope, `SEED_BASE`, the rustfmt annotation encoding, the
       manifest ablation field, the aggregation rules, and the diagnostic/tactic harness defects), and

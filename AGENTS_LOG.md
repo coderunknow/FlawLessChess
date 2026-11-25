@@ -1306,3 +1306,17 @@ label counts) are computed from the rows, so they cannot drift from them. Three 
 published since the last correction (`6fa1032` 56.2%, `99bef01` 55.0%, `bfc5ce4` 58.8%, all
 INCONCLUSIVE); with them the unchanged-engine range is still 38.8%–67.5%, now over **23** runs (three
 POSITIVE, twenty INCONCLUSIVE).
+
+### The gate on the generated-table head, and the one gate that caught this session
+
+The definitive gate was first started on `fc7407c` while this session's own run-table refresh
+(`--fetch`/`--write`, which gained the `fc7407c` quick-run row) modified the working tree mid-run.
+The gate's substantive steps all passed, but the final `head_unchanged_at_end` check correctly failed
+on the two dirty files — the hygiene check did exactly its job. The run-table fixture was committed
+(`c6ef5bb`), the brittle hard-coded run counts in `MERGE_READINESS.md` and `CHANGELOG.md` were
+replaced with references to the generated table, and the gate was re-run on `c6ef5bb` with a clean
+tree: **51 of 51 steps passed, FAILS=0**, retained under `benches/gate-c6ef5bb/`. The release binary
+digest of this build is `284fdd226d65…`; it differs from the earlier recorded `09ed62b6cf38…` purely
+because the byte output moves with the linker, so the stable engine identity remains the bench
+signature `141943aa23b3fc68` that `anchor-verify.yml` pins. The `fc7407c` quick run scored 16/12/12
+= 55.0%, INCONCLUSIVE — inside the unchanged-engine range.

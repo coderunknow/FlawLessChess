@@ -1,12 +1,12 @@
-commit 99bef0133f1bc5e2f1d5aab6a5ffc122df349cc7
-tree   cfd3ef51263e782c4efbd675d2f01afa9b409af4
+commit c6ef5bbbfe16a6433d5ccd597b17266c93977b45
+tree   f83b722295a0717d695c5bed2e490e8e7dd7d1e6
 dirty-at-start 0
 fmt rc=0 last: 
-clippy_debug rc=0 last:     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+clippy_debug rc=0 last:     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
 clippy_release rc=0 last:     Finished `release` profile [optimized] target(s) in 0.00s
-build_release rc=0 last:     Finished `release` profile [optimized] target(s) in 0.02s
+build_release rc=0 last:     Finished `release` profile [optimized] target(s) in 0.03s
 build_debug rc=0 last:     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
-sha256_release rc=0 last: 09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698  /home/user/FlawLessChess/target/release/flawless
+sha256_release rc=0 last: 284fdd226d65f8b366d59bf933e3c37d57450091e9df222a4808e675f31a4893  /home/user/FlawLessChess/target/release/flawless
 test_release rc=0 last: 
 test_debug rc=0 last: 
 py_test_aggregate_60 rc=0 last: aggregate 60-shard synthetic: rc=0 games=120 PASS
@@ -22,6 +22,7 @@ py_test_rating_estimator rc=0 last: 65 checks passed, 0 failed
 py_test_recover_download rc=0 last: OVERALL: PASS
 py_test_reduced_sample rc=0 last: reduced_sample: 7/7 PASS
 py_test_relative_benchmark rc=0 last: 37 checks passed, 0 failed
+py_test_run_table rc=0 last: 105 checks passed, 0 failed
 py_test_windows_artifact rc=0 last: OK
 perft_random_s10 rc=0 last: RESULT PASS
 perft_random_s11 rc=0 last: RESULT PASS
@@ -33,7 +34,7 @@ uci_extreme_args rc=0 last: FAILURES: 0
 uci_grammar_s201 rc=0 last: seed=201 sessions=100 failures=0
 interleave_s11 rc=0 last: seed=11 sessions=25 steps=300 failures=0
 interleave_dbg_s7 rc=0 last: seed=7 sessions=20 steps=300 failures=0
-resource_probe rc=0 last: hash=1024 MB  movetime=200 ms  wall=   201 ms ( 100%)  cpu= 0.20 s ( 100% of one core)  idle_rss=   4.9 MiB  peak_rss=  42.5 MiB  depth=8 nodes=49062 
+resource_probe rc=0 last: hash=1024 MB  movetime=200 ms  wall=   201 ms ( 101%)  cpu= 0.20 s (  99% of one core)  idle_rss=   4.9 MiB  peak_rss=  27.8 MiB  depth=8 nodes=49062 
 fen_extremes_s101 rc=0 last: seed=101 cases=400 oracle_valid=161 failures=0
 fen_extremes_dbg_s9 rc=0 last: seed=9 cases=150 oracle_valid=58 failures=0
 tt_bestmove_s41 rc=0 last: positions 400 hash_mb 1 depth 6 failures 0 exit 0
@@ -45,10 +46,10 @@ multipv_s92 rc=0 last: positions 30 multipv 4 failures 0
 negative_mate_s77 rc=0 last: positions 12 failures 0
 clock_sweep_s71 rc=0 last: 60/60 cases within the usable clock; failures=0
 time_budget rc=0 last: 8/8 cases passed
-selfplay_1000_sd rc=0 last: plies 98 base 1000 inc 0 mtg None think 1.27s left W 358 B 370 min W 358 min B 370 failures 0
-selfplay_300_sd rc=0 last: plies 93 base 300 inc 0 mtg None think 0.15s left W 213 B 233 min W 213 min B 233 failures 0
-selfplay_40_15 rc=0 last: plies 130 base 15000 inc 150 mtg 40 think 46.01s left W 1535 B 1803 min W 1350 min B 1649 failures 0
+selfplay_1000_sd rc=0 last: plies 174 base 1000 inc 0 mtg None think 1.51s left W 247 B 240 min W 247 min B 240 failures 0
+selfplay_300_sd rc=0 last: plies 46 base 300 inc 0 mtg None think 0.10s left W 234 B 262 min W 234 min B 262 failures 0
+selfplay_40_15 rc=0 last: plies 144 base 15000 inc 150 mtg 40 think 49.96s left W 878 B 611 min W 579 min B 461 failures 0
 fullgame_mt20 rc=0 last: PASS: every engine move was legal; the game reached its end under the rules or the ply cap.
 fullgame_mt60 rc=0 last: PASS: every engine move was legal; the game reached its end under the rules or the ply cap.
-head_unchanged_at_end rc=0 last: head 99bef0133f1bc5e2f1d5aab6a5ffc122df349cc7 tree cfd3ef51263e782c4efbd675d2f01afa9b409af4 clean
+head_unchanged_at_end rc=0 last: head c6ef5bbbfe16a6433d5ccd597b17266c93977b45 tree f83b722295a0717d695c5bed2e490e8e7dd7d1e6 clean
 FAILS=0

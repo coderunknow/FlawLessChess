@@ -445,6 +445,19 @@
    "elo_low": -26.1,
    "elo_high": 98.1,
    "classification": "INCONCLUSIVE"
+  },
+  {
+   "published_at": "2026-11-25T11:07:18Z",
+   "comment_url": "https://github.com/coderunknow/FlawLessChess/pull/6#issuecomment-7160617098",
+   "profile": "quick",
+   "candidate": "c6ef5bbbfe16",
+   "games": 40,
+   "wdl": "17/12/11",
+   "points": 23.0,
+   "percent": 57.5,
+   "elo_low": -43.7,
+   "elo_high": 157.7,
+   "classification": "INCONCLUSIVE"
   }
  ]
 }
