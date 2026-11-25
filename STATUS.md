@@ -26,7 +26,51 @@ commit; verified 2026-11-24).
 > - The V1 release gate (absolute rating > 2,000, two-sided 95% CI lower bound strictly > 2,000)
 >   remains NOT MEASURED and NOT MET; no absolute Elo claim is made.
 
-> ### Current session (2026-11-24, branch arena/247fe7df-flawlesschess — PR #6 draft)
+> ### Current session (2026-11-25, branch arena/247fe7df-flawlesschess — PR #6 draft)
+>
+> **PR #6 is a draft and is NOT MERGE-READY.** The absolute V1 rating gate remains
+> **UNKNOWN / NOT MEASURED / NOT MET**, and nothing in this session is a strength claim.
+>
+> The 20 CodeRabbit findings raised on the previous head were read back and dispositioned in commit
+> `67bee13`:
+>
+> 1. **Workflow (3 findings, all fixed).** The dispatch seed and profile are passed through the step
+>    environment, validated there and written with `printf` and a quoted variable, so an input can
+>    never become shell source. The quick regression screen now runs on every pull request instead of
+>    PR #6 only. The publishing step now receives `SEED_BASE`, so the published title names the real
+>    seed range. The rustfmt annotation encodes `%`, CR and LF as `%25`, `%0D` and `%0A` — the
+>    previous `tr '\n' '%0A'` replaced a newline with a bare `%` and flattened a multiline diff.
+> 2. **Evidence provenance (3 findings, all fixed).** The effective `FLAWLESS_ABLATE` value, including
+>    the unset case, is now written into the batch manifest (`scripts/match.py`) and the run manifest
+>    (`scripts/relative_benchmark.py`) *before* the first game starts, and the aggregation step refuses
+>    to combine replicates whose masks differ. `docs/ABLATIONS.md` documents the field and the rule.
+>    `AGENTS_LOG.md` gained an addendum naming the candidate commit (`78f42ca4c382…`), the hosted run
+>    (`45426475825`) and the artifact id of every replicate of the 600-game result.
+> 3. **Harness (6 findings, all fixed).** A game without the candidate is now excluded from the
+>    scorable set as well as from the point estimate, so the confidence interval and the estimate
+>    cover the same games. The saved opening order is verified against its recorded digest before
+>    aggregation, and a damaged file is reported as a validation error instead of crashing the
+>    aggregator. `scripts/diagnose_weaknesses.py` now reads the piece-square tables from the engine
+>    source (the copied bishop table had 63 entries), signs the evaluation by the side to move, handles
+>    a closed stdout, reaps the engine, measures the material loss through the opponent's reply with a
+>    never-stale reference, prints the returned UCI string directly and writes the losing games as PGN.
+>    `scripts/tactic_test.py` accepts the free rook capture, handles EOF during initialisation and
+>    tolerates a closed stdin during cleanup.
+> 4. **Outpost advancing pawn (1 finding, false positive).** The cited position
+>    `4k3/1p6/8/2N5/8/8/8/4K3 w - - 0 1` scores outpost 0 because the knight is not pawn-defended, and
+>    the defended variant with the same b7 pawn also scores 0, because the b7 pawn steps to b6 and
+>    attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the undefended case
+>    were added as regressions.
+>
+> Local gate suite on `67bee13`: fmt clean, clippy `-D warnings` clean, `cargo test --release --locked`
+> 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness 112/112,
+> benchmark suite 30/30, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
+> `141943aa23b3fc68`.
+>
+> Still open: the pooled extended benchmark on this head, a fresh independent review at the final head
+> SHA, and the absolute rating gate. No merge, tag or release has been performed.
+
+> ### Previous session (2026-11-24, branch arena/247fe7df-flawlesschess — PR #6 draft)
 >
 > Three engine improvements implemented, each committed separately with full local validation
 > (fmt, clippy -D warnings, 172/172 tests, diftest 2321/0, perft(6)=119060324, bench signature

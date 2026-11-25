@@ -932,3 +932,58 @@ modified or closed. Findings:
 - Absolute V1 rating gate: UNKNOWN / NOT MEASURED / NOT MET.
 - Fresh independent review at the final head SHA: not performed here.
 - PR #2: NOT merged, NOT cherry-picked, NOT touched.
+
+---
+
+## 2026-11-25 — Addendum: provenance of the hosted relative benchmark runs
+
+The 2026-11-24 entry above records the 600-game result but not the identifiers needed to trace it.
+This addendum supplies them. **It does not change any result and does not weaken any conclusion.**
+
+### The revision-1 extended run that produced 217 W / 164 D / 219 L
+
+* **Candidate commit measured:** `78f42ca4c382dd40d425b13fc0e204fadc1e73fc` (`78f42ca`).
+* **Pinned baseline:** `6ab5b3349264c6c0a740c433ce454f8e1fed698a` (`6ab5b33`).
+* **Hosted workflow run:** `45426475825` ("ci: dispatch the extended benchmark through a request
+  marker"), workflow *Relative strength benchmark*, status completed/success.
+* **Result:** 217 W / 164 D / 219 L, score 49.8%, relative Elo **-23.2 to +21.5** (95% CI),
+  classification **INCONCLUSIVE**. Screening evidence only — not an absolute rating, not a strength
+  claim.
+
+The three replicates and their artifacts. The seed of a replicate is `20261124 + replicate - 1`:
+
+| Replicate | Seed | Hosted artifact name | Artifact id |
+| --------- | ---- | -------------------- | ----------- |
+| 1 | 20261124 | `relative-strength-extended-45426475825-1` | `14940617228` |
+| 2 | 20261125 | `relative-strength-extended-45426475825-2` | `14940712905` |
+| 3 | 20261126 | `relative-strength-extended-45426475825-3` | `14942235054` |
+| pooled | — | `relative-strength-extended-aggregate-45426475825` | `14942210869` |
+
+The pooled summary is the aggregate artifact; the three replicate artifacts hold the raw
+`games.jsonl`, the PGN, the seeded opening order and the per-replicate summary. Artifact download
+from this sandbox fails with an EOF from the GitHub blob host, so the numbers above were read from
+the published job summary and pull request comment, and the identifiers above come from the runs and
+artifacts API.
+
+### The runs that were still in flight when this addendum was written
+
+* **Revision-2 extended run:** `45529006866`, candidate `5be7d7bbcc03ccb63d12138bef6a390be90aa957`,
+  three replicates (seeds 20261124, 20261125, 20261126), status *in progress* at the time of
+  writing. It has to finish and be read back before it can be quoted.
+* **Ablation matrix push run:** `45529550258`, candidate
+  `d306cbcefc07e46c1c239eb3dfe3318f864d8286`, `screen` profile, seed `20261130`, four variants
+  (`full`, `no-space`, `no-counter-move`, `no-new-terms`), status *in progress* at the time of
+  writing.
+
+Both runs were dispatched against earlier heads. Neither result may be attributed to the current
+head, and neither is a strength claim.
+
+### Review disposition
+
+The 20 CodeRabbit findings raised on the previous head were read back and dispositioned in commit
+`67bee13`. Nineteen were fixed. The twentieth, a reported advancing-pawn defect in `src/eval.rs`,
+was reproduced and is a **false positive**: the cited position
+`4k3/1p6/8/2N5/8/8/8/4K3 w - - 0 1` scores outpost 0 because the knight is not pawn-defended, and
+the defended variant `4k3/1p6/8/2N5/3P4/8/8/4K3 w - - 0 1` also scores outpost 0, because the b7 pawn
+steps to b6 and attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the
+undefended case were added as regressions.

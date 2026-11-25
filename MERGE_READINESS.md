@@ -81,10 +81,15 @@ Current PR head: see `git log --oneline -1` / `gh pr view 1 --json headRefOid`.
 - [ ] PR is no longer a draft and is genuinely ready for review/merge — PR #1 is currently
       **Draft** by policy until every checklist item is verified.
 
-## 2026-11-24 — PR #6 iteration checkpoint (branch `arena/247fe7df-flawlesschess`)
+## 2026-11-25 — PR #6 iteration checkpoint (branch `arena/247fe7df-flawlesschess`)
 
 **Verdict for this head: NOT MERGE-READY.** Nothing is technically blocked; the remaining gaps are the
 rating gate, the pooled extended benchmark and an independent review, and they are listed below.
+
+**Tested revision.** The local gate suite below was run on commit `67bee13` ("fix: disposition the
+CodeRabbit review findings on PR #6"), the tree of this branch. The engine source is unchanged by the
+commit that follows this one, which only adds these records; the recorded revision is therefore the
+revision that produced the numbers.
 
 What this iteration added and verified:
 
@@ -94,9 +99,21 @@ What this iteration added and verified:
       and the rank where no enemy pawn can exist, and the term rewarded undefended pieces.
 - [x] Tempo semantics resolved and pinned: the score is `+/- tapered + TEMPO` for the side to move, verified
       against the rustc parser source and by a dedicated regression test for both colours and the mirror.
-- [x] Local gate suite on the exact head: fmt clean, clippy `-D warnings` clean, `cargo test --release
-      --locked` 183/183, difftest 2,321 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
-      112/112, benchmark suite 20/20.
+- [x] The quick regression screen runs on every pull request of this repository (fork pull requests
+      are excluded, because the job runs the pull request's own code with a `pull-requests: write`
+      token). It remains a screen and not a strength measurement.
+- [x] Local gate suite on the exact head `67bee13`: fmt clean, clippy `-D warnings` clean, `cargo test
+      --release --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324,
+      match harness 112/112, benchmark suite 30/30.
+- [x] The 20 CodeRabbit review findings from the previous head are **dispositioned**: 19 were fixed in
+      `67bee13` (workflow seed handling, PR scope, `SEED_BASE`, the rustfmt annotation encoding, the
+      manifest ablation field, the aggregation rules, and the diagnostic/tactic harness defects), and
+      the reported advancing-pawn defect in `src/eval.rs` was reproduced as a **false positive** — the
+      cited position scores outpost 0 because the piece is not pawn-defended, and the defended variant
+      with the same b7 pawn also scores 0. The algorithm is unchanged and the b7 case, its mirror and
+      the undefended case are added as regressions.
+- [x] The tactical diagnostic was re-run against the refined engine: **6/6**, recorded under
+      `benches/tactic-test-20261124/` with the binary digest of the binary that produced it.
 - [x] Hosted CI on the same head: Ubuntu and Windows format/clippy/test jobs, the MSRV 1.80 job and the
       Windows release artifact job are green, and the quick paired benchmark job completes and publishes its
       summary.
@@ -112,9 +129,13 @@ What this iteration added and verified:
       is not an absolute rating and cannot be used as one.
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
-- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent) has not been performed
-      at this head; a review was requested for the previous head and its result has to be read back and
-      dispositioned.
+- [ ] **Pooled extended benchmark on this head.** The three-replicate extended run that is currently in
+      flight was dispatched against an earlier head. The benchmark item above stays checked for the
+      revision it was measured on; the run against the current head has to finish and be read back
+      before the item can be checked for this head.
+- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). A review of the
+      previous head was read back and dispositioned in `67bee13`; a review of the final head has to be
+      requested and read back before this item can be checked.
 - [x] **PR #2 audited read-only** and left untouched: 49 commits, 12,971 insertions, 66 files, draft and
       conflicting with `main`. The two classical outpost conditions that this branch was missing were found
       there and ported into this branch's own implementation; nothing of PR #2 was merged or cherry-picked.

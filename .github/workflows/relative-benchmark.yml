@@ -107,10 +107,13 @@ jobs:
   quick:
     name: Quick paired engine match (${{ matrix.variant.name }})
     needs: request
-    # The quick profile is a cheap regression screen, so it runs on every pull request. It is not
-    # a strength measurement: a 40-game fixed-movetime match swings by tens of points between runs
-    # of an unchanged engine, so the screen only detects gross regressions.
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && (needs.request.outputs.profile == 'quick' || needs.request.outputs.profile == 'screen')
+    # The quick profile is a cheap regression screen, so it runs on every pull request of this
+    # repository. It is not a strength measurement: a 40-game fixed-movetime match swings by tens
+    # of points between runs of an unchanged engine, so the screen only detects gross regressions.
+    # Pull requests from forks are excluded: the job checks out the pull request's own code and
+    # runs it, and the job holds a pull-requests: write token, so untrusted code from another
+    # repository must not be able to run here.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && (needs.request.outputs.profile == 'quick' || needs.request.outputs.profile == 'screen')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     strategy:

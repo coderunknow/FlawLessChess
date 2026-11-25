@@ -2,6 +2,44 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
+## [Unreleased] — review disposition and evidence provenance (2026-11-25)
+
+- **Fixed (CI): the benchmark workflow no longer interpolates dispatch inputs into shell source.** The
+  dispatch profile and seed are passed through the step environment, validated there, and written to
+  `GITHUB_OUTPUT` with `printf` and a quoted variable, so an input can never be executed as a command.
+- **Fixed (CI): the quick regression screen now runs on every pull request of this repository**
+  instead of PR #6 only. Pull requests from forks stay excluded: the job checks out and runs the
+  pull request's own code while holding a `pull-requests: write` token.
+- **Fixed (CI): the publishing step now receives `SEED_BASE`**, so the published title names the real
+  seed range (`seeds 20261124..20261126`) instead of an empty base.
+- **Fixed (CI): the rustfmt annotation encodes the diff correctly.** `tr '\n' '%0A'` replaced a newline
+  with a bare `%` (the second argument of `tr` is a character *set*), which flattened a multiline diff.
+  The percent sign, carriage return and newline are now encoded as `%25`, `%0D` and `%0A`.
+- **Added (evidence): the effective `FLAWLESS_ABLATE` value is recorded in the manifests** written before
+  the first game starts — in `scripts/match.py` (the batch manifest) and in `scripts/relative_benchmark.py`
+  (the run manifest) — including the unset case. The aggregation step refuses to combine replicates whose
+  masks differ, so a full run and an ablated run can never be pooled into one summary by accident.
+  `docs/ABLATIONS.md` documents the field and the rule.
+- **Fixed (benchmark harness): a game without the candidate is left out of the scorable set** as well, so
+  the confidence interval is computed over exactly the games the point estimate is computed over.
+- **Fixed (benchmark harness): the saved opening order is verified against its digest** before aggregation,
+  and a damaged file is reported as a validation error instead of crashing the aggregator.
+- **Fixed (diagnostics): `scripts/diagnose_weaknesses.py` reads the piece-square tables from the engine
+  source** instead of keeping a copy that had drifted (the copied bishop table had 63 entries and would
+  have raised `IndexError` on the last square). The evaluation sign now follows the side to move, a closed
+  stdout is handled, the engine is reaped after a shutdown timeout, the material loss is measured through
+  the opponent's reply with a reference material that is never stale, the returned UCI string is printed
+  directly, and the losing games are written as PGN.
+- **Fixed (diagnostics): `scripts/tactic_test.py` accepts the free rook capture** in the `win_rook` fixture
+  (an exchange of equal value that the opponent cannot recapture is a win), handles EOF during UCI
+  initialisation, and tolerates a closed stdin during cleanup.
+- **Added (tests): the outpost advancing-pawn cases** — the b7 pawn, its colour mirror and the undefended
+  variant — as regressions. The reported advancing-pawn defect in `src/eval.rs` was reproduced and is a
+  **false positive**: the cited position scores outpost 0 because the piece is not pawn-defended, and the
+  defended variant with the same b7 pawn also scores 0. The algorithm is unchanged.
+- **Added (tests): four new benchmark-harness checks** covering the candidate exclusion, the opening-order
+  digest and the ablation-mask consistency rule (benchmark suite 30/30).
+
 ## [Unreleased] — outpost correction, tempo semantics, ablation switch, paired benchmark (2026-11-24)
 
 - **Fixed (eval, EVAL-2): the outpost term.** White outposts are now on ranks 5-6 and Black outposts on
@@ -24,8 +62,8 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   `docs/ABLATIONS.md`.
 - **Added (tests): outpost boundary and symmetry cases** (opponent back rank, the rank in front of it, edge
   file, own half, pawn-challenged square, two outposts at once) and a tempo regression test.
-- **Changed (CI): the relative strength benchmark** runs the quick paired profile on every pull request of
-  PR #6 and the three-replicate extended tournament on demand; results are published to the job summary and
+- **Changed (CI): the relative strength benchmark** runs the quick paired profile on every pull request
+  and the three-replicate extended tournament on demand; results are published to the job summary and
   to a pull request comment. The rustfmt gate reports its diff through annotations, because the Actions log
   host is not reachable from the development sandbox.
 - **Changed (CI): the anchor-verify bench signature** follows the evaluation. The refined outpost term
