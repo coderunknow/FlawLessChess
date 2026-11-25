@@ -106,7 +106,7 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   binary** (the last change to `src/` on the branch is the outpost refinement `98e5cd9`), ranged from
   **38.8% to 67.5%** — **28.7 points on code that did not change** — and the same unchanged engine
   produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in three runs and `INCONCLUSIVE` in the
-  other seventeen. The range is a lower bound: the profile runs on every push, so every further push adds
+  other twenty. The range is a lower bound: the profile runs on every push, so every further push adds
   another run. Every row was transcribed from the published hosted summary and re-checked against the
   scoring formula `(wins + draws / 2) / games`; an earlier transcription had the wrong W/D/L in six rows
   and had missed two runs entirely, and the correction is appended to `AGENTS_LOG.md`. A fixed

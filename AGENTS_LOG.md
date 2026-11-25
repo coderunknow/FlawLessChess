@@ -1293,3 +1293,16 @@ final check that the head, the tree and the working tree were unchanged during t
 is retained under `benches/gate-99bef01/`. The gate covers the corrected diagnostic (including the
 blank-line PGN separator) and the corrected Python suites: the weakness-diagnostic suite is 31 checks
 and the benchmark-request resolver suite is 33.
+
+### The quick-run table is now generated
+
+The table of hosted quick runs in `STATUS.md` is no longer hand-maintained. `scripts/refresh_run_table.py`
+parses the published benchmark summaries from the PR comments into `benches/quick-run-summaries.json`
+(`--fetch`), then derives the table — including the engine-change column from the `src/` tree hashes —
+and rewrites the generated block in `STATUS.md` (`--write`), or verifies it (`--check`).
+`scripts/test_run_table.py` runs the check offline from the committed fixture and also proves the check
+would catch a drifted row (102 checks). The claims under the table (the unchanged-engine range and the
+label counts) are computed from the rows, so they cannot drift from them. Three further quick runs were
+published since the last correction (`6fa1032` 56.2%, `99bef01` 55.0%, `bfc5ce4` 58.8%, all
+INCONCLUSIVE); with them the unchanged-engine range is still 38.8%–67.5%, now over **23** runs (three
+POSITIVE, twenty INCONCLUSIVE).
