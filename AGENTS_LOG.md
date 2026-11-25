@@ -1320,3 +1320,28 @@ digest of this build is `284fdd226d65…`; it differs from the earlier recorded 
 because the byte output moves with the linker, so the stable engine identity remains the bench
 signature `141943aa23b3fc68` that `anchor-verify.yml` pins. The `fc7407c` quick run scored 16/12/12
 = 55.0%, INCONCLUSIVE — inside the unchanged-engine range.
+
+### CTRL-2-R recovered and evaluated; SCREEN-3 recovered and measured; ENGINE-3 frozen
+
+The two runs whose in-run evidence jobs were skipped were recovered through `evidence-bridge`
+revision 4 (run 45609388468, strict fail-closed aggregation on the hosted runner; local artifact
+downloads remain blocked at the blob hosts). Committed evidence: `benches/evidence/control/flawless-self-r/`
+(240 games) and `benches/evidence/screening-3/akimbo-0.1.1/` (120 games).
+
+- **CTRL-2-R (ENGINE-1 self-match): PASS.** Seat-perspective score 0.4604, 95 % opening-cluster
+  bootstrap CI [0.4208, 0.5000] ∋ 0.5 (estimator seed 20261125, 10,000 resamples); white-perspective
+  0.5229. The registered self-match null control now has its canonical evidence and estimate.
+- **SCREEN-3 (ENGINE-1 vs akimbo-0.1.1): measured.** 120/120 counted; score 0.3375 → d = −117.2 →
+  selection estimate 2323.8 (published 2441). Cluster-mean SD 0.2905 over 60 A-suite clusters.
+  Cross-anchor cluster correlations over the same 60 openings: topple-0.1.1×topple-0.2.1 0.0890,
+  topple-0.1.1×akimbo 0.1960, topple-0.2.1×akimbo 0.1285 — the previously unmeasured third-anchor
+  correlations are in fact below the 0.25 assumption of the v1 sensitivity grid. Selection-only.
+- **Variance decomposition** (2-game cluster means): between-opening share 9 % / 25 % / 0 % for
+  topple-0.1.1 / topple-0.2.1 / akimbo — match noise dominates, so paired repetitions are nearly as
+  effective as additional openings. This feeds the enlarged-design research registered in
+  PREREGISTRATION.md (decision rule fixed before the ENGINE-3 evidence is played).
+- **ENGINE-3 frozen** (PR #6 candidate): hosted binary SHA-256 `733de4e54f076fc4684ec0ad127975b526037fdedafa4fc15fc9bffccea1a407`,
+  read from the `verify-flawless` annotation of anchor-verify run 45609388451 (the annotation channel
+  the workflow documents for this sandbox; the CLOCK-1 freeze attempt failed only because it looked at
+  the check-run summary instead). Bench signature unchanged `141943aa23b3fc68`. ENGINE-1/ENGINE-2
+  evidence does not transfer; CTRL-3 and six SCREEN-E3 runs are registered for the candidate.

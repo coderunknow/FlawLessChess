@@ -571,3 +571,86 @@ The RATING-100 power assessment remains ENGINE-1-specific. Its screening inputs 
 - Therefore no hash is frozen by this entry. The local release SHA-256 of `000266e` (`0d9c508d…`, local build only) is NOT the hosted identity and is not recorded here as a freeze.
 - Consequences (unchanged): ENGINE-1 hash `9663697d…` and ENGINE-2 (SEE) hash `168dc0ab…` still describe the pre-CLOCK-1 binary. No screening, control, rating, or confirmatory game is authorized. The RATING-100 power guard continues to fail closed.
 - Next step, when the manifest is readable: take the SHA-256 of the `verify-flawless` binary from the exact-head anchor-verification run for the final head, append a new entry with that value, its run ID, and the source commit, and only then re-register screening on it.
+
+### ENGINE-3 binary identity freeze — the PR #6 candidate (2026-11-25, append-only)
+
+This entry performs the freeze the CLOCK-1 entry could not: the hosted binary SHA-256 is read from
+the `verify-flawless` job's `::notice::` **annotation** (the channel `anchor-verify.yml` documents
+for exactly this sandbox: "annotations (the sandbox cannot read artifacts)"). The earlier attempt
+looked at the check-run summary instead of the annotations endpoint and concluded the value was
+unreadable; the annotations endpoint (`/check-runs/{id}/annotations`) returns it.
+
+- Candidate: the PR #6 head (refined classical outpost term, explicit tempo semantics, `FLAWLESS_ABLATE`,
+  CLOCK-1 clock-floor fix included). The last change to `src/` is `98e5cd9`; the `src/` tree hash is
+  `daa6be83ad991ee16eb86986e9eaa676c9eea460`, and `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`
+  are unchanged across all heads from `98e5cd9` to the current head.
+- Verification run: `anchor-verify` run **45609388451**, job `verify-flawless` (139188650105),
+  annotation timestamp 2026-11-25T11:59:11Z. The job built the pull-request merge commit
+  `1de1e3e6ceae191cce138975396c07fddb95a478` of head `9a13b111`; `main` is still `6ab5b33` (the
+  branch's merge-base), so the merge tree equals the PR head tree and the build covers this
+  branch's engine exactly.
+- Build: `cargo build --release --locked`, image `ubuntu24 20261116.376.1`, rustc 1.99.0
+  (b940084d7), cargo 1.99.0, gcc 13.3.0 — identical flags and toolchain to the rating-run shard
+  builds (the same cross-run identity that the SCREEN-2 freeze verified for ENGINE-1).
+- **Binary SHA-256: `733de4e54f076fc4684ec0ad127975b526037fdedafa4fc15fc9bffccea1a407`.**
+- Fixed-depth-10 bench signature: `141943aa23b3fc68` (unchanged; `anchor-verify.yml` pins it).
+
+This freezes ENGINE-3. It supersedes ENGINE-1 (`9663697d…`, pre-CLOCK-1) and ENGINE-2 (`168dc0ab…`,
+pre-CLOCK-1) as the V1 gate candidate. Per the ENGINE-2 entry's dispatch restriction, ENGINE-1's
+CTRL-2-R / SCREEN-2R / SCREEN-3 evidence does NOT transfer to ENGINE-3; the candidate-specific
+controls and screenings below are registered first, and no confirmatory game is authorized until the
+ENGINE-3 power assessment is a reviewed, evidence-backed PASS.
+
+### CTRL-3 — self-match null control for ENGINE-3 (registered 2026-11-25, before dispatch)
+
+- **Purpose:** control (null control #2, candidate-specific per the ENGINE-2 restriction). Harness
+  symmetry with the ENGINE-3 binary both sides; CTRL-1 (anchor-vs-anchor) does not seat the candidate
+  and its existing PASS stands unchanged.
+- **Methodology:** ENGINE-3 (`733de4e5…`) both sides; 60 openings (batch-A suite `2c4a54d8…`) ×
+  2 paired reps × AB/BA = **240 games**; 120 shards × 2; TC 40/15; dispatch seed 20261210;
+  purpose `control`, batch `CTRL`, label `flawless-self-e3`; evidence dir
+  `benches/evidence/control/flawless-self-e3/`.
+- **Acceptance criterion (fixed, unchanged from CTRL-2-R):** seat-perspective score 0.5 within its
+  95% opening-cluster bootstrap CI (estimator seed 20261210); white-perspective score recorded for
+  transparency. Failure → investigate, record in FAILURE_LEDGER, never adjust the threshold.
+
+### SCREEN-E3-A / SCREEN-E3-B — candidate screenings on both registered suites (registered 2026-11-25, before dispatch)
+
+- **Purpose:** exploratory screening for ENGINE-3 only: measure the per-anchor opening-cluster
+  distributions, the variance decomposition (between-opening vs match noise), and the cross-anchor
+  cluster correlations **on both registered 60-opening suites**, so the prospective power assessment
+  covers the actual engine hash AND the disjoint A/B suites — the two inputs whose absence blocked
+  the ENGINE-1 assessment. NEVER gate evidence; used only for anchor selection and the power model.
+- **Methodology:** ENGINE-3 (`733de4e5…`) vs each of the three mechanically selected anchors
+  (`topple-0.1.1` 2324±17, `topple-0.2.1` 2439±14, `akimbo-0.1.1` 2441±19; frozen pool): 60 openings ×
+  1 paired rep × AB/BA = **120 games per run**; 60 shards × 2; TC 40/15; purpose `screening`, batch A
+  (suite `2c4a54d8…`) and batch B (suite `744a3981…`); labels `topple-0.1.1-e3`, `topple-0.2.1-e3`,
+  `akimbo-0.1.1-e3` (evidence under `benches/evidence/screening/<label>/`; the manifest records the
+  pool-key anchor binary hash). Six runs, six registered seeds: A1 20261211 (topple-0.1.1),
+  A2 20261212 (topple-0.2.1), A3 20261213 (akimbo-0.1.1), B1 20261214 (topple-0.1.1),
+  B2 20261215 (topple-0.2.1), B3 20261216 (akimbo-0.1.1).
+- **Acceptance:** all 120 attempted games counted per run (no engine errors); manifests hash-verified
+  on aggregation. Selection and power inputs only; never gate evidence.
+
+### Design research note (2026-11-25, pre-registered decision rule for the enlarged design)
+
+The ENGINE-1 sensitivity report showed the 100-game design (50 clusters × 2 games) is underpowered
+for the three strict lower-bound decisions at a 2,100 Elo alternative under variance stress. Measured
+inputs now available (ENGINE-1 screening evidence, recovered CTRL-2-R / SCREEN-3): cross-anchor
+cluster correlations 0.089–0.196 on the A suite; variance decomposition of 2-game cluster means shows
+match noise dominates (between-opening share 0 %, 9 % and 25 % for the three anchors), so additional
+paired repetitions shrink cluster-mean SD nearly as effectively as additional openings. The
+ENGINE-3 screenings above measure the same quantities on the actual candidate and both suites.
+
+**Pre-registered decision rule for the ENGINE-3 power assessment (fixed before its evidence is
+played):** among the candidate designs `{50 clusters × 1 rep (100 games), 60 × 1 (120), 60 × 2 (240),
+60 × 3 (360)} per anchor per batch on the registered suites (or the registered 50-opening subsets
+where noted), select the SMALLEST design whose simulated probability that **all three** lower-bound
+decisions pass (Batch A, Batch B, combined) is **≥ 0.80 at a true 2,100 Elo alternative under 1.5×
+cluster-SD inflation**, using the measured covariance and 250,000 deterministic Monte Carlo
+replicates. If no candidate reaches 0.80, the assessment stays BLOCKED and design research continues
+without weakening the CI level, the 2,000 threshold, the 40/15 time control or the null controls.
+Known intrinsic limitation to be reported with any PASS: power at alternatives below 2,100 is lower
+by construction; a true rating near the threshold can yield INCONCLUSIVE, which is fail-closed and
+never partial credit. The final evidence method remains the registered opening-cluster bootstrap,
+not this delta-method approximation.
