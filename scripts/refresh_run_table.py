@@ -160,16 +160,63 @@ def last_src_change() -> str | None:
     return proc.stdout.strip()
 
 
+def boundary_for_tree(tree: str) -> str | None:
+    """The newest commit that touched `src/` and produced exactly this `src/` tree.
+
+    Every same-tree group of runs runs the binary built from one `src/` tree; that tree's
+    boundary commit is the last `src/` change that produced it (the newest, when the tree was
+    introduced more than once).
+    """
+    proc = subprocess.run(
+        ["git", "log", "--format=%H", BRANCH, "--", "src/"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if proc.returncode != 0:
+        return None
+    for commit in proc.stdout.split():
+        if src_tree(commit) == tree:
+            return commit
+    return None
+
+
+def subject_of(commit: str) -> str:
+    proc = subprocess.run(
+        ["git", "log", "-1", "--format=%s", commit],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    subject = proc.stdout.strip() if proc.returncode == 0 else ""
+    # Drop a conventional-commit prefix and any trailing parenthetical for the table cell,
+    # and keep it short.
+    if ": " in subject:
+        subject = subject.split(": ", 1)[1]
+    subject = subject.split(" (", 1)[0]
+    return subject if len(subject) <= 60 else subject[:57] + "..."
+
+
 def quick_runs(fixture: dict) -> list[dict]:
     return [run for run in fixture["runs"] if run["games"] == QUICK_GAMES]
 
 
-def build_rows(fixture: dict) -> list[dict]:
-    """Turn the published summaries into table rows, ordered by the branch history."""
+def build_rows(fixture: dict) -> tuple[list[dict], dict]:
+    """Turn the published summaries into table rows, ordered by the branch history.
+
+    Rows are grouped by binary identity (`src/` tree). The primary group is the one on the
+    candidate's own `src/` tree when the hosted profile has runs there; otherwise the largest
+    same-tree group (the runs really are on one identical release binary — just not the
+    candidate's). The returned metadata records which case applies so the claims can say
+    plainly that the candidate has no hosted quick runs yet.
+    """
     order = branch_order()
     head = git("rev-parse", BRANCH)
     head_src = src_tree(head)
-    boundary = last_src_change()
+    if head_src is None:
+        raise RuntimeError(f"cannot read the `src/` tree of {BRANCH}")
 
     resolved = []
     for run in quick_runs(fixture):
@@ -185,12 +232,27 @@ def build_rows(fixture: dict) -> list[dict]:
 
     resolved.sort(key=lambda item: (item[0], item[1]["published_at"]))
 
+    groups: dict[str, int] = {}
+    for _index, _run, commit in resolved:
+        tree = src_tree(commit)
+        if tree is not None:
+            groups[tree] = groups.get(tree, 0) + 1
+    if not groups:
+        raise RuntimeError("no published run resolves to a readable `src/` tree")
+    on_candidate = head_src in groups
+    if on_candidate:
+        primary_tree = head_src
+    else:
+        # Largest same-tree group; ties break deterministically on the tree hash.
+        primary_tree = max(groups, key=lambda tree: (groups[tree], tree))
+    boundary = boundary_for_tree(primary_tree)
+
     rows = []
     for _index, run, commit in resolved:
         tree = src_tree(commit)
-        if tree is not None and tree == head_src:
+        if tree is not None and tree == primary_tree:
             if commit == boundary:
-                label = "**last `src/` change** (refined outpost term)"
+                label = f"**last `src/` change** ({subject_of(boundary)})"
             else:
                 label = "**no engine change**"
         else:
@@ -204,15 +266,23 @@ def build_rows(fixture: dict) -> list[dict]:
                 "classification": run["classification"] or "",
             }
         )
-    return rows
+    meta = {
+        "on_candidate": on_candidate,
+        "primary_boundary": boundary,
+        "primary_boundary_subject": subject_of(boundary) if boundary else "",
+        "candidate_boundary": last_src_change(),
+        "candidate_boundary_subject": subject_of(last_src_change() or ""),
+    }
+    return rows, meta
 
 
-def build_claims(rows: list[dict]) -> list[str]:
+def build_claims(rows: list[dict], meta: dict) -> list[str]:
     """The derived claims, computed from the rows rather than written by hand.
 
-    The boundary head (the last `src/` change) runs the identical release binary to every later
-    head, so it belongs to the unchanged set; only the heads *before* the boundary are on a
-    different engine.
+    The boundary head (the `src/` change that produced the group's binary) runs the identical
+    release binary to every later head in the group, so it belongs to the unchanged set; only the
+    heads outside the group are on a different engine. When the hosted profile has no runs on the
+    candidate's own binary yet, the claims say so plainly before describing the earlier binary.
     """
     unchanged = [
         row for row in rows
@@ -232,10 +302,16 @@ def build_claims(rows: list[dict]) -> list[str]:
     all_lo, all_hi = span(rows)
     other_text = ", ".join(f"{row['percent']:.1f}%" for row in other)
 
+    if meta["on_candidate"]:
+        opener = f"  **On an unchanged engine the profile ranges from {lo:.1f}% to {hi:.1f}%** "
+        growth = "; a lower bound, since every further push adds another run"
+    else:
+        opener = f"  **On the identical earlier binary the profile ranges from {lo:.1f}% to {hi:.1f}%** "
+        growth = ""
     lines = [
-        f"  **On an unchanged engine the profile ranges from {lo:.1f}% to {hi:.1f}%** "
-        f"({len(unchanged)} runs, listed above, all on the identical release binary; a lower "
-        f"bound, since every further push adds another run), and the same unchanged engine "
+        opener
+        + f"({len(unchanged)} runs, listed above, all on the identical release binary{growth}), "
+        f"and the same binary "
         f"produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in {len(positives)} run"
         f"{'' if len(positives) == 1 else 's'} and `INCONCLUSIVE` in the other "
         f"{len(inconclusive)}. The two extremes are {hi - lo:.1f} points apart on code that did "
@@ -249,15 +325,21 @@ def build_claims(rows: list[dict]) -> list[str]:
         )
     if other:
         lines.append(
-            f"  The {len(other)} runs below the last `src/` change ({other_text}) are on a "
+            f"  The {len(other)} runs below the engine-change boundary ({other_text}) are on a "
             f"*different* engine and are not part of that range. The overall observed range across "
             f"all heads is {all_lo:.1f}%–{all_hi:.1f}%, but it spans two different engines; the "
-            f"unchanged-engine range is {lo:.1f}%–{hi:.1f}%."
+            f"same-binary range is {lo:.1f}%–{hi:.1f}%."
         )
     if boundary:
         lines.append(
             f"  The engine-change boundary is `{boundary[0]['candidate']}`, the last commit that "
-            f"touched `src/` on this branch."
+            f"produced that binary's `src/` tree."
+        )
+    if not meta["on_candidate"] and meta.get("candidate_boundary"):
+        lines.append(
+            f"  No hosted quick runs are on the current candidate engine yet: the last `src/` "
+            f"change on this branch is `{meta['candidate_boundary'][:7]}` "
+            f"({meta['candidate_boundary_subject']}). Every row above predates it."
         )
     lines.append(
         "  Every row above was transcribed from the published hosted summary and re-checked "
@@ -269,7 +351,7 @@ def build_claims(rows: list[dict]) -> list[str]:
     return lines
 
 
-def build_block(rows: list[dict]) -> str:
+def build_block(rows: list[dict], meta: dict) -> str:
     out = [BEGIN, ""]
     out.append("| Head | Engine change | W/D/L | Score | Classification |")
     out.append("|---|---|---|---|---|")
@@ -279,7 +361,7 @@ def build_block(rows: list[dict]) -> str:
             f"{row['percent']:.1f}% | {row['classification']} |"
         )
     out.append("")
-    out.extend(build_claims(rows))
+    out.extend(build_claims(rows, meta))
     out.append("")
     out.append(END)
     return "\n".join(out)
@@ -313,11 +395,11 @@ def main() -> int:
 
     fixture = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
     try:
-        rows = build_rows(fixture)
+        rows, meta = build_rows(fixture)
     except RuntimeError as error:
         print(f"FAIL: {error}")
         return 1
-    block = build_block(rows)
+    block = build_block(rows, meta)
     text = STATUS.read_text(encoding="utf-8")
     existing = current_block(text)
 

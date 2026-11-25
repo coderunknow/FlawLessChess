@@ -142,11 +142,47 @@ def test_a_drifted_row_is_detected() -> None:
         STATUS.write_text(original, encoding="utf-8")
 
 
+def test_claims_name_the_candidate_when_it_has_no_runs() -> None:
+    # Regression: after an engine `src/` change, no hosted quick run is on the candidate's
+    # binary any more. The claims must not crash on the empty current set and must say
+    # plainly that the candidate has no runs yet (the earlier binary's range still shows).
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import refresh_run_table as tool
+
+    rows = [
+        {"candidate": "aaaaaaa", "label": "**no engine change**", "wdl": "10/10/20",
+         "percent": 37.5, "classification": "INCONCLUSIVE"},
+        {"candidate": "bbbbbbb", "label": "**last `src/` change** (fixture boundary)", "wdl": "10/10/20",
+         "percent": 37.5, "classification": "INCONCLUSIVE"},
+        {"candidate": "ccccccc", "label": "different engine (pre-refinement)", "wdl": "10/10/20",
+         "percent": 37.5, "classification": "INCONCLUSIVE"},
+    ]
+    meta = {
+        "on_candidate": False,
+        "primary_boundary": "b" * 40,
+        "primary_boundary_subject": "fixture boundary",
+        "candidate_boundary": "d" * 40,
+        "candidate_boundary_subject": "a fresh engine change",
+    }
+    claims = tool.build_claims(rows, meta)
+    text = "\n".join(claims)
+    check("the no-runs-on-candidate claim is emitted", "No hosted quick runs are on the current candidate engine yet" in text)
+    check("the claim names the candidate's last `src/` change", "ddddddd" in text)
+    check("the range is attributed to the earlier binary", "identical earlier binary" in text)
+    meta_on = dict(meta, on_candidate=True)
+    claims_on = tool.build_claims(rows, meta_on)
+    check(
+        "on-candidate claims keep the original wording",
+        "On an unchanged engine the profile ranges" in "\n".join(claims_on),
+    )
+
+
 def main() -> int:
     test_the_fixture_agrees_with_the_scoring_formula()
     test_the_table_matches_the_tool()
     test_an_unresolved_candidate_fails_loudly()
     test_a_drifted_row_is_detected()
+    test_claims_name_the_candidate_when_it_has_no_runs()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0
 
