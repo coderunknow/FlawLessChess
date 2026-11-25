@@ -68,7 +68,7 @@ jobs:
           if req.get("schema") != 1:
               raise SystemExit("benchmark-request schema must be 1")
           profile = req.get("profile")
-          if profile not in ("quick", "extended"):
+          if profile not in ("quick", "screen", "extended"):
               raise SystemExit(f"unknown benchmark profile: {profile!r}")
           seed = int(req.get("seed"))
           variants = req.get("variants") or [{"name": "full", "ablate": ""}]
