@@ -102,10 +102,11 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)
   finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
   classification **INCONCLUSIVE**. No strength difference against the pinned baseline is measurable. The
-  Fourteen hosted quick runs of the same 20-opening profile, on heads with a **byte-identical release
+  Sixteen hosted quick runs of the same 20-opening profile, on heads with a **byte-identical release
   binary** (the last change to `src/` on the branch is the outpost refinement `98e5cd9`), ranged from
   **46.2% to 65.0%**, and the same unchanged engine produced the label
-  `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and `INCONCLUSIVE` in the other thirteen. A fixed
+  `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and `INCONCLUSIVE` in the other fifteen. The
+  range is a lower bound: the profile runs on every push, so every further push adds another run. A fixed
   100 ms movetime makes the reached depth depend on the machine speed and the timing jitter, so the
   played games are not reproducible across runs even with the same opening seed: the seeded shuffle
   fixes the opening order, not the games. The 40-game profile therefore carries roughly ±30 Elo of

@@ -1177,3 +1177,14 @@ intervals keep covering it. Reading the upward drift as a strength signal would 
 measurable.** This is screening evidence against a single opponent at a fixed movetime. It is not an
 official rating, not an absolute rating, and not a strength claim. The absolute V1 rating gate
 remains UNKNOWN / NOT MEASURED / NOT MET.
+
+### Addendum: two more unchanged-engine runs
+
+The quick profile runs on every push, so two more runs of the same byte-identical release binary
+landed after the previous addendum: `c428d66` 60.0% (24/7/9) and `ff10c55` 55.0% (22/8/10). Both are
+inside the recorded range.
+
+**On an unchanged engine the profile ranges from 46.2% to 65.0% over sixteen runs**, and the same
+unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and
+`INCONCLUSIVE` in the other fifteen. The range is a lower bound: every further push adds another run,
+and the spread is not expected to narrow.
