@@ -37,7 +37,11 @@ HASH_MB = 64
 MOVETIME_MS = 100
 BOOTSTRAP_REPLICATES = 10_000
 SEVERE_REGRESSION_ELO = -50.0
-PROFILE_OPENING_COUNTS = {"quick": 20, "extended": 100}
+# Opening count each profile requires. "quick" is the 20-opening regression screen, "screen" is
+# the same screen with the 100-opening extended suites (used for the ablation variants, where the
+# per-variant sample has to be large enough to separate the terms), and "extended" is the
+# three-replicate tournament that pools 600 games.
+PROFILE_OPENING_COUNTS = {"quick": 20, "screen": 100, "extended": 100}
 
 
 def sha256_file(path: Path) -> str:

@@ -42,6 +42,8 @@ jobs:
     outputs:
       profile: ${{ steps.resolve.outputs.profile }}
       seed: ${{ steps.resolve.outputs.seed }}
+      variants: ${{ steps.resolve.outputs.variants }}
+      suites: ${{ steps.resolve.outputs.suites }}
     steps:
       - name: Check out the exact candidate source
         uses: actions/checkout@v4
@@ -49,12 +51,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - id: resolve
-        name: Resolve profile and seed
+        name: Resolve profile, seed and ablation variants
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "profile=${{ inputs.profile }}" >> "$GITHUB_OUTPUT"
             echo "seed=${{ inputs.seed }}" >> "$GITHUB_OUTPUT"
+            echo "variants=[{\"name\":\"full\",\"ablate\":\"\"}]" >> "$GITHUB_OUTPUT"
+            echo "suites=benches/openings-20.txt" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -67,23 +71,44 @@ jobs:
           if profile not in ("quick", "extended"):
               raise SystemExit(f"unknown benchmark profile: {profile!r}")
           seed = int(req.get("seed"))
+          variants = req.get("variants") or [{"name": "full", "ablate": ""}]
+          for variant in variants:
+              if not isinstance(variant, dict) or "name" not in variant:
+                  raise SystemExit("every variant needs a name")
+              variant.setdefault("ablate", "")
+          suites = req.get("opening_suites") or ["benches/openings-20.txt"]
+          if not isinstance(suites, list) or not suites:
+              raise SystemExit("opening_suites must be a non-empty list")
           print(f"profile={profile}")
           print(f"seed={seed}")
+          print("suites=" + ",".join(suites))
+          print("variants=" + json.dumps(variants, separators=(",", ":")))
           PY
             exit 0
           fi
           echo "profile=quick" >> "$GITHUB_OUTPUT"
           echo "seed=20261124" >> "$GITHUB_OUTPUT"
+          echo "variants=[{\"name\":\"full\",\"ablate\":\"\"}]" >> "$GITHUB_OUTPUT"
+          echo "suites=benches/openings-20.txt" >> "$GITHUB_OUTPUT"
 
   quick:
-    name: Quick paired engine match (PR regression screen)
+    name: Quick paired engine match (${{ matrix.variant.name }})
     needs: request
     if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && needs.request.outputs.profile == 'quick'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.request.outputs.variants) }}
     env:
       CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       QUICK_SEED: ${{ needs.request.outputs.seed }}
+      # The ablation switch is honoured by the candidate only: the pinned baseline predates the
+      # module and ignores the variable, so the baseline always plays as it always did.
+      FLAWLESS_ABLATE: ${{ matrix.variant.ablate }}
+      QUICK_SUITES: ${{ needs.request.outputs.suites }}
+      QUICK_PROFILE: ${{ needs.request.outputs.profile }}
     steps:
       - name: Check out exact candidate PR head
         uses: actions/checkout@v4
@@ -130,15 +155,20 @@ jobs:
           set -euo pipefail
           sha256sum target/release/flawless "${RUNNER_TEMP}/baseline-target/release/flawless"
           case "$QUICK_SEED" in *[!0-9]*|'') echo "invalid seed: $QUICK_SEED"; exit 2 ;; esac
+          suite_args=()
+          IFS=',' read -ra suites <<< "$QUICK_SUITES"
+          for suite in "${suites[@]}"; do
+            suite_args+=(--opening-suite "$suite")
+          done
           python scripts/relative_benchmark.py run \
-            --profile quick \
+            --profile "$QUICK_PROFILE" \
             --candidate "$PWD/target/release/flawless" \
             --baseline "${RUNNER_TEMP}/baseline-target/release/flawless" \
-            --opening-suite benches/openings-20.txt \
+            "${suite_args[@]}" \
             --seed "$QUICK_SEED" \
             --candidate-sha "$CANDIDATE_SHA" \
             --baseline-sha "$BASELINE_SHA" \
-            --out "benchmark-output/quick-${GITHUB_RUN_ID}"
+            --out "benchmark-output/quick-${GITHUB_RUN_ID}-${{ matrix.variant.name }}"
 
       - name: Publish the benchmark summary (job summary and pull request comment)
         if: always()
@@ -147,15 +177,15 @@ jobs:
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           python scripts/publish_benchmark_summary.py \
-            --summary "benchmark-output/quick-${GITHUB_RUN_ID}/summary.json" \
-            --title "Relative engine benchmark — quick profile (seed ${QUICK_SEED})"
+            --summary "benchmark-output/quick-${GITHUB_RUN_ID}-${{ matrix.variant.name }}/summary.json" \
+            --title "Relative engine benchmark — quick profile, variant ${{ matrix.variant.name }} (seed ${QUICK_SEED})"
 
       - name: Preserve raw games, PGN, suite and summaries
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: relative-strength-quick-${{ github.run_id }}
-          path: benchmark-output/quick-${{ github.run_id }}/
+          name: relative-strength-quick-${{ github.run_id }}-${{ matrix.variant.name }}
+          path: benchmark-output/quick-${{ github.run_id }}-${{ matrix.variant.name }}/
           if-no-files-found: warn
           retention-days: 90
 

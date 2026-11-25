@@ -1,11 +1,22 @@
 {
   "schema": 1,
-  "profile": "extended",
+  "profile": "screen",
   "seed": 20261130,
-  "revision": 2,
+  "revision": 3,
   "requested_by": "PR #6 iteration (branch arena/247fe7df-flawlesschess)",
-  "purpose": "Three-replicate paired tournament of the final PR #6 candidate against the pinned baseline 6ab5b3349264c6c0a740c433ce454f8e1fed698a.",
-  "note": "The extended profile runs three replicates with the seeds seed, seed+1 and seed+2 (100 openings, 200 games per replicate) and aggregates them with an opening-clustered bootstrap. Moving this file in a push on the work branch is the deliberate dispatch.",
-  "revision_note": "Revision 2 measures the head that carries the refined outpost definition. Revision 1 (seed 20261124) measured the pre-refinement head and finished 217 W / 164 D / 219 L of 600, score 49.8%, relative Elo -23.2 to +21.5 (95% CI), INCONCLUSIVE. The new seed base gives an independent sample instead of a replay of the same opening order.",
+  "purpose": "Ablation study: measure the contribution of each term that PR #6 adds to the evaluation and to the move ordering, against the pinned baseline 6ab5b3349264c6c0a740c433ce454f8e1fed698a.",
+  "note": "Every variant runs the same 100 paired openings (200 real UCI games) with the same seed, so the variants are paired samples over the same openings. The ablation switch is honoured by the candidate only: the pinned baseline predates the module and ignores the variable.",
+  "opening_suites": [
+    "benches/rating-openings-100-batchA.txt",
+    "benches/rating-openings-100-batchB.txt"
+  ],
+  "variants": [
+    { "name": "full", "ablate": "" },
+    { "name": "no-space", "ablate": "space" },
+    { "name": "no-counter-move", "ablate": "counter_move" },
+    { "name": "no-new-terms", "ablate": "space,counter_move,outpost" }
+  ],
+  "revision_note": "Revision 1 (seed 20261124, extended profile, 600 games) measured the pre-refinement head: 217 W / 164 D / 219 L, score 49.8%, relative Elo -23.2 to +21.5 (95% CI), INCONCLUSIVE. Revision 2 (seed 20261130, extended profile) measures the refined head. Revision 3 (this one) measures the contribution of each term.",
+  "interpretation": "Ablation output is a diagnostic, not a rating and not a strength claim. A variant that scores higher than another only says that the ablated term costs score points against this one opponent at a fixed movetime.",
   "evidence": "github.com/coderunknow/FlawLessChess/actions/workflows/relative-benchmark.yml"
 }
