@@ -765,6 +765,25 @@ fn outposts_follow_the_classical_definition_and_are_colour_symmetric() {
     let blocked_m = "4k3/8/8/1p6/2n5/3p4/3P4/4K3 b - - 0 1";
     check_outpost(blocked_w, blocked_m, OUTPOST_KNIGHT_MG);
 
+    // The advancing pawn on the *other* adjacent file: the black pawn on b7 steps to b6 and
+    // then attacks c5, so the square is not an outpost. This is the mirror side of the d7 case
+    // above, and it is the position that a one-sided file check would get wrong.
+    let b7_w = "4k3/1p6/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let b7_m = "4k3/8/8/3p4/2n5/8/1P6/4K3 b - - 0 1";
+    check_outpost(b7_w, b7_m, 0);
+
+    // Removing the b7 pawn restores the bonus: the knight is defended and no enemy pawn can
+    // reach c5.
+    let no_b7_w = "4k3/8/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let no_b7_m = "4k3/8/8/3p4/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(no_b7_w, no_b7_m, OUTPOST_KNIGHT_MG);
+
+    // An undefended piece is never an outpost, whatever the enemy pawns do. The b7 pawn cannot
+    // change that: without a defending pawn the piece is simply chased away.
+    let undefended_b7_w = "4k3/1p6/8/2N5/8/8/8/4K3 w - - 0 1";
+    let undefended_b7_m = "4k3/8/8/8/2n5/8/1P6/4K3 b - - 0 1";
+    check_outpost(undefended_b7_w, undefended_b7_m, 0);
+
     // An enemy pawn that attacks the piece right now removes the outpost.
     let hit_w = "4k3/8/3p4/2N5/3P4/8/8/4K3 w - - 0 1";
     let hit_m = "4k3/8/8/3p4/2n5/3P4/8/4K3 b - - 0 1";

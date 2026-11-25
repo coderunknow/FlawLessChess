@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "kind": "weakness_diagnostic",
+  "binary": "./target/release/flawless",
+  "generated_utc": "2026-11-25T02:19:35Z",
+  "games": 6,
+  "movetime_ms": 200,
+  "max_plies": 120,
+  "seed": 42,
+  "note": "Diagnostic only. The opponent is a greedy evaluation opponent, so these games say nothing about playing strength and nothing about any rating.",
+  "flagged_material_losses": 21,
+  "losing_games": 0,
+  "results": [
+    {
+      "game": 0,
+      "engine_color": "W",
+      "result": "1-0",
+      "plies": 77,
+      "engine_won": true,
+      "engine_drew": false
+    },
+    {
+      "game": 1,
+      "engine_color": "B",
+      "result": "0-1",
+      "plies": 36,
+      "engine_won": true,
+      "engine_drew": false
+    },
+    {
+      "game": 2,
+      "engine_color": "W",
+      "result": "1-0",
+      "plies": 71,
+      "engine_won": true,
+      "engine_drew": false
+    },
+    {
+      "game": 3,
+      "engine_color": "B",
+      "result": "0-1",
+      "plies": 36,
+      "engine_won": true,
+      "engine_drew": false
+    },
+    {
+      "game": 4,
+      "engine_color": "W",
+      "result": "1-0",
+      "plies": 77,
+      "engine_won": true,
+      "engine_drew": false
+    },
+    {
+      "game": 5,
+      "engine_color": "B",
+      "result": "0-1",
+      "plies": 36,
+      "engine_won": true,
+      "engine_drew": false
+    }
+  ]
+}

@@ -1,55 +1,92 @@
 #!/usr/bin/env python3
-"""Diagnose Flawless engine weaknesses by playing games vs a simple eval opponent.
+"""Diagnose Flawless engine weaknesses by playing games against a simple opponent.
 
-Records full PGN of games where the engine loses, and flags positions where
-the engine loses material or makes serious errors.
+**Diagnostic output, not strength evidence.** The opponent is a greedy evaluation opponent, so the
+games say nothing about playing strength against a real opponent. What the script looks for is
+*blunders*: positions where the engine gives away material.
+
+The opponent uses the engine's own piece-square tables, read from `src/eval.rs` at run time, so the
+opponent cannot drift away from the engine it is supposed to resemble.
+
+Outputs (in the output directory):
+* `weaknesses.jsonl` — one record per position where the engine lost material after the opponent's
+  reply. Quiet replies are never flagged.
+* `losing-games.pgn` — the full games the engine lost.
+* `summary.json` — the run summary.
 """
+from __future__ import annotations
+
 import argparse
-import chess
 import json
+import os
 import random
+import re
 import subprocess
-import sys
 import time
 from pathlib import Path
 
+import chess
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 ENGINE = "./target/release/flawless"  # overridable with --binary
 OUT = Path("benches/diagnose-20261124")
-OUT.mkdir(parents=True, exist_ok=True)
 
-PST = {
-    chess.PAWN: [0,0,0,0,0,0,0,0, 5,10,10,-15,-15,10,10,5, 5,5,10,20,20,10,5,5,
-                 0,0,0,25,25,0,0,0, 5,10,15,25,25,15,10,5, 15,20,25,30,30,25,20,15,
-                 40,45,50,55,55,50,45,40, 0,0,0,0,0,0,0,0],
-    chess.KNIGHT: [-40,-25,-15,-10,-10,-15,-25,-40, -30,-15,0,5,5,0,-15,-30,
-                   -20,0,10,15,15,10,0,-20, -15,5,15,20,20,15,5,-15,
-                   -10,10,20,22,22,20,10,-10, -15,5,15,20,20,15,5,-15,
-                   -20,0,10,15,15,10,0,-20, -30,-15,-10,-5,-5,-10,-15,-30],
-    chess.BISHOP: [-15,-10,-10,-10,-10,-10,-10,-15, -10,0,0,0,0,0,0,-10,
-                   -10,0,5,10,10,5,0,-10, -10,5,10,10,10,10,5,-10,
-                   -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,-10,
-                   -10,5,0,0,0,0,5,-10, -15,-10,-10,-10,-10,-10,-10,-15],
-    chess.ROOK: [0,0,2,5,5,2,0,0, 2,5,8,10,10,8,5,2, 5,8,10,12,12,10,8,5,
-                 5,8,10,12,12,10,8,5, 5,8,10,12,12,10,8,5, 5,8,10,12,12,10,8,5,
-                 8,12,15,18,18,15,12,8, 25,25,25,25,25,25,25,25],
-    chess.QUEEN: [-10,-5,-2,0,0,-2,-5,-10, -5,0,2,2,2,2,0,-5, -2,2,5,5,5,5,2,-2,
-                  0,2,5,5,5,5,2,0, 0,2,5,5,5,5,2,0, -2,2,5,5,5,5,2,-2,
-                  -5,0,2,2,2,2,0,-5, -10,-5,-2,0,0,-2,-5,-10],
-    chess.KING: [25,35,25,0,-5,5,40,25, 20,25,5,-15,-20,-10,15,15, -5,10,-10,-25,-30,-25,-5,-5,
-                 -15,-10,-20,-30,-35,-30,-15,-15, -25,-20,-30,-35,-40,-35,-25,-25,
-                 -25,-20,-30,-35,-35,-30,-25,-25, -20,-15,-25,-30,-30,-25,-15,-20,
-                 -10,-5,-15,-20,-15,-20,-5,-10],
+PIECE_VALUES = {
+    chess.PAWN: 100,
+    chess.KNIGHT: 320,
+    chess.BISHOP: 330,
+    chess.ROOK: 500,
+    chess.QUEEN: 900,
+    chess.KING: 0,
 }
 
-PIECE_VALUES = {chess.PAWN: 100, chess.KNIGHT: 320, chess.BISHOP: 330,
-                chess.ROOK: 500, chess.QUEEN: 900, chess.KING: 0}
+# The engine source that holds the piece-square tables.
+EVAL_SOURCE = REPO_ROOT / "src" / "eval.rs"
 
 
-def mirror_sq(sq):
+class EngineError(RuntimeError):
+    """The engine process failed in a way that makes the diagnostic meaningless."""
+
+
+def load_pst_from_source(path: Path) -> dict[int, list[int]]:
+    """Read the middlegame piece-square tables from the engine source.
+
+    Reading them from the source is deliberate: a copy of the tables in this script can drift from
+    the engine (a short table raises IndexError only for the squares past the end, which is exactly
+    the kind of defect that hides in a diagnostic).
+    """
+    if not path.is_file():
+        raise SystemExit(f"engine source not found: {path}")
+    text = path.read_text(encoding="utf-8")
+    names = {
+        "PAWN": chess.PAWN,
+        "KNIGHT": chess.KNIGHT,
+        "BISHOP": chess.BISHOP,
+        "ROOK": chess.ROOK,
+        "QUEEN": chess.QUEEN,
+        "KING": chess.KING,
+    }
+    tables: dict[int, list[int]] = {}
+    for name, piece_type in names.items():
+        match = re.search(rf"const PST_{name}_MG: \[i32; 64\] = \[(.*?)\];", text, re.S)
+        if not match:
+            raise SystemExit(f"cannot find PST_{name}_MG in {path}")
+        values = [int(v) for v in re.findall(r"-?\d+", match.group(1))]
+        if len(values) != 64:
+            raise SystemExit(f"PST_{name}_MG has {len(values)} entries, expected 64")
+        tables[piece_type] = values
+    return tables
+
+
+PST = load_pst_from_source(EVAL_SOURCE)
+
+
+def mirror_sq(sq: int) -> int:
     return sq ^ 56
 
 
-def opp_eval(board):
+def board_eval(board: chess.Board) -> int:
+    """Material plus piece-square score, from White's point of view."""
     score = 0
     for sq, piece in board.piece_map().items():
         pt = piece.piece_type
@@ -59,28 +96,28 @@ def opp_eval(board):
     return score
 
 
-def opp_best_move(board):
+def opponent_best_move(board: chess.Board) -> chess.Move | None:
+    """The greedy evaluation move for the side to move."""
     legal = list(board.legal_moves)
     if not legal:
         return None
-    captures = [m for m in legal if board.is_capture(m)]
-    if captures:
-        legal = captures
+    mover_is_white = board.turn
     best_move = None
-    best_score = -999999
-    for m in legal:
-        board.push(m)
-        score = -opp_eval(board)
+    best_score = None
+    for move in legal:
+        board.push(move)
+        # The evaluation is from White's point of view, so it has to be flipped for a Black move.
+        score = board_eval(board) if mover_is_white else -board_eval(board)
         board.pop()
-        if score > best_score:
+        if best_score is None or score > best_score:
             best_score = score
-            best_move = m
+            best_move = move
     return best_move
 
 
-def engine_bestmove(fen, movetime_ms=500, binary=None):
+def engine_bestmove(fen: str, movetime_ms: int, binary: str) -> str | None:
     proc = subprocess.Popen(
-        [binary or ENGINE, "uci"],
+        [binary, "uci"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -88,110 +125,184 @@ def engine_bestmove(fen, movetime_ms=500, binary=None):
         bufsize=0,
     )
     try:
-        proc.stdin.write("uci\n"); proc.stdin.flush()
+        proc.stdin.write("uci\n")
+        proc.stdin.flush()
         while True:
             line = proc.stdout.readline()
+            if not line:
+                raise EngineError("the engine closed stdout before answering 'uciok'")
             if line.strip() == "uciok":
                 break
-        proc.stdin.write(f"position fen {fen}\n"); proc.stdin.flush()
-        proc.stdin.write(f"go movetime {movetime_ms}\n"); proc.stdin.flush()
+        proc.stdin.write(f"position fen {fen}\n")
+        proc.stdin.flush()
+        proc.stdin.write(f"go movetime {movetime_ms}\n")
+        proc.stdin.flush()
         bestmove = None
         while True:
             line = proc.stdout.readline()
+            if not line:
+                break
             if line.startswith("bestmove"):
                 parts = line.split()
                 bestmove = parts[1] if len(parts) > 1 else None
                 break
         return bestmove
     finally:
-        proc.stdin.write("quit\n"); proc.stdin.flush()
-        proc.wait(timeout=5)
+        try:
+            proc.stdin.write("quit\n")
+            proc.stdin.flush()
+        except (BrokenPipeError, ValueError, OSError):
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
 
 
-def material_diff_for(board, engine_color):
-    """Material from engine's perspective: engine_material - opponent_material."""
-    if engine_color == chess.WHITE:
-        w = sum(PIECE_VALUES[p.piece_type] for p in board.piece_map().values() if p.color)
-        b = sum(PIECE_VALUES[p.piece_type] for p in board.piece_map().values() if not p.color)
-        return w - b
-    else:
-        b = sum(PIECE_VALUES[p.piece_type] for p in board.piece_map().values() if not p.color)
-        w = sum(PIECE_VALUES[p.piece_type] for p in board.piece_map().values() if p.color)
-        return b - w
+def material_for(board: chess.Board, color: chess.Color) -> int:
+    return sum(
+        PIECE_VALUES[piece.piece_type]
+        for piece in board.piece_map().values()
+        if piece.color == color
+    )
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--games", type=int, default=10)
     parser.add_argument("--movetime-ms", type=int, default=500)
     parser.add_argument("--max-plies", type=int, default=150)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--binary", default=ENGINE)
+    parser.add_argument("--out", default=str(OUT))
     args = parser.parse_args()
 
-    games = args.games
-    random.seed(args.seed)
-    flagged = []
+    binary = args.binary
+    if not Path(binary).is_file() or not os.access(binary, os.X_OK):
+        print(f"engine binary missing or not executable: {binary}")
+        return 2
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
 
-    for g in range(games):
+    random.seed(args.seed)
+    flagged: list[dict] = []
+    losing_games: list[str] = []
+    results: list[dict] = []
+
+    for game in range(args.games):
         board = chess.Board()
-        moves = []
-        game_start = time.time()
-        engine_is_white = g % 2 == 0
+        moves: list[chess.Move] = []
+        engine_is_white = game % 2 == 0
         engine_color = chess.WHITE if engine_is_white else chess.BLACK
+        game_start = time.time()
 
         while not board.is_game_over() and len(moves) < args.max_plies:
             if board.turn == engine_color:
                 fen = board.fen()
-                mat_before = material_diff_for(board, engine_color)
-                best = engine_bestmove(fen, movetime_ms=args.movetime_ms, binary=args.binary)
-                if best is None or best == "0000" or best == "(none)":
-                    print(f"Game {g}: engine returned no bestmove at {fen}")
+                best = engine_bestmove(fen, args.movetime_ms, binary)
+                if best is None or best in ("0000", "(none)"):
+                    print(f"game {game}: the engine returned no bestmove at {fen}")
                     break
                 try:
                     move = chess.Move.from_uci(best)
-                    if move not in board.legal_moves:
-                        print(f"Game {g}: illegal move {best} at {fen}")
-                        break
-                    board.push(move)
-                    mat_after = material_diff_for(board, engine_color)
-                    material_lost = mat_after - mat_before
-                    if material_lost <= -250:  # engine lost a minor piece or more
-                        flagged.append({
-                            "game": g, "engine_color": "W" if engine_is_white else "B",
-                            "ply": len(moves), "fen_before": fen, "move": best.uci(),
-                            "material_lost_cp": material_lost,
-                            "board_after": board.fen(),
-                        })
-                    moves.append(move)
                 except ValueError:
-                    print(f"Game {g}: invalid move {best.uci() if best else '?'} at {fen}")
+                    print(f"game {game}: the engine returned an unparsable move {best!r} at {fen}")
                     break
-            else:
-                move = opp_best_move(board)
-                if move is None:
+                if move not in board.legal_moves:
+                    print(f"game {game}: illegal move {best} at {fen}")
                     break
                 board.push(move)
                 moves.append(move)
+                engine_move = move
+            else:
+                reply = opponent_best_move(board)
+                if reply is None:
+                    break
+                # The material loss of the engine is measured through the opponent's reply: the
+                # engine's own move cannot reduce its own material, so measuring across that move
+                # alone would never flag anything. The reference material is therefore read here,
+                # from the position the engine has just left, and not carried over from an earlier
+                # turn — the opponent may move first when the engine plays Black.
+                before = material_for(board, engine_color)
+                board.push(reply)
+                moves.append(reply)
+                after = material_for(board, engine_color)
+                lost = before - after
+                if lost >= 250:
+                    flagged.append(
+                        {
+                            "game": game,
+                            "engine_color": "W" if engine_is_white else "B",
+                            "ply": len(moves),
+                            "fen_before": fen,
+                            "engine_move": engine_move.uci(),
+                            "opponent_reply": reply.uci(),
+                            "material_lost_cp": lost,
+                            "board_after": board.fen(),
+                        }
+                    )
 
-        result = board.result()
-        engine_won = (result == "1-0" and engine_is_white) or (result == "0-1" and not engine_is_white)
-        engine_drew = result == "1/2-1/2"
-        print(f"Game {g}: engine={'W' if engine_is_white else 'B'} result={result} "
-              f"engine_won={engine_won} plies={len(moves)} time={time.time()-game_start:.1f}s")
+        outcome = board.result()
+        engine_won = (outcome == "1-0" and engine_is_white) or (
+            outcome == "0-1" and not engine_is_white
+        )
+        engine_drew = outcome == "1/2-1/2"
+        print(
+            f"game {game}: engine={'W' if engine_is_white else 'B'} result={outcome} "
+            f"engine_won={engine_won} plies={len(moves)} time={time.time() - game_start:.1f}s"
+        )
+        if not engine_won and not engine_drew:
+            game_board = chess.Board()
+            for move in moves:
+                game_board.push(move)
+            losing_games.append(str(game_board))
+        results.append(
+            {
+                "game": game,
+                "engine_color": "W" if engine_is_white else "B",
+                "result": outcome,
+                "plies": len(moves),
+                "engine_won": engine_won,
+                "engine_drew": engine_drew,
+            }
+        )
 
-    # Save losing games as PGN
-    out_file = OUT / "weaknesses.jsonl"
-    with open(out_file, "w") as f:
+    with (out / "weaknesses.jsonl").open("w", encoding="utf-8") as handle:
         for entry in flagged:
-            f.write(json.dumps(entry) + "\n")
+            handle.write(json.dumps(entry) + "\n")
+    if losing_games:
+        with (out / "losing-games.pgn").open("w", encoding="utf-8") as handle:
+            handle.write("\n".join(losing_games) + "\n")
 
-    print(f"\nFlagged {len(flagged)} material-loss positions -> {out_file}")
-    for e in flagged[:10]:
-        print(f"  Game {e['game']} ({e['engine_color']}) ply {e['ply']}: "
-              f"lost {e['material_lost_cp']}cp, move {e['move']}")
-        print(f"    FEN: {e['fen_before']}")
+    summary = {
+        "schema": 1,
+        "kind": "weakness_diagnostic",
+        "binary": binary,
+        "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "games": args.games,
+        "movetime_ms": args.movetime_ms,
+        "max_plies": args.max_plies,
+        "seed": args.seed,
+        "note": (
+            "Diagnostic only. The opponent is a greedy evaluation opponent, so these games say "
+            "nothing about playing strength and nothing about any rating."
+        ),
+        "flagged_material_losses": len(flagged),
+        "losing_games": len(losing_games),
+        "results": results,
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+    print(f"\nflagged {len(flagged)} material-loss positions -> {out / 'weaknesses.jsonl'}")
+    for entry in flagged[:10]:
+        print(
+            f"  game {entry['game']} ({entry['engine_color']}) ply {entry['ply']}: "
+            f"lost {entry['material_lost_cp']}cp after {entry['opponent_reply']}"
+        )
+        print(f"    FEN: {entry['fen_before']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

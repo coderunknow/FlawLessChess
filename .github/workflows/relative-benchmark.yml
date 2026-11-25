@@ -52,16 +52,29 @@ jobs:
           persist-credentials: false
       - id: resolve
         name: Resolve profile, seed and ablation variants
+        env:
+          # The dispatch inputs are untrusted text. They are passed as environment values, never
+          # interpolated into the shell source, so an input can never become a command.
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PROFILE: ${{ inputs.profile }}
+          INPUT_SEED: ${{ inputs.seed }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "profile=${{ inputs.profile }}" >> "$GITHUB_OUTPUT"
-            echo "seed=${{ inputs.seed }}" >> "$GITHUB_OUTPUT"
-            echo "variants=[{\"name\":\"full\",\"ablate\":\"\"}]" >> "$GITHUB_OUTPUT"
-            echo "suites=benches/openings-20.txt" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$INPUT_PROFILE" in
+              quick|screen|extended) ;;
+              *) echo "invalid profile: $INPUT_PROFILE" >&2; exit 2 ;;
+            esac
+            case "$INPUT_SEED" in
+              ''|*[!0-9]*) echo "invalid seed: $INPUT_SEED" >&2; exit 2 ;;
+            esac
+            printf 'profile=%s\n' "$INPUT_PROFILE" >> "$GITHUB_OUTPUT"
+            printf 'seed=%s\n' "$INPUT_SEED" >> "$GITHUB_OUTPUT"
+            printf 'variants=[{"name":"full","ablate":""}]\n' >> "$GITHUB_OUTPUT"
+            printf 'suites=benches/openings-20.txt\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "push" ]; then
+          if [ "$EVENT_NAME" = "push" ]; then
             python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           req = json.load(open("benches/benchmark-request.json"))
@@ -86,15 +99,18 @@ jobs:
           PY
             exit 0
           fi
-          echo "profile=quick" >> "$GITHUB_OUTPUT"
-          echo "seed=20261124" >> "$GITHUB_OUTPUT"
-          echo "variants=[{\"name\":\"full\",\"ablate\":\"\"}]" >> "$GITHUB_OUTPUT"
-          echo "suites=benches/openings-20.txt" >> "$GITHUB_OUTPUT"
+          printf 'profile=quick\n' >> "$GITHUB_OUTPUT"
+          printf 'seed=20261124\n' >> "$GITHUB_OUTPUT"
+          printf 'variants=[{"name":"full","ablate":""}]\n' >> "$GITHUB_OUTPUT"
+          printf 'suites=benches/openings-20.txt\n' >> "$GITHUB_OUTPUT"
 
   quick:
     name: Quick paired engine match (${{ matrix.variant.name }})
     needs: request
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && (needs.request.outputs.profile == 'quick' || needs.request.outputs.profile == 'screen')
+    # The quick profile is a cheap regression screen, so it runs on every pull request. It is not
+    # a strength measurement: a 40-game fixed-movetime match swings by tens of points between runs
+    # of an unchanged engine, so the screen only detects gross regressions.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && (needs.request.outputs.profile == 'quick' || needs.request.outputs.profile == 'screen')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     strategy:
@@ -317,6 +333,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_BRANCH: ${{ github.ref_name }}
+          # Step-level env does not carry over from the aggregation step, so the seed base has to be
+          # given to this step explicitly for the published title to name the real seed range.
+          SEED_BASE: ${{ needs.request.outputs.seed }}
         run: |
           python scripts/publish_benchmark_summary.py \
             --summary benchmark-aggregate/aggregate-summary.json \

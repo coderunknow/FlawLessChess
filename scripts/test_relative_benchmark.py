@@ -178,12 +178,137 @@ def test_three_run_aggregate_is_clustered_and_provenance_checked() -> None:
         check(len(result["replicates"]) == 3, "aggregate records all replicate seeds")
 
 
+def test_game_without_the_candidate_is_excluded_from_the_scorable_set() -> None:
+    # A row that does not name the candidate cannot be scored. It must be left out of the
+    # confidence interval as well, otherwise the interval and the point estimate are computed
+    # over different sets of games.
+    games = make_pair("open-1", "1-0", "1/2-1/2")
+    stray = dict(games[0])
+    stray["white"] = "somebody-else"
+    stray["black"] = "somebody-else"
+    games.append(stray)
+    summary = rb.summarize_records(games, ["open-1"], 13, bootstrap_replicates=200)
+    check(not summary["valid"], "a game without the candidate is a validation error")
+    check(summary["games"] == 2, "the game without the candidate is not scored")
+    check(summary["opening_clusters"] == 1, "the game without the candidate is not clustered")
+
+
+def test_opening_order_digest_is_verified_before_aggregation() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "runs"
+        suite_lines = random_legal_opening_lines(100, 56)
+        digests = []
+        for run_no in range(1, 4):
+            run = root / f"replicate-{run_no}"
+            match = run / "match"
+            match.mkdir(parents=True)
+            used = run / "openings.used.txt"
+            rb.write_openings(used, suite_lines, 20261123 + run_no)
+            digests.append(rb.sha256_file(used))
+            games: list[dict] = []
+            for index, (name, _moves) in enumerate(suite_lines):
+                pair = make_pair(name, "1-0", "1/2-1/2")
+                for row in pair:
+                    row["schedule_index"] = index * 2 + (0 if row["color_pair"] == "AB" else 1)
+                games.extend(pair)
+            (match / "games.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in games), encoding="utf-8"
+            )
+            (run / "summary.json").write_text(json.dumps({"valid": True}), encoding="utf-8")
+            manifest = {
+                "kind": "relative_engine_match",
+                "profile": "extended",
+                "status": "completed",
+                "seed": 20261123 + run_no,
+                "candidate_commit": "candidate-sha",
+                "baseline_commit": "baseline-sha",
+                "candidate_binary": {"sha256": "c" * 64},
+                "baseline_binary": {"sha256": "b" * 64},
+                "opening_suites": [{"path": "suite.txt", "sha256": "a" * 64}],
+                "opening_order_file": "openings.used.txt",
+                "opening_order_sha256": digests[-1],
+                "flawless_ablate": "",
+                "elapsed_seconds": 1.0,
+            }
+            (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        out = Path(td) / "aggregate-ok"
+        code = rb.aggregate_runs(Namespace(runs_root=str(root), out=str(out), bootstrap_seed=73))
+        result = json.loads((out / "aggregate-summary.json").read_text(encoding="utf-8"))
+        check(code == 0 and result["valid"], "replicates with a matching opening digest aggregate")
+
+        # Corrupt one replicate's saved opening order: the digest no longer matches the manifest.
+        # The file stays well-formed, so only the digest check can catch it.
+        tampered = root / "replicate-2" / "openings.used.txt"
+        lines = tampered.read_text(encoding="utf-8").splitlines()
+        index = next(i for i, line in enumerate(lines) if "|" in line)
+        name, _sep, moves = lines[index].partition("|")
+        parts = moves.split()
+        parts[0] = "a2a3" if parts[0] != "a2a3" else "h2h3"
+        lines[index] = f"{name}|{' '.join(parts)}"
+        tampered.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        out2 = Path(td) / "aggregate-bad"
+        code2 = rb.aggregate_runs(Namespace(runs_root=str(root), out=str(out2), bootstrap_seed=73))
+        result2 = json.loads((out2 / "aggregate-summary.json").read_text(encoding="utf-8"))
+        check(code2 != 0, "a mismatched opening-order digest fails the aggregation")
+        check(not result2["valid"], "a mismatched opening-order digest invalidates the aggregate")
+        check(any("digest mismatch" in e for e in result2["validation_errors"]),
+              "the digest mismatch is reported as a validation error")
+
+
+def test_replicates_with_different_ablation_masks_cannot_be_combined() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "runs"
+        suite_lines = random_legal_opening_lines(100, 57)
+        for run_no in range(1, 4):
+            run = root / f"replicate-{run_no}"
+            match = run / "match"
+            match.mkdir(parents=True)
+            rb.write_openings(run / "openings.used.txt", suite_lines, 20261123 + run_no)
+            games: list[dict] = []
+            for index, (name, _moves) in enumerate(suite_lines):
+                pair = make_pair(name, "1-0", "1/2-1/2")
+                for row in pair:
+                    row["schedule_index"] = index * 2 + (0 if row["color_pair"] == "AB" else 1)
+                games.extend(pair)
+            (match / "games.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in games), encoding="utf-8"
+            )
+            (run / "summary.json").write_text(json.dumps({"valid": True}), encoding="utf-8")
+            manifest = {
+                "kind": "relative_engine_match",
+                "profile": "extended",
+                "status": "completed",
+                "seed": 20261123 + run_no,
+                "candidate_commit": "candidate-sha",
+                "baseline_commit": "baseline-sha",
+                "candidate_binary": {"sha256": "c" * 64},
+                "baseline_binary": {"sha256": "b" * 64},
+                "opening_suites": [{"path": "suite.txt", "sha256": "a" * 64}],
+                "opening_order_file": "openings.used.txt",
+                "flawless_ablate": "" if run_no != 2 else "space",
+                "elapsed_seconds": 1.0,
+            }
+            (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        out = Path(td) / "aggregate-mixed"
+        code = rb.aggregate_runs(Namespace(runs_root=str(root), out=str(out), bootstrap_seed=74))
+        result = json.loads((out / "aggregate-summary.json").read_text(encoding="utf-8"))
+        check(code != 0, "replicates under different ablation masks cannot be combined")
+        check(not result["valid"], "mixed ablation masks invalidate the aggregate")
+        check(any("ablation masks differ" in e for e in result["validation_errors"]),
+              "the mixed ablation mask is reported as a validation error")
+
+
 def main() -> int:
     test_openings_are_verified_and_shuffle_reproducible()
     test_color_pairing_and_wdl_summary()
     test_invalid_or_uncounted_game_is_not_scored()
     test_zero_score_is_severe_without_finite_elo_claim()
     test_three_run_aggregate_is_clustered_and_provenance_checked()
+    test_game_without_the_candidate_is_excluded_from_the_scorable_set()
+    test_opening_order_digest_is_verified_before_aggregation()
+    test_replicates_with_different_ablation_masks_cannot_be_combined()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0
 

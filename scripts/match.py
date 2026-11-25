@@ -917,6 +917,11 @@ def main() -> int:
         "black_artifact": probe_artifact(args.black_cmd, args.black_artifact),
         "git_commit": git_head(),
         "hardware": hardware_info(),
+        # The engine process inherits this variable, so it decides the evaluation the batch was
+        # produced under. Recording the effective value (including the unset case) means a saved
+        # record identifies its own ablation condition: without it, an ablated run and a full run
+        # from the same commit and seed would produce indistinguishable manifests.
+        "flawless_ablate": os.environ.get("FLAWLESS_ABLATE", ""),
         "anchor_pool": anchor_pool,
         "color_pairs": "AB/BA alternating per (opening, repetition) (exact color reversal)",
         "adjudication": "FIDE termination via python-chess outcome(claim_draw=True) (50-move/3-fold "

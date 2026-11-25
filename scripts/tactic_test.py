@@ -66,7 +66,12 @@ def mating_moves(board: chess.Board) -> set[str]:
 
 
 def winning_captures(board: chess.Board) -> set[str]:
-    """Captures that win material (the captured piece is worth more than the capturer)."""
+    """Captures that win material.
+
+    A capture wins when the captured piece is worth more than the capturer, and also when the
+    captured piece is worth at least as much but is not defended afterwards, so that the
+    capturing side comes out of the exchange ahead.
+    """
     out = set()
     for move in board.legal_moves:
         if not board.is_capture(move):
@@ -75,8 +80,20 @@ def winning_captures(board: chess.Board) -> set[str]:
         capturer = board.piece_at(move.from_square)
         if victim is None or capturer is None:
             continue
-        if VALUE[victim.piece_type] > VALUE[capturer.piece_type]:
+        gain = VALUE[victim.piece_type] - VALUE[capturer.piece_type]
+        if gain > 0:
             out.add(move.uci())
+            continue
+        if gain == 0:
+            # Equal material: the capture only wins when the captured piece cannot be taken back.
+            board.push(move)
+            recapturable = any(
+                reply.to_square == move.to_square and board.is_capture(reply)
+                for reply in board.legal_moves
+            )
+            board.pop()
+            if not recapturable:
+                out.add(move.uci())
     return out
 
 
@@ -88,6 +105,10 @@ def expected_moves(board: chess.Board, expectation: str) -> set[str]:
     if expectation == "none":
         return {"0000"}
     return {move.uci() for move in board.legal_moves}
+
+
+class EngineError(RuntimeError):
+    """The engine process failed in a way that makes the diagnostic meaningless."""
 
 
 def engine_bestmove(binary: Path, fen: str, depth: int) -> str | None:
@@ -102,8 +123,11 @@ def engine_bestmove(binary: Path, fen: str, depth: int) -> str | None:
     try:
         proc.stdin.write("uci\n")
         proc.stdin.flush()
+        # An engine that closes stdout without answering must not spin this loop forever.
         while True:
             line = proc.stdout.readline()
+            if not line:
+                raise EngineError("the engine closed stdout before answering 'uciok'")
             if line.strip() == "uciok":
                 break
         proc.stdin.write(f"position fen {fen}\n")
@@ -121,12 +145,17 @@ def engine_bestmove(binary: Path, fen: str, depth: int) -> str | None:
                 break
         return bestmove
     finally:
-        proc.stdin.write("quit\n")
-        proc.stdin.flush()
+        # The engine may already have gone away; a broken pipe here must not mask the result.
+        try:
+            proc.stdin.write("quit\n")
+            proc.stdin.flush()
+        except (BrokenPipeError, ValueError, OSError):
+            pass
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=5)
 
 
 def main() -> int:

@@ -48,7 +48,11 @@ jobs:
             echo "::error::cargo fmt --check failed"
             # The Actions log host is not reachable from every sandbox, so the real diff is
             # surfaced through annotations (the only reliable channel).
-            tr '\n' '%0A' < fmt-diff.txt | head -c 60000 | sed 's/^/::error::fmt: /'
+            # `tr` cannot do this: its second argument is a character *set*, so `tr '\n' '%0A'`
+            # would replace a newline with a bare `%`. The percent sign is encoded first so the
+            # escape sequences introduced afterwards are not encoded a second time.
+            sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g' fmt-diff.txt \
+              | head -c 60000 | sed 's/^/::error::fmt: /'
             exit 1
           fi
 

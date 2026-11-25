@@ -193,6 +193,7 @@ def summarize_records(
     errors = validate_run_records(records, expected_openings) if expected_openings is not None else []
     wdl = Counter()
     score_sum = 0.0
+    scorable: list[dict] = []
     for row in records:
         result = row.get("result")
         if (
@@ -208,17 +209,12 @@ def summarize_records(
             candidate_score = 1.0 if result == "0-1" else 0.0 if result == "1-0" else 0.5
         else:
             errors.append(f"candidate missing from game at schedule index {row.get('schedule_index')}")
+            # The row is left out of the scorable set as well, so the confidence interval is
+            # computed over exactly the games the point estimate was computed over.
             continue
         score_sum += candidate_score
         wdl["W" if candidate_score == 1.0 else "L" if candidate_score == 0.0 else "D"] += 1
-
-    scorable = [
-        row for row in records
-        if row.get("counted") is True
-        and not row.get("engine_error")
-        and row.get("adjudicated") is not False
-        and row.get("result") in ("1-0", "0-1", "1/2-1/2")
-    ]
+        scorable.append(row)
     games = sum(wdl.values())
     if games == 0:
         score_fraction = 0.5
@@ -368,6 +364,12 @@ def run_benchmark(args: argparse.Namespace) -> int:
         },
         "candidate_binary": {"path": str(candidate), "sha256": sha256_file(candidate)},
         "baseline_binary": {"path": str(baseline), "sha256": sha256_file(baseline)},
+        # The ablation mask the candidate engine inherits. It selects which evaluation terms are
+        # active, so it is part of the identity of the measured candidate: without it, a full run
+        # and an ablated run from the same commit and seed are indistinguishable in the record.
+        # The pinned baseline predates the switch and always plays the full evaluation.
+        "flawless_ablate": os.environ.get("FLAWLESS_ABLATE", ""),
+        "flawless_ablate_applies_to": "candidate only",
         "statistics": {
             "bootstrap_replicates": BOOTSTRAP_REPLICATES,
             "bootstrap_seed": bootstrap_seed,
@@ -519,6 +521,11 @@ def aggregate_runs(args: argparse.Namespace) -> int:
         validation_errors.append("replicate binaries differ; runs cannot be combined")
     if len(candidate_commits) != 1 or len(baseline_commits) != 1:
         validation_errors.append("replicate source SHAs differ; runs cannot be combined")
+    ablate_masks = {m.get("flawless_ablate", "") for m, _g, _s in runs}
+    if len(ablate_masks) != 1:
+        validation_errors.append(
+            f"replicate ablation masks differ ({sorted(ablate_masks)}); runs cannot be combined"
+        )
     if len(suite_identities) != 1:
         validation_errors.append("replicate opening-suite identities differ")
 
@@ -533,7 +540,25 @@ def aggregate_runs(args: argparse.Namespace) -> int:
             # to the run's match/ directory rather than trusting the original runner's absolute path.
             used_file = games_path.parent.parent / manifest.get("opening_order_file", "openings.used.txt")
             if used_file.is_file():
-                names = [name.strip() for name, _moves in load_opening_suites([used_file])]
+                # The manifest records the digest of the opening order that was actually played.
+                # Re-checking it here means a corrupted or swapped file cannot be folded into the
+                # pooled result unnoticed.
+                recorded_digest = manifest.get("opening_order_sha256")
+                actual_digest = sha256_file(used_file)
+                digest_ok = not recorded_digest or recorded_digest == actual_digest
+                if not digest_ok:
+                    validation_errors.append(
+                        f"seed {manifest.get('seed')}: opening order digest mismatch "
+                        f"(manifest {recorded_digest}, file {actual_digest})"
+                    )
+                try:
+                    names = [name.strip() for name, _moves in load_opening_suites([used_file])]
+                except ValueError as exc:
+                    # A damaged file is a validation failure, not a crash of the aggregator.
+                    validation_errors.append(
+                        f"seed {manifest.get('seed')}: cannot read the saved opening order: {exc}"
+                    )
+                    continue
                 validation_errors.extend(
                     f"seed {manifest.get('seed')}: {err}"
                     for err in validate_run_records(rows, names)

@@ -79,6 +79,21 @@ comparison is paired.
 score of a fixed opponent pool; it is not a rating, and a term that measures as "important" does
 not by itself prove that the engine got stronger with it.
 
+## The ablation mask is part of the evidence record
+
+The mask selects which evaluation terms are active, so it is part of the identity of a measured
+candidate. Two runs with the same commit and the same seed still differ when the mask differs,
+so the mask is recorded in the metadata written **before** the first game starts:
+
+* `scripts/match.py` writes `flawless_ablate` into the batch manifest. The value is the effective
+  value of the environment variable, including the unset case (recorded as the empty string).
+* `scripts/relative_benchmark.py` writes `flawless_ablate` into the run manifest, together with
+  `flawless_ablate_applies_to`, which names the candidate as the only engine that honours it.
+
+The aggregation step refuses to combine replicates whose masks differ, so a full run and an
+ablated run can never be pooled into one summary by accident. An unset mask and a mask of `""`
+mean the same thing: no term is switched off.
+
 ## Source
 
 * `src/ablation.rs` — the switch, the mask, and its unit tests.
