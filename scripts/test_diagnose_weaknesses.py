@@ -134,10 +134,72 @@ def test_the_losing_games_file_is_replaced_on_every_run() -> None:
               "the stale losing games are replaced, not left in place")
 
 
+def test_two_losing_games_stay_two_separate_pgn_records() -> None:
+    """Two losses must produce two readable records, not one corrupted one."""
+    module = load_module()
+    chess = module.chess
+    first = [chess.Move.from_uci("e2e4"), chess.Move.from_uci("e7e5")]
+    second = [chess.Move.from_uci("d2d4"), chess.Move.from_uci("d7d5")]
+    a = module.build_pgn(first, 0, True, "0-1")
+    b = module.build_pgn(second, 1, False, "0-1")
+
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td)
+        (out / "losing-games.pgn").write_text("\n\n".join([a, b]) + "\n", encoding="utf-8")
+        text = (out / "losing-games.pgn").read_text(encoding="utf-8")
+
+        import chess.pgn
+        import io
+
+        # `read_game` returns one game at a time, so the file has to be read until it is empty.
+        games = []
+        handle = io.StringIO(text)
+        while True:
+            parsed = chess.pgn.read_game(handle)
+            if parsed is None:
+                break
+            games.append(parsed)
+        check(len(games) == 2, f"both records are parsed (parsed {len(games)})")
+        if len(games) == 2:
+            check(games[0].headers.get("Round") == "1",
+                  "the first record keeps its own round header")
+            check(games[1].headers.get("Round") == "2",
+                  "the second record keeps its own round header")
+            check(games[0].headers.get("White") == "candidate",
+                  "the first record keeps its own player headers")
+            check(games[1].headers.get("White") == "greedy-eval-opponent",
+                  "the second record keeps its own player headers")
+            check([m.uci() for m in games[0].mainline_moves()] == ["e2e4", "e7e5"],
+                  "the first record keeps its own move history")
+            check([m.uci() for m in games[1].mainline_moves()] == ["d2d4", "d7d5"],
+                  "the second record keeps its own move history")
+
+    # The separator the script itself writes has to be the one the reader needs: a single newline
+    # would let the second record's headers be swallowed by the first.
+    joined = "\n\n".join([a, b])
+    check("\n\n[Event " in joined, "the records are separated by a blank line")
+    corrupted = "\n".join([a, b])
+    handle = io.StringIO(corrupted)
+    single = []
+    while True:
+        parsed = chess.pgn.read_game(handle)
+        if parsed is None:
+            break
+        single.append(parsed)
+    check(len(single) == 2, "a single newline still yields two records")
+    if len(single) == 2:
+        # python-chess reports a missing header as the PGN unknown marker "?".
+        check(single[1].headers.get("Round") == "?",
+              "a single newline strips the headers of the later record (the regression this guards)")
+        check(single[1].headers.get("White") == "?",
+              "a single newline strips the player headers of the later record")
+
+
 def main() -> int:
     test_the_losing_game_is_a_replayable_pgn()
     test_a_truncated_game_is_unfinished_and_not_a_loss()
     test_the_losing_games_file_is_replaced_on_every_run()
+    test_two_losing_games_stay_two_separate_pgn_records()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0
 

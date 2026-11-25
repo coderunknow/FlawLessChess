@@ -1206,3 +1206,81 @@ another run.
 
 This is the clearest possible demonstration that the 40-game quick profile carries no strength
 information at all, and it is why the 600-game extended profile is the only one of these worth reading.
+
+### Correction: the quick-run table was mis-transcribed
+
+CodeRabbit flagged that six rows of the quick-run table in `STATUS.md` had W/D/L counts that do not
+match their own scores. It was right, and checking the published hosted summaries directly showed the
+error was wider than the flag: the **scores** in the table were correct, but the **W/D/L counts** were
+transposed in nine rows, and **two runs had been missed entirely** (`ad9915d` and `68f5111`). The
+earlier extraction had queried the PR comments with `per_page=100` and no pagination and did not
+re-read the full set.
+
+Every row below is transcribed from the published hosted summary and checked against the scoring
+formula `(wins + draws / 2) / games`. All twenty-three quick runs agree with the formula:
+
+| Head | W/D/L | Score | Classification | Engine |
+|---|---|---|---|---|
+| `504924b` | 9/14/17 | 40.0% | INCONCLUSIVE | pre-refinement |
+| `78f42ca` | 11/12/17 | 42.5% | INCONCLUSIVE | pre-refinement |
+| `dcdc4b4` | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE | pre-refinement |
+| `98e5cd9` | 13/13/14 | 48.8% | INCONCLUSIVE | **last `src/` change** |
+| `5be7d7b` | 16/8/16 | 50.0% | INCONCLUSIVE | unchanged |
+| `6aae7f7` | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY | unchanged |
+| `40b3556` | 17/8/15 | 52.5% | INCONCLUSIVE | unchanged |
+| `90227a6` | 17/13/10 | 58.8% | INCONCLUSIVE | unchanged |
+| `7510ded` | 20/7/13 | 58.8% | INCONCLUSIVE | unchanged |
+| `d306cbc` | 16/12/12 | 55.0% | INCONCLUSIVE | unchanged |
+| `794a465` | 15/9/16 | 48.8% | INCONCLUSIVE | unchanged |
+| `c2cc288` | 16/9/15 | 51.2% | INCONCLUSIVE | unchanged |
+| `3e0fe75` | 15/13/12 | 53.8% | INCONCLUSIVE | unchanged |
+| `f0316b0` | 16/12/12 | 55.0% | INCONCLUSIVE | unchanged |
+| `13f8162` | 12/13/15 | 46.2% | INCONCLUSIVE | unchanged |
+| `25d7d66` | 19/11/10 | 61.3% | INCONCLUSIVE | unchanged |
+| `02b58bd` | 17/10/13 | 55.0% | INCONCLUSIVE | unchanged |
+| `ad9915d` | 19/9/12 | 58.8% | INCONCLUSIVE | unchanged (**missed before**) |
+| `68f5111` | 18/13/9 | 61.3% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY | unchanged (**missed before**) |
+| `c428d66` | 19/10/11 | 60.0% | INCONCLUSIVE | unchanged |
+| `ff10c55` | 17/10/13 | 55.0% | INCONCLUSIVE | unchanged |
+| `97c8a81` | 22/10/8 | 67.5% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY | unchanged |
+| `e61d635` | 9/13/18 | 38.8% | INCONCLUSIVE | unchanged |
+
+The derived claims, restated:
+
+- **On an unchanged engine the profile ranges from 38.8% to 67.5% over twenty runs**, and the same
+  unchanged engine produced `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in **three** runs and
+  `INCONCLUSIVE` in the other **seventeen**. The spread is **28.7 points** on code that did not change.
+- The three pre-refinement runs read 40.0%, 42.5% and 36.2%; they are on a different engine and are
+  not part of that range. The overall observed range across all heads is 36.2%–67.5% and spans two
+  different engines.
+- The range and the counts are a lower bound: the profile runs on every push, so every further push
+  adds another run, and the spread is not expected to narrow.
+
+The earlier figures (a 46.2%–65.0% range over "fourteen" runs, later "sixteen", later "eighteen", and
+"one" positive run) were each correct only for the incomplete set that had been extracted at the time,
+and the count of runs was wrong from the start. The corrected set above is the complete one as of this
+commit.
+
+This does not change the conclusion the table supports: the 40-game quick profile carries no strength
+information at all, and the 600-game extended profile is the only one of these worth reading.
+
+### Correction: the losing-games PGN corrupted every record after the first
+
+CodeRabbit flagged that `scripts/diagnose_weaknesses.py` joined the PGN records with a single newline.
+`str(chess.pgn.Game())` has no trailing newline and a PGN reader ends a game at the blank line, so the
+next game's headers were consumed by the preceding record.
+
+Reproduced against python-chess 1.11.2: with a single newline the second record is still parsed, but
+its headers come back as the unknown marker `?` — `Round` and `White` are gone, so the record no longer
+says which game it is or who played it. With a blank line both records keep their headers and their
+move histories.
+
+Fixed by joining the records with `"\n\n"`. The regression in `scripts/test_diagnose_weaknesses.py`
+writes two records, reads the file back with `chess.pgn.read_game` until it is exhausted, and checks
+that both games keep their own round header, player headers and move history; it also checks that the
+single-newline form is what strips the later headers, so the regression cannot silently stop guarding
+the defect. The suite is now 31 checks.
+
+The latest local diagnostic run (`benches/diagnose-20261124/`) found no losses at all, so its
+`losing-games.pgn` is empty and the defect was invisible there. It would have bitten the first run
+that produced two or more losses.

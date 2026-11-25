@@ -114,7 +114,7 @@ What this iteration added and verified:
       time-budget probes, the self-play probes, the full-game probe, and the head/tree/clean-tree
       check). Within it: `cargo test --release --locked` 183/183, difftest 2,275 positions d=2 with 0
       mismatches, perft(6) 119,060,324, match harness 112/112, benchmark suite 37/37, the
-      weakness-diagnostic suite 20/20, the benchmark-request resolver suite 33/33, release binary
+      weakness-diagnostic suite 31/31, the benchmark-request resolver suite 33/33, release binary
       digest `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`.
 - [x] The 20 CodeRabbit review findings from the previous head are **dispositioned**: 19 were fixed in
       `67bee13` (workflow seed handling, PR scope, `SEED_BASE`, the rustfmt annotation encoding, the
@@ -144,13 +144,15 @@ What this iteration added and verified:
       intervals**, so the study does not measure the contribution of any of the three terms at this
       sample size. The ablation switch itself is verified; the magnitude of each term's contribution
       is not. This is a diagnostic, not a strength claim.
-- [x] The 40-game quick screen is **not** usable as a strength signal: **eighteen** hosted runs of the
+- [x] The 40-game quick screen is **not** usable as a strength signal: **twenty** hosted runs of the
       identical profile on heads with a **byte-identical release binary** (the last change to `src/` on
       the branch is the outpost refinement `98e5cd9`, and every head above it has the identical `src/`
       tree `daa6be83` and identical `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`) ranged from
       **38.8% to 67.5%** — **28.7 points on code that did not change** — and the same unchanged engine
-      produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in two runs and `INCONCLUSIVE` in the
-      other sixteen. A fixed 100 ms movetime makes the played games machine- and
+      produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in three runs and `INCONCLUSIVE` in
+      the other seventeen. Every row was transcribed from the published hosted summary and re-checked
+      against the scoring formula `(wins + draws / 2) / games`; an earlier transcription had the wrong
+      W/D/L in six rows and had missed two runs, and the correction is appended to `AGENTS_LOG.md`. A fixed 100 ms movetime makes the played games machine- and
       jitter-dependent, so the seed fixes the opening order but not the games. The quick screen stays a
       regression screen. The three runs below `98e5cd9` (40.0%, 42.5%, 36.2%) are on a different engine
       and are not part of that range.
@@ -163,15 +165,22 @@ What this iteration added and verified:
       INCONCLUSIVE. The engine source (`src/`) is byte-identical between the measured candidate
       `5be7d7b` and the current head; only the harness, the workflow and the records changed in between,
       and the candidate SHA that was actually built and measured is recorded in `AGENTS_LOG.md`.
-- [x] **Pooled extended benchmark on this exact head.** Revision 6 of the request marker dispatched the
-      three-replicate extended profile against the exact final head with an independent seed
-      (20261201/02/03). It finished and was read back: **229 W / 163 D / 208 L** of 600, score
-      **51.7%**, relative Elo **-11.0 to +35.4** (95% CI), **INCONCLUSIVE** (hosted run
-      `45546563480`). The engine source at the measured candidate `13f8162` is byte-identical to the
-      final head. The three extended runs now read 49.8%, 50.8% and 51.7%, every interval straddling
-      50%: the point estimates drift while the interval keeps covering the baseline. That is what
-      small underlying effects look like, and reading the drift as a strength signal would be reading
-      noise. No strength difference is measurable.
+- [x] **Pooled extended benchmark on the final engine.** Revision 6 of the request marker dispatched
+      the three-replicate extended profile with an independent seed (20261201/02/03). It finished and
+      was read back: **229 W / 163 D / 208 L** of 600, score **51.7%**, relative Elo **-11.0 to +35.4**
+      (95% CI), **INCONCLUSIVE** (hosted run `45546563480`).
+- [ ] **Pooled extended benchmark on the exact head commit.** The run above measured the commit
+      `13f8162`, **not** the commit that is the head. The two are not the same revision, and
+      identical engine source does not make them one: the item is therefore left unchecked. What
+      carries over is the engine identity, which is checked by hash rather than by assertion — the
+      `src/` tree of `13f8162` is `daa6be83ad991ee16eb86986e9eaa676c9eea460`, the same tree as the
+      head's, and `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml` are identical too, so the
+      release binary that was measured is byte-for-byte the head's binary. The extended profile has
+      **not** been re-run on the exact head commit, and it cannot be: every commit that records the
+      result moves the head again. The three extended runs read 49.8%, 50.8% and 51.7%, every
+      interval straddling 50%: the point estimates drift while the interval keeps covering the
+      baseline. That is what small underlying effects look like, and reading the drift as a strength
+      signal would be reading noise. No strength difference is measurable.
 - [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). Three review rounds
       have been read back and dispositioned on this branch: the first (20 findings) in `67bee13`, the
       second (14 findings, 9 still valid) in `25d7d66`, and the third, whose findings were all confirmed

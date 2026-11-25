@@ -65,7 +65,7 @@ commit; verified 2026-11-24).
 > Local gate suite on `ff10c55`: **50/50 steps, FAILS=0** (raw output retained under
 > `benches/gate-ff10c55/`). Within it: fmt clean, clippy `-D warnings` clean, `cargo test --release
 > --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
-> 112/112, benchmark suite 37/37, weakness-diagnostic suite 20/20, benchmark-request resolver suite
+> 112/112, benchmark suite 37/37, weakness-diagnostic suite 31/31, benchmark-request resolver suite
 > 33/33, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
 > `141943aa23b3fc68`, identical to the pinned baseline `6ab5b33`.
 >
@@ -515,32 +515,38 @@ summary is published to a pull request comment.
 | `78f42ca` | benchmark dispatch | 11/12/17 | 42.5% | INCONCLUSIVE |
 | `dcdc4b4` | docs only | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE |
 | `98e5cd9` | refined outpost term (last `src/` change) | 13/13/14 | 48.8% | INCONCLUSIVE |
-| `794a465` | **no engine change** | 13/13/14 | 48.8% | INCONCLUSIVE |
 | `5be7d7b` | **no engine change** | 16/8/16 | 50.0% | INCONCLUSIVE |
 | `6aae7f7` | **no engine change** | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
 | `40b3556` | **no engine change** | 17/8/15 | 52.5% | INCONCLUSIVE |
-| `90227a6` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
-| `7510ded` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
-| `d306cbc` | **no engine change** | 22/12/6 | 55.0% | INCONCLUSIVE |
+| `90227a6` | **no engine change** | 17/13/10 | 58.8% | INCONCLUSIVE |
+| `7510ded` | **no engine change** | 20/7/13 | 58.8% | INCONCLUSIVE |
+| `d306cbc` | **no engine change** | 16/12/12 | 55.0% | INCONCLUSIVE |
+| `794a465` | **no engine change** | 15/9/16 | 48.8% | INCONCLUSIVE |
 | `c2cc288` | **no engine change** | 16/9/15 | 51.2% | INCONCLUSIVE |
 | `3e0fe75` | **no engine change** | 15/13/12 | 53.8% | INCONCLUSIVE |
-| `f0316b0` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
+| `f0316b0` | **no engine change** | 16/12/12 | 55.0% | INCONCLUSIVE |
 | `13f8162` | **no engine change** | 12/13/15 | 46.2% | INCONCLUSIVE |
-| `25d7d66` | **no engine change** | 24/9/7 | 61.3% | INCONCLUSIVE |
-| `02b58bd` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
-| `c428d66` | **no engine change** | 24/7/9 | 60.0% | INCONCLUSIVE |
-| `ff10c55` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
+| `25d7d66` | **no engine change** | 19/11/10 | 61.3% | INCONCLUSIVE |
+| `02b58bd` | **no engine change** | 17/10/13 | 55.0% | INCONCLUSIVE |
+| `ad9915d` | **no engine change** | 19/9/12 | 58.8% | INCONCLUSIVE |
+| `68f5111` | **no engine change** | 18/13/9 | 61.3% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `c428d66` | **no engine change** | 19/10/11 | 60.0% | INCONCLUSIVE |
+| `ff10c55` | **no engine change** | 17/10/13 | 55.0% | INCONCLUSIVE |
 | `97c8a81` | **no engine change** | 22/10/8 | 67.5% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
 | `e61d635` | **no engine change** | 9/13/18 | 38.8% | INCONCLUSIVE |
 
-  **On an unchanged engine the profile ranges from 38.8% to 67.5%** (eighteen runs, listed above; a
+  **On an unchanged engine the profile ranges from 38.8% to 67.5%** (twenty runs, listed above; a
   lower bound, since every further push adds another run), and the same unchanged engine produced the
-  label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in two runs and `INCONCLUSIVE` in the other
-  sixteen. The two extremes are 28.7 points apart on code that did not change. The 36.2% low and the
-  `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label come from `dcdc4b4`, which is **before** the outpost
-  refinement and therefore a *different* engine: that pair must not be read as "the same code scoring
-  36.2% and 65.0%". The overall observed range across all heads is 36.2%–65.0%, but it spans two
-  different engines; the unchanged-engine range is 46.2%–65.0%.
+  label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in three runs and `INCONCLUSIVE` in the other
+  seventeen. The two extremes are 28.7 points apart on code that did not change. The three runs above
+  `98e5cd9` (40.0%, 42.5% and 36.2%) are on a *different* engine: that pair must not be read as "the
+  same code scoring 36.2% and 65.0%". The overall observed range across all heads is 36.2%–67.5%, but
+  it spans two different engines; the unchanged-engine range is 38.8%–67.5%.
+
+  Every row above was transcribed from the published hosted summary and re-checked against the
+  scoring formula `(wins + draws / 2) / games`; the counts and the scores agree in all of them. The
+  earlier transcription of six rows had the wrong W/D/L (the scores were right), and two runs
+  (`ad9915d` and `68f5111`) had been missed entirely; see the correction addendum in `AGENTS_LOG.md`.
 
   At a fixed 100 ms movetime the reached depth depends on the machine speed and the timing jitter, so
   the played games are **not** reproducible across runs even with the same opening seed — the seeded

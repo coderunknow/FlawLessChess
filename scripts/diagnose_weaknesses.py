@@ -299,8 +299,13 @@ def main() -> int:
             handle.write(json.dumps(entry) + "\n")
     # The file is always rewritten, so a run without losses cannot leave the losing games of an
     # earlier run next to a summary that reports none.
+    #
+    # The records are separated by a blank line. `str(pgn_game)` has no trailing newline, and a
+    # PGN reader ends a game at the blank line: with a single newline the next game's headers
+    # would be swallowed by the preceding record, so a run with two losses would produce one
+    # corrupted record instead of two games.
     with (out / "losing-games.pgn").open("w", encoding="utf-8") as handle:
-        handle.write("\n".join(losing_games))
+        handle.write("\n\n".join(losing_games))
         if losing_games:
             handle.write("\n")
 
