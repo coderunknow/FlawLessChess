@@ -2,6 +2,38 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
+## [Unreleased] — outpost correction, tempo semantics, ablation switch, paired benchmark (2026-11-24)
+
+- **Fixed (eval, EVAL-2): the outpost zone.** White outposts are now on ranks 5-6 and Black outposts on
+  ranks 3-4 (files b-g). The previous zone (ranks 5-8 / 1-4) included the opponent's back rank and the
+  rank in front of it, where no enemy pawn can ever stand, so "cannot be attacked by an enemy pawn" was
+  vacuously true and pieces deep in enemy territory scored as outposts. Values are unchanged (knight
+  +30 mg / +15 eg, bishop +15 mg / +8 eg).
+- **Changed (eval): the tempo bonus is computed explicitly** as `relative = +/- tapered; total = relative +
+  TEMPO`, instead of one expression that relied on the binding of `+` to an `if` expression. The binding was
+  verified against the rustc parser (the tempo was applied to both colours) and is now pinned by a
+  regression test for both colours and for the colour mirror. `EvalBreakdown` additionally exposes `mg`,
+  `eg` and `phase`.
+- **Added (diagnostics): the `FLAWLESS_ABLATE` ablation switch** disables the `space` and `outpost`
+  evaluation terms and the `counter_move` move ordering heuristic for one process. Off by default, read
+  once, applied as a bit mask; the pinned baseline predates it and ignores the variable. See
+  `docs/ABLATIONS.md`.
+- **Added (tests): outpost boundary and symmetry cases** (opponent back rank, the rank in front of it, edge
+  file, own half, pawn-challenged square, two outposts at once) and a tempo regression test.
+- **Changed (CI): the relative strength benchmark** runs the quick paired profile on every pull request of
+  PR #6 and the three-replicate extended tournament on demand; results are published to the job summary and
+  to a pull request comment. The rustfmt gate reports its diff through annotations, because the Actions log
+  host is not reachable from the development sandbox.
+- **Changed (CI): the anchor-verify bench signature** follows the evaluation and is updated to
+  `ce6a84301216fadd` for the new evaluation.
+
+- **Measured (relative benchmark, screening only):** the three-replicate extended profile (600 real UCI
+  games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)
+  finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
+  classification **INCONCLUSIVE**. No strength difference against the pinned baseline is measurable. The
+  40-game quick profile ranges from 40.0% to 67.5% across identical profiles, because a fixed 100 ms
+  movetime makes the played games machine-dependent; the 600-game profile is the meaningful one.
+
 ## [Unreleased] — engine improvements (2026-11-24)
 
 - **Changed (search):** removed the predictive-overrun early stop that halted clock-based searches

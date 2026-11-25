@@ -81,6 +81,36 @@ Current PR head: see `git log --oneline -1` / `gh pr view 1 --json headRefOid`.
 - [ ] PR is no longer a draft and is genuinely ready for review/merge — PR #1 is currently
       **Draft** by policy until every checklist item is verified.
 
+## 2026-11-24 — PR #6 iteration checkpoint (branch `arena/247fe7df-flawlesschess`)
+
+**Verdict for this head: NOT MERGE-READY.** Nothing is technically blocked; the remaining gaps are the
+rating gate, the pooled extended benchmark and an independent review, and they are listed below.
+
+What this iteration added and verified:
+
+- [x] Outpost evaluation corrected to the classical zone (White ranks 5-6, Black ranks 3-4, files b-g) with
+      boundary, symmetry and half-board tests; the previous zone included the opponent's back rank and the
+      rank where no enemy pawn can exist.
+- [x] Tempo semantics resolved and pinned: the score is `+/- tapered + TEMPO` for the side to move, verified
+      against the rustc parser source and by a dedicated regression test for both colours and the mirror.
+- [x] Local gate suite on the exact head: fmt clean, clippy `-D warnings` clean, `cargo test --release
+      --locked` 183/183, difftest 2,321 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
+      112/112, benchmark suite 20/20.
+- [x] Hosted CI on the same head: Ubuntu and Windows format/clippy/test jobs, the MSRV 1.80 job and the
+      Windows release artifact job are green, and the quick paired benchmark job completes and publishes its
+      summary.
+- [x] Relative screening evidence exists and was **read back**: the hosted three-replicate extended profile
+      (600 real UCI games, 100 opening clusters) finished **217 W / 164 D / 219 L**, score **49.8%**, relative
+      Elo **-23.2 to +21.5** (95% CI), classification **INCONCLUSIVE**. The candidate is **not** measurably
+      different from the pinned baseline. Recorded as screening evidence only; it is not a strength claim.
+- [ ] **Absolute V1 rating gate: NOT MET.** Still UNKNOWN / NOT MEASURED. The relative screening result above
+      is not an absolute rating and cannot be used as one.
+- [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
+      back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
+- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent) has not been performed.
+- [ ] PR #6 stays a **draft**. No merge, tag or release has been performed; those require explicit user
+      authorization (mission §9).
+
 ## Authorization record
 
 - No merge, tag, or release has been performed. Those require explicit user authorization

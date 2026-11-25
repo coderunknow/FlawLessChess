@@ -829,3 +829,79 @@ Toolchain recovered from npm `@toolchain-bin/*` 1.99.0 pins into `/home/user/.to
 - Continuation history (remaining HIST-1 element): not yet implemented
 - Outpost/other evaluation terms (remaining EVAL-2 elements): not yet implemented
 - PR #2 (open, draft, conflicting): NOT merged, NOT cherry-picked, NOT touched
+
+## 2026-11-24 — PR #6 iteration: outpost correction, tempo semantics, ablation switch, paired benchmark
+
+Branch `arena/247fe7df-flawlesschess`, PR #6 (draft, base `main` = `6ab5b33`). No merge, no tag, no
+release, PR #2 untouched.
+
+### Environment
+
+The Rust toolchain was recovered a third time from the npm `@toolchain-bin/*` 1.99.0 pins into
+`/home/user/.toolchain/sysroot` (rustc 1.99.0, cargo 1.99.0, rustfmt 1.10.0, clippy 0.1.99), because
+`static.rust-lang.org` and `crates.io` are blocked. The crate has zero dependencies, so cargo builds offline.
+Python venv with python-chess 1.11.2 at `/home/user/.venv`.
+
+Two sandbox limits shaped the tooling work:
+* The **Actions log host is unreachable**, so CI failures are surfaced through annotations (`::error::`)
+  instead of the log, and the benchmark summary is published to the job summary and a pull request comment.
+* The **workflow dispatch API is forbidden for this token** (HTTP 403), so the extended benchmark is started
+  by moving `benches/benchmark-request.json`, the deliberate-dispatch pattern of `evidence-bridge.yml`.
+
+### Engine changes
+
+1. **Outpost zone (src/eval.rs).** Corrected to the classical definition: White ranks 5-6, Black ranks 3-4,
+   files b-g. The old zone (ranks 5-8 / 1-4) included the opponent's back rank and the rank in front of it,
+   where no enemy pawn can exist, so the "safe from enemy pawns" test was vacuous there.
+2. **Tempo semantics (src/eval.rs).** `relative` and `total` are now separate statements. The old expression
+   `if side == WHITE { tapered } else { -tapered } + TEMPO` was checked against the rustc parser source
+   (`parse_expr_assoc_rest` only stops at a complete statement expression in statement position, so the `+`
+   binds to the whole `if` expression) and against the pre-existing 303-pair colour-symmetry test, which is
+   green on the PR head and would fail if the tempo were applied to one colour only. The behaviour is now
+   pinned by a dedicated test for both colours and the colour mirror, and `EvalBreakdown` exposes `mg`, `eg`
+   and `phase`.
+3. **Ablation switch (src/ablation.rs, docs/ABLATIONS.md).** `FLAWLESS_ABLATE` with the terms `space`,
+   `counter_move`, `outpost`. Off by default, read once per process, applied as a bit mask so the hot path
+   pays one atomic load and a bit test.
+4. **Benchmark tooling.** `scripts/match.py` (explicit thread count, schedule and replay metadata per game),
+   `scripts/relative_benchmark.py` (quick and extended profiles, opening-clustered bootstrap, fail-closed
+   validation), `scripts/publish_benchmark_summary.py`, `.github/workflows/relative-benchmark.yml`.
+
+### Validation
+
+Local (toolchain 1.99.0): fmt clean; clippy `-D warnings` clean; `cargo test --release --locked` 183/183
+(55 lib, 3 cli_batch, 3 cli_divide, 3 clock_smoke, 45 correctness, 12 movetime_smoke, 51 protocol_regressions,
+11 uci_smoke); difftest 2,321 positions d=2, 0 mismatches; perft(6) 119,060,324; bench signature
+`ce6a84301216fadd` (the pinned baseline still signs `141943aa23b3fc68` on the same machine); match harness
+112/112; benchmark suite 20/20.
+
+Hosted CI on the same head: fmt, clippy, tests, MSRV 1.80 and the Windows artifact job green; the quick
+paired benchmark job completes in about ten minutes and publishes its summary.
+
+One real defect was caught by the local toolchain run and not by review: the rank-6 outpost fixture used a
+black pawn on b5, which does not attack a knight on c6 (the pawn has to stand on b7), so the expectation was
+wrong, not the engine.
+
+### Relative evidence and its limits
+
+**The decisive measurement of this iteration is negative.** The hosted three-replicate extended profile —
+candidate against the pinned baseline `6ab5b33`, 100 paired openings per replicate, seeds 20261124/25/26,
+movetime 100 ms, hash 64 MB, one thread — finished **217 W / 164 D / 219 L of 600**, score **299.0/600 =
+49.8%**, relative Elo **-23.2 to +21.5** (95% CI, opening-clustered percentile bootstrap), classification
+**INCONCLUSIVE**, `valid: true`. No strength difference against the pinned baseline is measurable.
+
+The quick profile is far noisier than the profile size suggests: two hosted runs of the identical 40-game
+profile scored 40.0% and 42.5%, while a local run of the same profile scored 67.5%. The reason is that a
+fixed 100 ms movetime makes the reached depth depend on the machine speed and the timing jitter, so the
+played games are **not** reproducible across machines even with the same opening seed. The seeded shuffle
+fixes the *opening order*, not the games. A 40-game profile at this time control therefore carries a
+sampling noise of tens of Elo points on its own, and the 600-game profile is the only one worth reading.
+
+All of this is a fixed-movetime screening comparison against a single opponent. It is not an official
+rating, not an absolute rating, and not a strength claim.
+
+### Not done
+
+- Absolute V1 rating gate: UNKNOWN / NOT MEASURED / NOT MET.
+- Fresh independent review at the final head SHA: not performed here.
+- PR #2: NOT merged, NOT cherry-picked, NOT touched.

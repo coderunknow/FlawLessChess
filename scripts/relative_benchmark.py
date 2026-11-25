@@ -559,6 +559,11 @@ def aggregate_runs(args: argparse.Namespace) -> int:
     summary["candidate_binary_sha256"] = next(iter(candidate_hashes), None) if len(candidate_hashes) == 1 else None
     summary["baseline_binary_sha256"] = next(iter(baseline_hashes), None) if len(baseline_hashes) == 1 else None
     summary["opening_suite_identities"] = [list(x) for x in suite_identities]
+    # The aggregate pools the replicates, so its own elapsed time is the sum of the replicate
+    # runtimes; without it the summary reports a meaningless 0.0 s.
+    summary["elapsed_seconds"] = round(
+        sum(float(m.get("elapsed_seconds") or 0.0) for m, _g, _s in runs), 3
+    )
     summary_path = out / "aggregate-summary.json"
     write_json(summary_path, summary)
     print_summary(summary)

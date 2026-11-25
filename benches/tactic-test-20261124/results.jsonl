@@ -1,0 +1,6 @@
+{"name": "mate1_queen", "fen": "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1", "expectation": "mate", "valid": true, "expected_moves": ["f7e8", "f7f8", "f7g7", "f7h7"], "engine_move": "f7g7", "found_at_depth": 1, "passed": true}
+{"name": "mate1_rook", "fen": "7k/8/6K1/8/8/8/8/R7 w - - 0 1", "expectation": "mate", "valid": true, "expected_moves": ["a1a8"], "engine_move": "a1a8", "found_at_depth": 1, "passed": true}
+{"name": "win_queen", "fen": "4k3/8/8/8/3q4/8/8/3RK3 w - - 0 1", "expectation": "capture", "valid": true, "expected_moves": ["d1d4"], "engine_move": "d1d4", "found_at_depth": 1, "passed": true}
+{"name": "win_rook", "fen": "4k3/8/8/8/8/8/3r4/3RK3 w - - 0 1", "expectation": "capture", "valid": true, "expected_moves": ["e1d2"], "engine_move": "e1d2", "found_at_depth": 3, "passed": true}
+{"name": "stalemate", "fen": "7k/5Q2/5K2/8/8/8/8/8 b - - 0 1", "expectation": "none", "valid": true, "expected_moves": ["0000"], "engine_move": "0000", "found_at_depth": 1, "passed": true}
+{"name": "quiet_legal", "fen": "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", "expectation": "legal", "valid": true, "expected_moves": ["e1d1", "e1d2", "e1f1", "e1f2", "e2e3", "e2e4"], "engine_move": "e1d2", "found_at_depth": 1, "passed": true}
