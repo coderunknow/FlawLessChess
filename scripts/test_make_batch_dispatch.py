@@ -65,12 +65,14 @@ def expect_system_exit(call, label):
 
 
 def read(root):
+    # Fixture layout: 50 opening pairs, one repetition -> 50 shards x 2 color slots.
     return read_committed_runs(
         root, batch="A", anchor="akimbo-0.1.1",
         engine_sha=IDENTITY["engine_sha256"],
         anchor_sha=IDENTITY["anchor_sha256"],
         suite_sha=IDENTITY["opening_suite_sha256"],
         opening_names=OPENINGS,
+        clusters=len(OPENINGS), repetitions=1,
     )
 
 
@@ -111,6 +113,7 @@ def main():
         power_path = os.path.join(td, "power.json")
         power = {
             "design": "rating-100-v1",
+            "sample_design": "rating-100-v1",
             "status": "PASS",
             "eligible_for_confirmatory_dispatch": True,
             "engine_sha256": IDENTITY["engine_sha256"],
@@ -125,12 +128,12 @@ def main():
         with open(power_path, "w", encoding="utf-8") as handle:
             json.dump(power, handle)
         accepted = validate_power(
-            power_path, "a" * 64, "b" * 64, IDENTITY["engine_sha256"]
+            power_path, "rating-100-v1", "a" * 64, "b" * 64, IDENTITY["engine_sha256"]
         )
         assert accepted["engine_sha256"] == IDENTITY["engine_sha256"]
         print("PASS matching engine SHA is accepted by the power guard")
         expect_system_exit(
-            lambda: validate_power(power_path, "a" * 64, "b" * 64, "d" * 64),
+            lambda: validate_power(power_path, "rating-100-v1", "a" * 64, "b" * 64, "d" * 64),
             "power assessment engine-SHA mismatch",
         )
 
