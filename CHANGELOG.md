@@ -102,11 +102,11 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)
   finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
   classification **INCONCLUSIVE**. No strength difference against the pinned baseline is measurable. The
-  Twenty hosted quick runs of the same 20-opening profile, on heads with a **byte-identical release
-  binary** (the last change to `src/` on the branch is the outpost refinement `98e5cd9`), ranged from
+  The hosted quick runs of the same 20-opening profile, on heads with a **byte-identical release
+  binary** (the last change to `src/` on the branch is the outpost refinement `98e5cd9`), have ranged from
   **38.8% to 67.5%** — **28.7 points on code that did not change** — and the same unchanged engine
-  produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in three runs and `INCONCLUSIVE` in the
-  other twenty. The range is a lower bound: the profile runs on every push, so every further push adds
+  has produced both the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` and plain `INCONCLUSIVE`.
+  The generated table in `STATUS.md` carries every row and the current counts. The range is a lower bound: the profile runs on every push, so every further push adds
   another run. Every row was transcribed from the published hosted summary and re-checked against the
   scoring formula `(wins + draws / 2) / games`; an earlier transcription had the wrong W/D/L in six rows
   and had missed two runs entirely, and the correction is appended to `AGENTS_LOG.md`. A fixed

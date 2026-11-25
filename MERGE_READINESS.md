@@ -144,13 +144,14 @@ What this iteration added and verified:
       intervals**, so the study does not measure the contribution of any of the three terms at this
       sample size. The ablation switch itself is verified; the magnitude of each term's contribution
       is not. This is a diagnostic, not a strength claim.
-- [x] The 40-game quick screen is **not** usable as a strength signal: **twenty-three** hosted runs of
-      the identical profile on heads with a **byte-identical release binary** (the last change to `src/`
+- [x] The 40-game quick screen is **not** usable as a strength signal: the hosted runs of the
+      identical profile on heads with a **byte-identical release binary** (the last change to `src/`
       on the branch is the outpost refinement `98e5cd9`, and every head from it on has the identical
-      `src/` tree and identical `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`) ranged from
+      `src/` tree and identical `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`) have ranged from
       **38.8% to 67.5%** — **28.7 points on code that did not change** — and the same unchanged engine
-      produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in three runs and `INCONCLUSIVE` in
-      the other twenty. Every row was transcribed from the published hosted summary and re-checked
+      has produced both the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` and plain `INCONCLUSIVE`.
+      The generated table in `STATUS.md` carries every row and the current counts; the number of runs
+      grows on every push, so no fixed count is repeated here. Every row was transcribed from the published hosted summary and re-checked
       against the scoring formula `(wins + draws / 2) / games`; an earlier transcription had the wrong
       W/D/L in six rows and had missed two runs, and the correction is appended to `AGENTS_LOG.md`. The
       table is now generated from the published summaries by `scripts/refresh_run_table.py`, with
