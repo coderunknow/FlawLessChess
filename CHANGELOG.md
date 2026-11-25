@@ -38,7 +38,9 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   **false positive**: the cited position scores outpost 0 because the piece is not pawn-defended, and the
   defended variant with the same b7 pawn also scores 0. The algorithm is unchanged.
 - **Added (tests): four new benchmark-harness checks** covering the candidate exclusion, the opening-order
-  digest and the ablation-mask consistency rule (benchmark suite 37/37).
+  digest and the ablation-mask consistency rule (benchmark suite 37/37), a check that a perfect score is a
+  positive relative signal, and a resolver suite (33 checks) that pins both the push-request and the
+  manual-dispatch branches of the benchmark request resolver.
 
 - **Measured (relative benchmark, screening only):** the revision-2 extended run on the refined head
   (hosted run `45529006866`, candidate `5be7d7b`, 600 real UCI games, 100 opening clusters) finished

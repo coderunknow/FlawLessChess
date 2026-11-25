@@ -114,7 +114,7 @@ What this iteration added and verified:
       time-budget probes, the self-play probes, the full-game probe, and the head/tree/clean-tree
       check). Within it: `cargo test --release --locked` 183/183, difftest 2,275 positions d=2 with 0
       mismatches, perft(6) 119,060,324, match harness 112/112, benchmark suite 37/37, the
-      weakness-diagnostic suite 20/20, the benchmark-request resolver suite 17/17, release binary
+      weakness-diagnostic suite 20/20, the benchmark-request resolver suite 33/33, release binary
       digest `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`.
 - [x] The 20 CodeRabbit review findings from the previous head are **dispositioned**: 19 were fixed in
       `67bee13` (workflow seed handling, PR scope, `SEED_BASE`, the rustfmt annotation encoding, the

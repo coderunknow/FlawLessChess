@@ -66,7 +66,7 @@ commit; verified 2026-11-24).
 > `benches/gate-02b58bd/`). Within it: fmt clean, clippy `-D warnings` clean, `cargo test --release
 > --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
 > 112/112, benchmark suite 37/37, weakness-diagnostic suite 20/20, benchmark-request resolver suite
-> 17/17, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
+> 33/33, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
 > `141943aa23b3fc68`, identical to the pinned baseline `6ab5b33`.
 >
 > Hosted relative evidence, read back:
@@ -536,7 +536,7 @@ summary is published to a pull request comment.
   `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label come from `dcdc4b4`, which is **before** the outpost
   refinement and therefore a *different* engine: that pair must not be read as "the same code scoring
   36.2% and 65.0%". The overall observed range across all heads is 36.2%–65.0%, but it spans two
-  different engines; the unchanged-engine range is 48.8%–65.0%.
+  different engines; the unchanged-engine range is 46.2%–65.0%.
 
   At a fixed 100 ms movetime the reached depth depends on the machine speed and the timing jitter, so
   the played games are **not** reproducible across runs even with the same opening seed — the seeded

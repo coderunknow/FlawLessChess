@@ -60,6 +60,16 @@ def resolver_source() -> str:
     return textwrap.dedent("".join(collected))
 
 
+def dispatch_source() -> str:
+    """The resolver's shell for a manual dispatch, extracted from the committed workflow."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    start_marker = 'if [ "$EVENT_NAME" = "workflow_dispatch" ]; then\n'
+    start = text.index(start_marker)
+    end = text.index("\n          fi\n", start) + len("\n          fi\n")
+    return textwrap.dedent(text[start:end])
+
+
+
 def resolve(request: dict) -> tuple[int, str, str]:
     """Run the resolver against a request; return (rc, stdout, last stderr line)."""
     code = resolver_source()
@@ -159,7 +169,61 @@ def test_an_unknown_profile_is_rejected() -> None:
     check("unknown benchmark profile" in err, "the rejection names the unknown profile")
 
 
+def dispatch(profile: str, seed: str) -> tuple[int, str]:
+    """Run the manual-dispatch branch; return (rc, the resolved outputs)."""
+    script = dispatch_source()
+    with tempfile.TemporaryDirectory() as td:
+        out_file = Path(td) / "github_output"
+        env = {
+            "EVENT_NAME": "workflow_dispatch",
+            "INPUT_PROFILE": profile,
+            "INPUT_SEED": seed,
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        proc = subprocess.run(
+            ["bash", "-c", script], capture_output=True, text=True, env=env, timeout=60
+        )
+        resolved = out_file.read_text(encoding="utf-8") if out_file.is_file() else ""
+    return proc.returncode, resolved
+
+
+def test_the_manual_dispatch_branch_resolves_the_right_suites() -> None:
+    rc, resolved = dispatch("quick", "20261124")
+    check(rc == 0, "a manual quick dispatch resolves")
+    check("profile=quick" in resolved, "the quick profile is exported")
+    check("seed=20261124" in resolved, "the seed is exported")
+    check("suites=benches/openings-20.txt" in resolved, "the quick profile uses the 20-opening suite")
+    check(
+        "suites=benches/rating-openings-100-batchA.txt,benches/rating-openings-100-batchB.txt"
+        not in resolved,
+        "the quick profile does not use the 100-opening batch suites",
+    )
+
+    for profile in ("screen", "extended"):
+        rc, resolved = dispatch(profile, "20261201")
+        check(rc == 0, f"a manual {profile} dispatch resolves")
+        check(f"profile={profile}" in resolved, f"the {profile} profile is exported")
+        check(
+            "suites=benches/rating-openings-100-batchA.txt,benches/rating-openings-100-batchB.txt"
+            in resolved,
+            f"the {profile} profile uses the frozen 100-opening batch suites",
+        )
+        check(
+            "suites=benches/openings-20.txt" not in resolved,
+            f"the {profile} profile does not use the 20-opening quick suite",
+        )
+
+    rc, _resolved = dispatch("nonsense", "20261201")
+    check(rc != 0, "a manual dispatch with an unknown profile is rejected")
+    rc, _resolved = dispatch("quick", "not-a-number")
+    check(rc != 0, "a manual dispatch with a non-numeric seed is rejected")
+    rc, _resolved = dispatch("quick", "")
+    check(rc != 0, "a manual dispatch with an empty seed is rejected")
+
+
+
 def main() -> int:
+    test_the_manual_dispatch_branch_resolves_the_right_suites()
     test_the_extended_profile_rejects_what_it_cannot_measure()
     test_the_screen_profile_still_runs_the_ablation_variants()
     test_an_unknown_profile_is_rejected()
