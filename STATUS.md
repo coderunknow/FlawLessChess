@@ -530,11 +530,13 @@ summary is published to a pull request comment.
 | `02b58bd` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
 | `c428d66` | **no engine change** | 24/7/9 | 60.0% | INCONCLUSIVE |
 | `ff10c55` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
+| `97c8a81` | **no engine change** | 22/10/8 | 67.5% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `e61d635` | **no engine change** | 9/13/18 | 38.8% | INCONCLUSIVE |
 
-  **On an unchanged engine the profile ranges from 46.2% to 65.0%** (sixteen runs, listed above; a
+  **On an unchanged engine the profile ranges from 38.8% to 67.5%** (eighteen runs, listed above; a
   lower bound, since every further push adds another run), and the same unchanged engine produced the
-  label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and `INCONCLUSIVE` in the other
-  fifteen. The 36.2% low and the
+  label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in two runs and `INCONCLUSIVE` in the other
+  sixteen. The two extremes are 28.7 points apart on code that did not change. The 36.2% low and the
   `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label come from `dcdc4b4`, which is **before** the outpost
   refinement and therefore a *different* engine: that pair must not be read as "the same code scoring
   36.2% and 65.0%". The overall observed range across all heads is 36.2%–65.0%, but it spans two

@@ -1188,3 +1188,21 @@ inside the recorded range.
 unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and
 `INCONCLUSIVE` in the other fifteen. The range is a lower bound: every further push adds another run,
 and the spread is not expected to narrow.
+
+### Addendum: the unchanged-engine range widens to 28.7 points
+
+Two more quick runs on the same byte-identical release binary: `97c8a81` 67.5% (22/10/8), classified
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY`, and `e61d635` 38.8% (9/13/18), classified `INCONCLUSIVE`.
+
+**On an unchanged engine the profile now ranges from 38.8% to 67.5% over eighteen runs** — 28.7 points
+apart on code that did not change — and the same unchanged engine produced
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in two runs and `INCONCLUSIVE` in the other sixteen.
+
+The byte-identity was verified directly rather than asserted: all eighteen measured heads have the
+identical `src/` tree `daa6be83ad991ee16eb86986e9eaa676c9eea460` and identical `Cargo.toml`
+`12660a71`, `Cargo.lock` `38aa7239` and `rust-toolchain.toml` `b6cff89e`, so they cannot differ in the
+release binary. The range is a lower bound: the profile runs on every push, so every further push adds
+another run.
+
+This is the clearest possible demonstration that the 40-game quick profile carries no strength
+information at all, and it is why the 600-game extended profile is the only one of these worth reading.
