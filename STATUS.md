@@ -62,13 +62,28 @@ commit; verified 2026-11-24).
 >    attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the undefended case
 >    were added as regressions.
 >
-> Local gate suite on `67bee13`: fmt clean, clippy `-D warnings` clean, `cargo test --release --locked`
+> Local gate suite: fmt clean, clippy `-D warnings` clean, `cargo test --release --locked`
 > 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness 112/112,
 > benchmark suite 30/30, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
-> `141943aa23b3fc68`.
+> `141943aa23b3fc68`, identical to the pinned baseline `6ab5b33`.
 >
-> Still open: the pooled extended benchmark on this head, a fresh independent review at the final head
-> SHA, and the absolute rating gate. No merge, tag or release has been performed.
+> Hosted relative evidence, read back:
+>
+> * **Extended profile, revision 2** (run `45529006866`, candidate `5be7d7b`, 600 games, 100 opening
+>   clusters): **227 W / 156 D / 217 L**, **50.8%**, relative Elo **-19.7 to +31.4** (95% CI),
+>   **INCONCLUSIVE**. The first revision gave 49.8% (-23.2 to +21.5), also INCONCLUSIVE. The point
+>   estimate moved by one point and the interval still straddles 50%.
+> * **Ablation matrix** (run `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`,
+>   200 games per variant): `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms`
+>   46.8% — **every variant INCONCLUSIVE with overlapping intervals**. The study therefore does **not**
+>   measure the contribution of any of the three terms at this sample size; the switch itself is
+>   verified, the magnitude of each term's contribution is not.
+>
+> All of this is screening evidence against a single opponent at a fixed movetime. It is **not** an
+> official rating, **not** an absolute rating and **not** a strength claim.
+>
+> Still open: a fresh independent review at the final head SHA and the absolute rating gate. No merge,
+> tag or release has been performed.
 
 > ### Previous session (2026-11-24, branch arena/247fe7df-flawlesschess — PR #6 draft)
 >

@@ -40,6 +40,20 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 - **Added (tests): four new benchmark-harness checks** covering the candidate exclusion, the opening-order
   digest and the ablation-mask consistency rule (benchmark suite 30/30).
 
+- **Measured (relative benchmark, screening only):** the revision-2 extended run on the refined head
+  (hosted run `45529006866`, candidate `5be7d7b`, 600 real UCI games, 100 opening clusters) finished
+  **227 W / 156 D / 217 L**, score **305.0/600 = 50.8%**, relative Elo **-19.7 to +31.4** (95% CI),
+  classification **INCONCLUSIVE**. The point estimate moved from 49.8% to 50.8% between the two
+  revisions and the interval still straddles 50%: **no measurable strength difference against the
+  pinned baseline**. Screening evidence only — not an absolute rating and not a strength claim.
+- **Measured (ablation matrix, screening only):** the four variants of the ablation study (hosted run
+  `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`, 200 games each) came out at
+  `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms` 46.8%, and **every variant is
+  INCONCLUSIVE with overlapping intervals**. The study therefore **does not measure the contribution
+  of any of the three terms** at this sample size: the spread between the variants is far smaller
+  than the 36.2%-65.0% spread that the same profile produced across repeated runs of an unchanged
+  engine. The switch itself is verified; the magnitude of each term's contribution is not measured.
+
 ## [Unreleased] — outpost correction, tempo semantics, ablation switch, paired benchmark (2026-11-24)
 
 - **Fixed (eval, EVAL-2): the outpost term.** White outposts are now on ranks 5-6 and Black outposts on

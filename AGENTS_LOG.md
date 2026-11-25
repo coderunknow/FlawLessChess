@@ -965,18 +965,67 @@ from this sandbox fails with an EOF from the GitHub blob host, so the numbers ab
 the published job summary and pull request comment, and the identifiers above come from the runs and
 artifacts API.
 
-### The runs that were still in flight when this addendum was written
+### The revision-2 extended run on the refined head
 
-* **Revision-2 extended run:** `45529006866`, candidate `5be7d7bbcc03ccb63d12138bef6a390be90aa957`,
-  three replicates (seeds 20261124, 20261125, 20261126), status *in progress* at the time of
-  writing. It has to finish and be read back before it can be quoted.
-* **Ablation matrix push run:** `45529550258`, candidate
-  `d306cbcefc07e46c1c239eb3dfe3318f864d8286`, `screen` profile, seed `20261130`, four variants
-  (`full`, `no-space`, `no-counter-move`, `no-new-terms`), status *in progress* at the time of
-  writing.
+Dispatched against candidate `5be7d7bbcc03ccb63d12138bef6a390be90aa957`, a descendant of the
+refined-outpost commit `98e5cd9`. Hosted workflow run `45529006866`, completed/success.
 
-Both runs were dispatched against earlier heads. Neither result may be attributed to the current
-head, and neither is a strength claim.
+| Replicate | Seed | Hosted artifact name | Artifact id |
+| --------- | ---- | -------------------- | ----------- |
+| 1 | 20261124 | `relative-strength-extended-45529006866-1` | `14985947939` |
+| 2 | 20261125 | `relative-strength-extended-45529006866-2` | `14987270574` |
+| 3 | 20261126 | `relative-strength-extended-45529006866-3` | `14987315209` |
+| pooled | — | `relative-strength-extended-aggregate-45529006866` | `14986247256` |
+
+Result read back from the published summary: **227 W / 156 D / 217 L** of 600, score
+**305.0/600 = 50.8%**, relative Elo **-19.7 to +31.4** (95% CI, opening-clustered), classification
+**INCONCLUSIVE**, 100 opening clusters, elapsed 8547.3 s.
+
+**Still no measurable strength difference against the pinned baseline.** The point estimate moved
+from 49.8% to 50.8% between the two revisions, and the confidence interval still straddles 50%.
+Both revisions are inconclusive; neither is a strength claim, and neither is an absolute rating.
+
+The published title of that summary reads `seeds ..2` instead of `seeds 20261124..20261126`. That is
+the `SEED_BASE` defect that was found by review and fixed afterwards: the publishing step did not
+receive the seed base. The title is cosmetic — the seeds are in the manifests and in the artifact
+names above — but it is the reason the fix was made.
+
+### The ablation matrix
+
+Dispatched against candidate `d306cbcefc07e46c1c239eb3dfe3318f864d8286`, also a descendant of
+`98e5cd9`. Hosted workflow run `45529550258`, `screen` profile, seed `20261130`, 100 paired openings
+per variant (200 real UCI games per variant). All four variants completed/success.
+
+| Variant | `FLAWLESS_ABLATE` | W/D/L | Score | Relative Elo (95% CI) | Artifact id |
+| ------- | ----------------- | ----- | ----- | -------------------- | ----------- |
+| `full` | (unset) | 81 / 52 / 67 | 53.5% | -17.4 to +68.6 | `14986197901` |
+| `no-space` | `space` | 72 / 71 / 57 | 53.8% | -12.2 to +65.0 | `14986616605` |
+| `no-counter-move` | `counter_move` | 72 / 47 / 81 | 47.8% | -57.9 to +27.9 | `14987251123` |
+| `no-new-terms` | `space,counter_move,outpost` | 63 / 61 / 76 | 46.8% | -59.6 to +17.4 | `14986133518` |
+
+**Every variant is INCONCLUSIVE, and every confidence interval overlaps every other one.** The
+ablated variants score slightly below the full engine, which is the direction one would expect, but
+the differences are inside the noise of the profile: the `full` variant of the *same* profile scored
+between 36.2% and 65.0% across the hosted runs recorded above, a spread far wider than the spread
+between these four variants.
+
+So the honest reading is: **this ablation study does not measure the contribution of any of the
+three terms.** It cannot distinguish them from noise at this sample size and time control. The
+switch itself is verified — the terms are removed from the evaluation and the scores change
+accordingly, deterministically — but the *magnitude* of each term's contribution is not measured by
+this run. A study that could measure it needs either many more games or a time control that makes
+the played games reproducible; the quick/screen profiles have neither.
+
+All of this is a fixed-movetime screening comparison against a single opponent. It is not an
+official rating, not an absolute rating, and not a strength claim.
+
+### The runs that were dispatched against earlier heads
+
+Both runs above were dispatched against heads that precede the current head (`3e0fe75` at the time
+of writing). Neither result may be attributed to the current head. The engine source is the same
+for the extended revision-2 run and the ablation matrix as for the current head, because the commits
+in between changed only the workflow and the request marker; but the recorded candidate SHA is the
+one that was actually built and measured, and it is recorded above rather than the head.
 
 ### Review disposition
 

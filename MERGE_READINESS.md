@@ -117,10 +117,20 @@ What this iteration added and verified:
 - [x] Hosted CI on the same head: Ubuntu and Windows format/clippy/test jobs, the MSRV 1.80 job and the
       Windows release artifact job are green, and the quick paired benchmark job completes and publishes its
       summary.
-- [x] Relative screening evidence exists and was **read back**: the hosted three-replicate extended profile
-      (600 real UCI games, 100 opening clusters) finished **217 W / 164 D / 219 L**, score **49.8%**, relative
-      Elo **-23.2 to +21.5** (95% CI), classification **INCONCLUSIVE**. The candidate is **not** measurably
-      different from the pinned baseline. Recorded as screening evidence only; it is not a strength claim.
+- [x] Relative screening evidence exists and was **read back**, twice. The first hosted three-replicate
+      extended profile (600 real UCI games, 100 opening clusters, candidate `78f42ca`, run `45426475825`)
+      finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
+      classification **INCONCLUSIVE**. The second, on the refined head (candidate `5be7d7b`, run
+      `45529006866`), finished **227 W / 156 D / 217 L**, score **50.8%**, relative Elo **-19.7 to +31.4**
+      (95% CI), classification **INCONCLUSIVE**. The point estimate moved by one point and the interval
+      still straddles 50%: the candidate is **not** measurably different from the pinned baseline.
+      Recorded as screening evidence only; it is not a strength claim.
+- [x] The ablation study was run and **read back** (hosted run `45529550258`, candidate `d306cbc`,
+      `screen` profile, seed `20261130`, 200 games per variant): `full` 53.5%, `no-space` 53.8%,
+      `no-counter-move` 47.8%, `no-new-terms` 46.8%. **Every variant is INCONCLUSIVE with overlapping
+      intervals**, so the study does not measure the contribution of any of the three terms at this
+      sample size. The ablation switch itself is verified; the magnitude of each term's contribution
+      is not. This is a diagnostic, not a strength claim.
 - [x] The 40-game quick screen is **not** usable as a strength signal: seven hosted runs of the identical
       profile ranged from 36.2% to 65.0%, and three of them ran on heads with no engine change at all
       (50.0%, 65.0%, 52.5%). A fixed 100 ms movetime makes the played games machine- and jitter-dependent, so
@@ -129,10 +139,11 @@ What this iteration added and verified:
       is not an absolute rating and cannot be used as one.
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
-- [ ] **Pooled extended benchmark on this head.** The three-replicate extended run that is currently in
-      flight was dispatched against an earlier head. The benchmark item above stays checked for the
-      revision it was measured on; the run against the current head has to finish and be read back
-      before the item can be checked for this head.
+- [x] **Pooled extended benchmark on the refined head.** The revision-2 extended run on the refined head
+      finished and was read back (see the item above): 227/156/217, 50.8%, relative Elo -19.7 to +31.4,
+      INCONCLUSIVE. The engine source is identical to the current head; only the workflow and the
+      request marker changed in between, and the candidate SHA that was actually built and measured is
+      recorded in `AGENTS_LOG.md`.
 - [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). A review of the
       previous head was read back and dispositioned in `67bee13`; a review of the final head has to be
       requested and read back before this item can be checked.
