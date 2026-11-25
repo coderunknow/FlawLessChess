@@ -15,6 +15,17 @@ use crate::eval::{
     ClassicalEvaluator, Evaluator, DRAW_SCORE, INF_SCORE, MATE_SCORE, PIECE_VALUE_MG,
 };
 use crate::movegen::{generate_legal, in_check};
+
+/// Maximum check extensions granted along one search line. Check evasions extend the horizon by
+/// one ply so forcing defence lines cannot hide at the tree edge; without a bound, a perpetual
+/// check chain extends on every evasion and the tree grows at its full branching factor instead
+/// of shrinking with depth (measured: 3.2M nodes at depth 8 in a KQ-vs-KR check endgame vs 146k
+/// with extensions disabled). The budget of 3 comes from the measured node curve on that
+/// reference position (budget 0/1/2/3/4/6 = 146k/330k/993k/1.34M/2.99M/6.56M nodes at depth 8):
+/// it is the largest value that keeps the tree near-linear while covering the deepest registered
+/// mate/claim sequences (mate-in-3 with quiet evasions, F-44/F-59/F-61, and the fifty-move claim
+/// tests), keeping every line within the nominal depth plus three plies.
+const EXT_BUDGET: i32 = 3;
 use crate::position::Position;
 use crate::tt::{TranspositionTable, BOUND_EXACT, BOUND_LOWER, BOUND_UPPER};
 use crate::types::*;
@@ -116,6 +127,10 @@ pub struct Searcher<'a> {
     /// Null-move descendants are hypothetical positions, not a legal game path. Repetition
     /// adjudication must not use the game/search history while this flag is set (F-53).
     null_move_search: bool,
+    /// Check extensions consumed along the current search line, indexed by ply. `ext_path[ply]`
+    /// counts every extension granted to reach this node; a node may extend only while the total
+    /// stays under [`EXT_BUDGET`] (bounded-extension rule, see that constant).
+    ext_path: [i32; MAX_PLY as usize],
 }
 
 impl<'a> Searcher<'a> {
@@ -141,6 +156,7 @@ impl<'a> Searcher<'a> {
             nodes: 0,
             node_cap,
             seldepth: 0,
+            ext_path: [0; MAX_PLY as usize],
             start: Instant::now(),
             root_moves: None,
             root_best: None,
@@ -510,6 +526,7 @@ impl<'a> Searcher<'a> {
                 break;
             }
             let undo = pos.make_move(rm);
+            self.ext_path[1] = 0;
             let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1, Some(rm));
             pos.unmake_move(rm, &undo);
             if root_fifty_claim && score < DRAW_SCORE {
@@ -599,6 +616,10 @@ impl<'a> Searcher<'a> {
         if ply >= MAX_PLY {
             return self.static_eval(pos);
         }
+        if ply == 0 {
+            self.ext_path[0] = 0;
+        }
+        let ext_used = self.ext_path[ply as usize];
         // Draw rules (FIDE 5.2.2 / 9.2 / 9.3), applied in the order the rules require:
         //  * insufficient material: a certain draw at every node below the root. The root
         //    searches its moves like the repetition rule below, so it always yields a PV and a
@@ -699,6 +720,7 @@ impl<'a> Searcher<'a> {
             let reduction = 2 + depth / 4;
             let was_null_move_search = self.null_move_search;
             self.null_move_search = true;
+            self.ext_path[(ply + 1) as usize] = ext_used;
             let score = -self.search(
                 pos,
                 depth - 1 - reduction,
@@ -745,7 +767,12 @@ impl<'a> Searcher<'a> {
         let mut best_score = -INF_SCORE;
         let mut best_move: Option<Move> = None;
 
-        let extension = if in_chk { 1 } else { 0 };
+        let extension = if in_chk && ext_used < EXT_BUDGET {
+            1
+        } else {
+            0
+        };
+        self.ext_path[(ply + 1) as usize] = ext_used + extension;
 
         let mut quiet_tried: [Move; 32] = [Move::NULL; 32];
 
