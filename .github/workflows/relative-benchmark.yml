@@ -94,7 +94,7 @@ jobs:
   quick:
     name: Quick paired engine match (${{ matrix.variant.name }})
     needs: request
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && needs.request.outputs.profile == 'quick'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 6 || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && (needs.request.outputs.profile == 'quick' || needs.request.outputs.profile == 'screen')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     strategy:
