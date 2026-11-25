@@ -72,6 +72,49 @@ def test_the_table_matches_the_tool() -> None:
     )
 
 
+def test_an_unresolved_candidate_fails_loudly() -> None:
+    """A published run whose commit the clone does not have must fail, not vanish.
+
+    The first version of the tool skipped such a run and `--check` could then pass over a
+    table that was quietly missing a published row (CodeRabbit finding 4694162752). The tool
+    now fails with a message that names the run and the candidate.
+    """
+    import tempfile
+
+    fixture = {
+        "schema": 1,
+        "kind": "published-relative-benchmark-summaries",
+        "runs": [
+            {
+                "published_at": "2026-11-25T00:00:00Z",
+                "comment_url": "https://example.invalid/",
+                "profile": "quick",
+                "candidate": "0123456789abcdef",
+                "games": 40,
+                "wdl": "13/13/14",
+                "points": 20.0,
+                "percent": 48.8,
+                "elo_low": -10.0,
+                "elo_high": 10.0,
+                "classification": "INCONCLUSIVE",
+            }
+        ],
+    }
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "fixture.json"
+        path.write_text(json.dumps(fixture), encoding="utf-8")
+        proc = subprocess.run(
+            [sys.executable, str(TOOL), "--check", "--fixture", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        output = proc.stdout + proc.stderr
+        check(proc.returncode != 0, "an unresolved candidate fails the check")
+        check("0123456789abcdef" in output, "the failure names the unresolved candidate")
+        check("never silently dropped" in output, "the failure says a published run is never dropped")
+
+
 def test_a_drifted_row_is_detected() -> None:
     """The check has to fail when the table and the fixture disagree."""
     original = STATUS.read_text(encoding="utf-8")
@@ -102,6 +145,7 @@ def test_a_drifted_row_is_detected() -> None:
 def main() -> int:
     test_the_fixture_agrees_with_the_scoring_formula()
     test_the_table_matches_the_tool()
+    test_an_unresolved_candidate_fails_loudly()
     test_a_drifted_row_is_detected()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0

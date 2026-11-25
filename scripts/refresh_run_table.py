@@ -175,7 +175,12 @@ def build_rows(fixture: dict) -> list[dict]:
     for run in quick_runs(fixture):
         commit = resolve_candidate(run["candidate"])
         if commit is None:
-            continue
+            raise RuntimeError(
+                f"the published quick run at {run['published_at']} scores candidate "
+                f"`{run['candidate']}`, which this clone does not have; a published run is "
+                f"never silently dropped — fetch the branch history "
+                f"(git fetch origin {BRANCH}) and rerun"
+            )
         resolved.append((order.get(commit, len(order)), run, commit))
 
     resolved.sort(key=lambda item: (item[0], item[1]["published_at"]))
@@ -294,15 +299,24 @@ def main() -> int:
     group.add_argument("--fetch", action="store_true", help="re-fetch the published summaries")
     group.add_argument("--write", action="store_true", help="rewrite the block in STATUS.md")
     group.add_argument("--check", action="store_true", help="check the block in STATUS.md")
+    parser.add_argument(
+        "--fixture", default=str(FIXTURE),
+        help="summary fixture to read (default: the committed benches/quick-run-summaries.json)",
+    )
     args = parser.parse_args()
 
     if args.fetch:
         fixture = fetch_fixture()
-        print(f"fetched {len(fixture['runs'])} published summaries into {FIXTURE}")
+        Path(args.fixture).write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
+        print(f"fetched {len(fixture['runs'])} published summaries into {args.fixture}")
         return 0
 
-    fixture = load_fixture()
-    rows = build_rows(fixture)
+    fixture = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
+    try:
+        rows = build_rows(fixture)
+    except RuntimeError as error:
+        print(f"FAIL: {error}")
+        return 1
     block = build_block(rows)
     text = STATUS.read_text(encoding="utf-8")
     existing = current_block(text)
