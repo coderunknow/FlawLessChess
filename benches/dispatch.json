@@ -1,15 +1,15 @@
 {
  "schema": 1,
- "revision": 22,
+ "revision": 23,
  "purpose": "screening",
- "description": "SCREEN-E3 (PREREGISTRATION.md, 2026-11-25) for ENGINE-3 (PR #6 candidate, 733de4e5...): exploratory screening vs topple-0.2.1 on the registered Batch A suite, 60 openings x 1 paired rep x AB/BA = 120 games (60 shards x 2), TC 40/15, seed 20261212. Selection/power inputs only; never gate evidence.",
+ "description": "SCREEN-E3 (PREREGISTRATION.md, 2026-11-25) for ENGINE-3 (PR #6 candidate, 733de4e5...): exploratory screening vs topple-0.1.1 on the registered Batch B suite, 60 openings x 1 paired rep x AB/BA = 120 games (60 shards x 2), TC 40/15, seed 20261214. Selection/power inputs only; never gate evidence.",
  "preregistration": "PREREGISTRATION.md#screen-e3-a--screen-e3-b",
  "target_commit": "auto",
  "engine_sha256": "733de4e54f076fc4684ec0ad127975b526037fdedafa4fc15fc9bffccea1a407",
- "batch": "A",
- "anchor_id": "topple-0.2.1-e3",
+ "batch": "B",
+ "anchor_id": "topple-0.1.1-e3",
  "white_engine": "flawless",
- "black_engine": "topple-0.2.1",
+ "black_engine": "topple-0.1.1",
  "shard_count": 60,
  "shard_indices": [
   0,
@@ -73,10 +73,10 @@
   58,
   59
  ],
- "opening_suite": "benches/rating-openings-batchA.txt",
- "opening_suite_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+ "opening_suite": "benches/rating-openings-batchB.txt",
+ "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
  "repetitions": 1,
- "seed": 20261212,
+ "seed": 20261214,
  "tc": "40/15",
  "run_evidence": true
 }
