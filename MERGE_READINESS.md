@@ -86,10 +86,13 @@ Current PR head: see `git log --oneline -1` / `gh pr view 1 --json headRefOid`.
 **Verdict for this head: NOT MERGE-READY.** Nothing is technically blocked; the remaining gaps are the
 rating gate, the pooled extended benchmark and an independent review, and they are listed below.
 
-**Tested revision.** The local gate suite below was run on commit `67bee13` ("fix: disposition the
-CodeRabbit review findings on PR #6"), the tree of this branch. The engine source is unchanged by the
-commit that follows this one, which only adds these records; the recorded revision is therefore the
-revision that produced the numbers.
+**Tested revision.** The full local gate suite (`scripts/final_gate.sh`) was run on commit
+`f0316b0defd5ff652218ae27ad122f1462bfa5c0` (tree `540b9936190019b65f09ad498729b72037e5eba0`): **48 of 48
+steps passed, FAILS=0**, including the final check that the head, the tree and the working tree were
+unchanged during the run. The release binary digest was
+`09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`. The commit that follows this one
+changes only the request marker and these records, so the recorded revision is the revision that
+produced the numbers.
 
 What this iteration added and verified:
 
@@ -102,9 +105,13 @@ What this iteration added and verified:
 - [x] The quick regression screen runs on every pull request of this repository (fork pull requests
       are excluded, because the job runs the pull request's own code with a `pull-requests: write`
       token). It remains a screen and not a strength measurement.
-- [x] Local gate suite on the exact head `67bee13`: fmt clean, clippy `-D warnings` clean, `cargo test
-      --release --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324,
-      match harness 112/112, benchmark suite 30/30.
+- [x] Local gate suite on the exact head `f0316b0`: **48/48 steps, FAILS=0** (fmt, clippy debug and
+      release, release and debug builds, release and debug test suites, every Python harness suite,
+      the perft and legal-move differentials, the UCI protocol and fuzz probes, the clock and
+      time-budget probes, the self-play probes, the full-game probe, and the head/tree/clean-tree
+      check). Within it: `cargo test --release --locked` 183/183, difftest 2,275 positions d=2 with 0
+      mismatches, perft(6) 119,060,324, match harness 112/112, benchmark suite 30/30, release binary
+      digest `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`.
 - [x] The 20 CodeRabbit review findings from the previous head are **dispositioned**: 19 were fixed in
       `67bee13` (workflow seed handling, PR scope, `SEED_BASE`, the rustfmt annotation encoding, the
       manifest ablation field, the aggregation rules, and the diagnostic/tactic harness defects), and
@@ -141,9 +148,13 @@ What this iteration added and verified:
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
 - [x] **Pooled extended benchmark on the refined head.** The revision-2 extended run on the refined head
       finished and was read back (see the item above): 227/156/217, 50.8%, relative Elo -19.7 to +31.4,
-      INCONCLUSIVE. The engine source is identical to the current head; only the workflow and the
-      request marker changed in between, and the candidate SHA that was actually built and measured is
-      recorded in `AGENTS_LOG.md`.
+      INCONCLUSIVE. The engine source (`src/`) is byte-identical between the measured candidate
+      `5be7d7b` and the current head; only the harness, the workflow and the records changed in between,
+      and the candidate SHA that was actually built and measured is recorded in `AGENTS_LOG.md`.
+- [ ] **Pooled extended benchmark on this exact head.** Revision 6 of the request marker dispatches the
+      three-replicate extended profile against the exact final head with an independent seed
+      (20261201/02/03). It has to finish and be read back before this item can be checked. The result
+      is expected to be INCONCLUSIVE again; it is a measurement, not a target.
 - [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). A review of the
       previous head was read back and dispositioned in `67bee13`; a review of the final head has to be
       requested and read back before this item can be checked.

@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "profile": "screen",
-  "seed": 20261130,
-  "revision": 5,
+  "profile": "extended",
+  "seed": 20261201,
+  "revision": 6,
   "requested_by": "PR #6 iteration (branch arena/247fe7df-flawlesschess)",
-  "purpose": "Ablation study: measure the contribution of each term that PR #6 adds to the evaluation and to the move ordering, against the pinned baseline 6ab5b3349264c6c0a740c433ce454f8e1fed698a.",
-  "note": "Every variant runs the same 100 paired openings (200 real UCI games) with the same seed, so the variants are paired samples over the same openings. The ablation switch is honoured by the candidate only: the pinned baseline predates the module and ignores the variable.",
+  "purpose": "Measure the final head of PR #6 against the pinned baseline 6ab5b3349264c6c0a740c433ce454f8e1fed698a, on an independent seed, with the extended three-replicate profile (600 real UCI games).",
+  "note": "The three replicates run the same 100 paired openings (200 real UCI games each) with the seeds 20261201, 20261202 and 20261203, so the replicates are independent samples over the same openings. The ablation switch is honoured by the candidate only: the pinned baseline predates the module and ignores the variable.",
   "opening_suites": [
     "benches/rating-openings-100-batchA.txt",
     "benches/rating-openings-100-batchB.txt"
@@ -14,21 +14,9 @@
     {
       "name": "full",
       "ablate": ""
-    },
-    {
-      "name": "no-space",
-      "ablate": "space"
-    },
-    {
-      "name": "no-counter-move",
-      "ablate": "counter_move"
-    },
-    {
-      "name": "no-new-terms",
-      "ablate": "space,counter_move,outpost"
     }
   ],
-  "revision_note": "Revision 1 (seed 20261124, extended profile, 600 games) measured the pre-refinement head: 217 W / 164 D / 219 L, score 49.8%, relative Elo -23.2 to +21.5 (95% CI), INCONCLUSIVE. Revision 2 (seed 20261130, extended profile) measures the refined head. Revisions 3 and 4 failed because the request resolver did not know the screen profile and the job condition only allowed the quick profile on a push; revision 5 has both fixed.",
-  "interpretation": "Ablation output is a diagnostic, not a rating and not a strength claim. A variant that scores higher than another only says that the ablated term costs score points against this one opponent at a fixed movetime.",
+  "revision_note": "Revision 1 (seed 20261124, extended profile, 600 games) measured the pre-refinement head: 217 W / 164 D / 219 L, score 49.8%, relative Elo -23.2 to +21.5 (95% CI), INCONCLUSIVE. Revision 2 (seed 20261124, extended profile) measured the refined head: 227 W / 156 D / 217 L, score 50.8%, relative Elo -19.7 to +31.4 (95% CI), INCONCLUSIVE. Revision 5 (seed 20261130, screen profile) ran the ablation matrix: every variant was INCONCLUSIVE with overlapping intervals, so the study did not measure the contribution of any of the three terms. Revision 6 (seed 20261201, extended profile) measures the exact final head of this branch, whose engine source is byte-identical to the revision-2 candidate, with an independent seed.",
+  "interpretation": "A fixed-movetime screening comparison against a single opponent. Not an official rating, not an absolute rating, and not a strength claim. The 40-game quick and screen profiles swing by tens of points between runs of an unchanged engine and cannot be read as a strength signal.",
   "evidence": "github.com/coderunknow/FlawLessChess/actions/workflows/relative-benchmark.yml"
 }
