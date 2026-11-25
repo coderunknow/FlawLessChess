@@ -733,50 +733,66 @@ fn outposts_follow_the_classical_definition_and_are_colour_symmetric() {
         "ablation must be off by default"
     );
 
-    // Safe minor piece on an outpost square of the opponent's camp.
-    let w_c5 = "4k3/8/8/2N5/8/8/8/4K3 w - - 0 1";
-    let m_c5 = "4k3/8/8/8/2n5/8/8/4K3 b - - 0 1";
-    check_outpost(w_c5, m_c5, OUTPOST_KNIGHT_MG);
-    let w_c6 = "4k3/8/2N5/8/8/8/8/4K3 w - - 0 1";
-    let m_c6 = "4k3/8/8/8/8/2n5/8/4K3 b - - 0 1";
-    check_outpost(w_c6, m_c6, OUTPOST_KNIGHT_MG);
-    let w_bc5 = "4k3/8/8/2B5/8/8/8/4K3 w - - 0 1";
-    let m_bc5 = "4k3/8/8/8/2b5/8/8/4K3 b - - 0 1";
-    check_outpost(w_bc5, m_bc5, OUTPOST_BISHOP_MG);
+    // A minor piece on an outpost square of the opponent's camp, defended by one of our pawns.
+    let c5_w = "4k3/8/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let c5_m = "4k3/8/8/3p4/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(c5_w, c5_m, OUTPOST_KNIGHT_MG);
+    let bc5_w = "4k3/8/8/2B5/3P4/8/8/4K3 w - - 0 1";
+    let bc5_m = "4k3/8/8/3p4/2b5/8/8/4K3 b - - 0 1";
+    check_outpost(bc5_w, bc5_m, OUTPOST_BISHOP_MG);
+    let c6_w = "4k3/8/2N5/3P4/8/8/8/4K3 w - - 0 1";
+    let c6_m = "4k3/8/8/8/3p4/2n5/8/4K3 b - - 0 1";
+    check_outpost(c6_w, c6_m, OUTPOST_KNIGHT_MG);
+    let two_w = "4k3/8/4B3/2N2P2/3P4/8/8/4K3 w - - 0 1";
+    let two_m = "4k3/8/8/3p4/2n2p2/4b3/8/4K3 b - - 0 1";
+    check_outpost(two_w, two_m, OUTPOST_KNIGHT_MG + OUTPOST_BISHOP_MG);
 
-    // Two outposts at once.
-    let w_two = "4k3/8/4B3/2N5/8/8/8/4K3 w - - 0 1";
-    let m_two = "4k3/8/8/8/2n5/4b3/8/4K3 b - - 0 1";
-    check_outpost(w_two, m_two, OUTPOST_KNIGHT_MG + OUTPOST_BISHOP_MG);
+    // An outpost square must be defended by one of our own pawns: without the pawn the
+    // piece is simply chased away, so the square is not an outpost.
+    let free_w = "4k3/8/8/2N5/8/8/8/4K3 w - - 0 1";
+    let free_m = "4k3/8/8/8/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(free_w, free_m, 0);
 
-    // The rank in front of the opponent's back rank is not an outpost: no enemy pawn can ever
-    // stand there, so "safe from enemy pawns" would hold vacuously.
-    let w_c7 = "8/2N4k/8/8/8/8/8/4K3 w - - 0 1";
-    let m_c2 = "4k3/8/8/8/8/8/2n4K/8 b - - 0 1";
-    check_outpost(w_c7, m_c2, 0);
+    // An enemy pawn that can step forward and then attack the piece removes the outpost:
+    // the black pawn on d7 pushes to d6 and attacks c5.
+    let step_w = "4k3/3p4/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let step_m = "4k3/8/8/3p4/2n5/8/3P4/4K3 b - - 0 1";
+    check_outpost(step_w, step_m, 0);
 
-    // The opponent's back rank is never an outpost.
-    let w_c8 = "2N4k/8/8/8/8/8/8/4K3 w - - 0 1";
-    let m_c1 = "4k3/8/8/8/8/8/8/2n4K b - - 0 1";
-    check_outpost(w_c8, m_c1, 0);
+    // The same push, but blocked by one of our own pieces on d6: the pawn cannot step, so
+    // the square stays an outpost.
+    let blocked_w = "4k3/3p4/3P4/2N5/1P6/8/8/4K3 w - - 0 1";
+    let blocked_m = "4k3/8/8/1p6/2n5/3p4/3P4/4K3 b - - 0 1";
+    check_outpost(blocked_w, blocked_m, OUTPOST_KNIGHT_MG);
+
+    // An enemy pawn that attacks the piece right now removes the outpost.
+    let hit_w = "4k3/8/3p4/2N5/3P4/8/8/4K3 w - - 0 1";
+    let hit_m = "4k3/8/8/3p4/2n5/3P4/8/4K3 b - - 0 1";
+    check_outpost(hit_w, hit_m, 0);
+    let hit6_w = "4k3/1p6/2N5/3P4/8/8/8/4K3 w - - 0 1";
+    let hit6_m = "4k3/8/8/8/3p4/2n5/1P6/4K3 b - - 0 1";
+    check_outpost(hit6_w, hit6_m, 0);
 
     // Edge files are not outposts.
-    let w_a5 = "4k3/8/8/N7/8/8/8/4K3 w - - 0 1";
-    let m_a4 = "4k3/8/8/8/n7/8/8/4K3 b - - 0 1";
-    check_outpost(w_a5, m_a4, 0);
+    let edge_w = "4k3/8/8/N7/1P6/8/8/4K3 w - - 0 1";
+    let edge_m = "4k3/8/8/1p6/n7/8/8/4K3 b - - 0 1";
+    check_outpost(edge_w, edge_m, 0);
 
     // Own half of the board is not an outpost.
-    let w_e4 = "4k3/8/8/8/4N3/8/8/4K3 w - - 0 1";
-    let m_e5 = "4k3/8/8/4n3/8/8/8/4K3 b - - 0 1";
-    check_outpost(w_e4, m_e5, 0);
+    let own_w = "4k3/8/8/8/4N3/3P4/8/4K3 w - - 0 1";
+    let own_m = "4k3/8/3p4/4n3/8/8/8/4K3 b - - 0 1";
+    check_outpost(own_w, own_m, 0);
 
-    // An enemy pawn that can still challenge the piece removes the outpost.
-    let w_hit = "4k3/8/3p4/2N5/8/8/8/4K3 w - - 0 1";
-    let m_hit = "4k3/8/8/8/2n5/3P4/8/4K3 b - - 0 1";
-    check_outpost(w_hit, m_hit, 0);
-    let w_hit6 = "4k3/1p6/2N5/8/8/8/8/4K3 w - - 0 1";
-    let m_hit3 = "4k3/8/8/8/8/2n5/1P6/4K3 b - - 0 1";
-    check_outpost(w_hit6, m_hit3, 0);
+    // The rank in front of the opponent's back rank is not an outpost: no enemy pawn can
+    // ever stand there, so "cannot be attacked by an enemy pawn" would hold vacuously.
+    let r7_w = "4k3/3N4/2P5/8/8/8/8/4K3 w - - 0 1";
+    let r7_m = "4k3/8/8/8/8/2p5/3n4/4K3 b - - 0 1";
+    check_outpost(r7_w, r7_m, 0);
+
+    // The opponent's back rank is never an outpost.
+    let r8_w = "2N1k3/1P6/8/8/8/8/8/4K3 w - - 0 1";
+    let r8_m = "4k3/8/8/8/8/8/1p6/2n1K3 b - - 0 1";
+    check_outpost(r8_w, r8_m, 0);
 }
 
 #[test]
@@ -784,10 +800,10 @@ fn tempo_is_awarded_to_the_side_to_move_for_both_colours() {
     use flawless::eval::{breakdown, TEMPO, TOTAL_PHASE};
     attack::init_attacks();
 
-    // White to move with a knight on c5: a non-symmetric position, so the tempo bonus is
-    // observable. The second position is its colour mirror with Black to move.
-    let white = Position::from_fen("4k3/8/8/2N5/8/8/8/4K3 w - - 0 1").unwrap();
-    let black = Position::from_fen("4k3/8/8/8/2n5/8/8/4K3 b - - 0 1").unwrap();
+    // White to move with a knight on c5 and a pawn on d4: a non-symmetric position, so the
+    // tempo bonus is observable. The second position is its colour mirror with Black to move.
+    let white = Position::from_fen("4k3/8/8/2N5/3P4/8/8/4K3 w - - 0 1").unwrap();
+    let black = Position::from_fen("4k3/8/8/3p4/2n5/8/8/4K3 b - - 0 1").unwrap();
 
     let bw = breakdown(&white);
     let bb = breakdown(&black);

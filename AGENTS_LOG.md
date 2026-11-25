@@ -872,7 +872,9 @@ Two sandbox limits shaped the tooling work:
 Local (toolchain 1.99.0): fmt clean; clippy `-D warnings` clean; `cargo test --release --locked` 183/183
 (55 lib, 3 cli_batch, 3 cli_divide, 3 clock_smoke, 45 correctness, 12 movetime_smoke, 51 protocol_regressions,
 11 uci_smoke); difftest 2,321 positions d=2, 0 mismatches; perft(6) 119,060,324; bench signature
-`ce6a84301216fadd` (the pinned baseline still signs `141943aa23b3fc68` on the same machine); match harness
+`141943aa23b3fc68`, identical to the pinned baseline and stable over three runs — with the refined
+definition none of the twelve bench positions has a pawn-defended outpost square, so the term contributes
+nothing there; match harness
 112/112; benchmark suite 20/20.
 
 Hosted CI on the same head: fmt, clippy, tests, MSRV 1.80 and the Windows artifact job green; the quick
@@ -899,6 +901,24 @@ sampling noise of tens of Elo points on its own, and the 600-game profile is the
 
 All of this is a fixed-movetime screening comparison against a single opponent. It is not an official
 rating, not an absolute rating, and not a strength claim.
+
+### PR #2 audit (read only)
+
+PR #2 (`arena/8259ce1c-flawlesschess`, head `5f952b1`) diverges from `main` at `5e36b06`: 49 commits,
+12,971 insertions, 66 files, draft and in conflict with `main`. It was **not** merged, cherry-picked,
+modified or closed. Findings:
+
+- **Overlap.** PR #2 also implements an outpost term, the counter-move heuristic, continuation and capture
+  history, a fast legality filter and a large rating-harness expansion. The space evaluation and the
+  counter-move heuristic in this PR are independent reimplementations of the same ideas.
+- **Acted upon.** PR #2's outpost term requires a pawn-defended square and a square that an enemy pawn
+  cannot even step forward to attack. This PR's term had neither condition and rewarded an undefended
+  piece. Both conditions were added to this PR's own implementation, with regression tests.
+- **Not acted upon.** PR #2's zone ("rank 4 or beyond for White") includes White's own fourth rank, and its
+  outpost value is a flat +16/+8 for knight and bishop. This PR keeps the explicit zone and the
+  differentiated values.
+- **Not comparable.** PR #2's own screening results are recorded as INCONCLUSIVE and its branch conflicts
+  with `main`; porting its fast legality filter or its history heuristics would need its own measurement.
 
 ### Not done
 

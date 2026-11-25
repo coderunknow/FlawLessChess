@@ -88,9 +88,10 @@ rating gate, the pooled extended benchmark and an independent review, and they a
 
 What this iteration added and verified:
 
-- [x] Outpost evaluation corrected to the classical zone (White ranks 5-6, Black ranks 3-4, files b-g) with
-      boundary, symmetry and half-board tests; the previous zone included the opponent's back rank and the
-      rank where no enemy pawn can exist.
+- [x] Outpost evaluation corrected to the classical definition (White ranks 5-6, Black ranks 3-4, files
+      b-g, pawn-defended, safe from an enemy pawn that could step forward to attack) with boundary,
+      symmetry, half-board and pawn-direction tests. The previous zone included the opponent's back rank
+      and the rank where no enemy pawn can exist, and the term rewarded undefended pieces.
 - [x] Tempo semantics resolved and pinned: the score is `+/- tapered + TEMPO` for the side to move, verified
       against the rustc parser source and by a dedicated regression test for both colours and the mirror.
 - [x] Local gate suite on the exact head: fmt clean, clippy `-D warnings` clean, `cargo test --release
@@ -107,7 +108,12 @@ What this iteration added and verified:
       is not an absolute rating and cannot be used as one.
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
-- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent) has not been performed.
+- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent) has not been performed
+      at this head; a review was requested for the previous head and its result has to be read back and
+      dispositioned.
+- [x] **PR #2 audited read-only** and left untouched: 49 commits, 12,971 insertions, 66 files, draft and
+      conflicting with `main`. The two classical outpost conditions that this branch was missing were found
+      there and ported into this branch's own implementation; nothing of PR #2 was merged or cherry-picked.
 - [ ] PR #6 stays a **draft**. No merge, tag or release has been performed; those require explicit user
       authorization (mission §9).
 

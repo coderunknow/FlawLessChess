@@ -153,7 +153,10 @@ jobs:
           echo "signature=$SIG"
           # The expected signature tracks the evaluation of the checked-out source. Any change of
           # the evaluation changes it and must update this constant in the same commit.
-          WANT_SIG="ce6a84301216fadd"
+          # The signature is unchanged from the pinned baseline 6ab5b33: the outpost term of this
+          # branch requires a pawn-defended outpost square, and none of the twelve bench positions
+          # has one, so the term contributes nothing there.
+          WANT_SIG="141943aa23b3fc68"
           [ "$SIG" = "$WANT_SIG" ] || { echo "::error::bench signature mismatch: got $SIG want $WANT_SIG"; exit 7; }
           SHA=$(sha256sum "./$BIN" | cut -d' ' -f1)
           echo "binary_sha256=$SHA"

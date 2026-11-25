@@ -4,11 +4,15 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 
 ## [Unreleased] — outpost correction, tempo semantics, ablation switch, paired benchmark (2026-11-24)
 
-- **Fixed (eval, EVAL-2): the outpost zone.** White outposts are now on ranks 5-6 and Black outposts on
+- **Fixed (eval, EVAL-2): the outpost term.** White outposts are now on ranks 5-6 and Black outposts on
   ranks 3-4 (files b-g). The previous zone (ranks 5-8 / 1-4) included the opponent's back rank and the
   rank in front of it, where no enemy pawn can ever stand, so "cannot be attacked by an enemy pawn" was
-  vacuously true and pieces deep in enemy territory scored as outposts. Values are unchanged (knight
-  +30 mg / +15 eg, bishop +15 mg / +8 eg).
+  vacuously true and pieces deep in enemy territory scored as outposts. The term now also applies the two
+  remaining classical conditions: the square must be **defended by one of our own pawns**, and no enemy
+  pawn may be able to **step forward** and attack it (the push is blocked only by one of our own pieces).
+  Values are unchanged (knight +30 mg / +15 eg, bishop +15 mg / +8 eg). The bench signature stays at
+  `141943aa23b3fc68`, unchanged from the pinned baseline: none of the twelve bench positions contains a
+  pawn-defended outpost square.
 - **Changed (eval): the tempo bonus is computed explicitly** as `relative = +/- tapered; total = relative +
   TEMPO`, instead of one expression that relied on the binding of `+` to an `if` expression. The binding was
   verified against the rustc parser (the tempo was applied to both colours) and is now pinned by a
@@ -24,8 +28,9 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   PR #6 and the three-replicate extended tournament on demand; results are published to the job summary and
   to a pull request comment. The rustfmt gate reports its diff through annotations, because the Actions log
   host is not reachable from the development sandbox.
-- **Changed (CI): the anchor-verify bench signature** follows the evaluation and is updated to
-  `ce6a84301216fadd` for the new evaluation.
+- **Changed (CI): the anchor-verify bench signature** follows the evaluation. The refined outpost term
+  leaves the signature at `141943aa23b3fc68`, unchanged from the pinned baseline, so the expectation is
+  unchanged; the intermediate, looser definition moved it to `ce6a84301216fadd`.
 
 - **Measured (relative benchmark, screening only):** the three-replicate extended profile (600 real UCI
   games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)

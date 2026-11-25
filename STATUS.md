@@ -394,6 +394,11 @@ summary is published to a pull request comment.
    opponent's back rank and the rank in front of it, where no enemy pawn can ever stand; "cannot be attacked
    by an enemy pawn" held vacuously there, so any piece deep in enemy territory scored as an outpost. Values
    unchanged (knight +30 mg / +15 eg, bishop +15 mg / +8 eg).
+   The audit of PR #2 (see below) then showed that the term was still missing two classical conditions, which
+   are now implemented: the square must be **defended by one of our own pawns** (otherwise the piece is simply
+   chased away), and no enemy pawn may be able to **step forward** and attack the square (the push is only
+   blocked by one of our own pieces). Both directions are pinned by regression tests, and the 13 test
+   position pairs were generated and verified with python-chess instead of being written by hand.
 2. **Tempo semantics made explicit and pinned by a test (src/eval.rs, tests/correctness.rs).** The score is
    now computed as `relative = if side == WHITE { tapered } else { -tapered }; total = relative + TEMPO`. The
    previous single expression depended on how `+` binds to an `if` expression; that binding was checked
@@ -418,9 +423,11 @@ summary is published to a pull request comment.
   45 correctness + 12 movetime_smoke + 51 protocol_regressions + 11 uci_smoke)
 - `scripts/diftest.py --games 300 --seed 1234`: **2,321 positions d=2, 0 mismatches** (DIFTEST PASSED)
 - `./target/release/flawless perft 6`: **119,060,324** (matches the CPW reference)
-- `./target/release/flawless bench`: signature **ce6a84301216fadd**; the pinned baseline `6ab5b33` still
-  signs **141943aa23b3fc68** on the same machine, so the signature is machine-independent and the change
-  comes from the evaluation. `anchor-verify.yml` was updated to the new expectation in the same commit.
+- `./target/release/flawless bench`: signature **141943aa23b3fc68**, identical to the pinned baseline
+  `6ab5b33` on the same machine and stable over three runs. The signature covers the chosen moves, and with
+  the refined definition none of the twelve bench positions contains a pawn-defended outpost square, so the
+  outpost term contributes nothing there. The earlier, looser definition changed the signature to
+  `ce6a84301216fadd`; the refinement restores it.
 - `scripts/test_match.py`: **112/112 passed**; `scripts/test_relative_benchmark.py`: **20/20 passed**
 
 ### Relative benchmark evidence (screening only)
@@ -437,6 +444,27 @@ summary is published to a pull request comment.
   same seed, and a 40-game profile is dominated by noise. The 600-game profile is the meaningful one.
 - Every one of these is a fixed-movetime screening comparison against a single opponent. None of them is an
   official or absolute rating, and none of them is a strength claim.
+
+### PR #2 audit (read only, PR #2 untouched)
+
+PR #2 (`arena/8259ce1c-flawlesschess`, head `5f952b1`, draft, conflicting with `main`) diverged from
+`main` at `5e36b06` and carries 49 commits and 12,971 insertions across 66 files. It is **not** merged,
+cherry-picked or modified. The audit found:
+
+- **Overlap:** PR #2 also implements an outpost term, plus continuation/counter/capture history, a fast
+  legality filter and a large rating-harness expansion. The space evaluation and the counter-move heuristic
+  of this PR were taken from PR #2's ideas earlier and are reimplemented here independently.
+- **Technical finding, acted upon here:** PR #2's outpost term requires the square to be defended by one of
+  our own pawns and to be safe from an enemy pawn that can also step forward to attack it. This PR's term
+  had neither condition and rewarded an undefended piece. The two classical conditions were ported into
+  this PR's own implementation (not PR #2's code) and are covered by regression tests.
+- **Technical finding, not acted upon:** PR #2's zone is "rank 4 or beyond for White", which includes the
+  4th rank — White's own half — and its outpost value is a flat +16 mg / +8 eg for knight and bishop.
+  This PR keeps its explicit zone (White ranks 5-6, Black ranks 3-4) and differentiated values
+  (knight +30/+15, bishop +15/+8).
+- **Not comparable:** PR #2's own screening results are recorded as INCONCLUSIVE for its evaluation and
+  search work, and its branch is in conflict with `main`. Porting its fast legality filter or its
+  continuation/capture history would need its own measurement and is out of scope for this iteration.
 
 ### Not done
 

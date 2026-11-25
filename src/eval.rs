@@ -508,14 +508,15 @@ fn eval_color(pos: &Position, color: usize, is_white: bool) -> ColorEval {
         out.eg += space_eg;
     }
 
-    // outpost: minor pieces on squares in the opponent's camp that cannot be attacked by enemy
-    // pawns. Knights benefit most; bishops get a smaller bonus.
+    // outpost: minor pieces standing on a protected square in the opponent's camp that no enemy
+    // pawn can attack. Knights benefit most; bishops get a smaller bonus.
     // Tapered: full value in middlegame, reduced in endgame.
     //
     // Classical definition of an outpost square:
-    //   * it lies in the opponent's half of the board, and
-    //   * no enemy pawn can ever attack it, and
-    //   * it is not on an edge file, so a friendly pawn can support it.
+    //   * it lies in the opponent's half of the board,
+    //   * it is defended by one of our own pawns, so the piece cannot simply be chased away, and
+    //   * no enemy pawn attacks it now and no enemy pawn can step forward to attack it.
+    // The file must not be an edge file, otherwise no pawn could defend the square at all.
     // For White that is ranks 5 and 6 (index 4 and 5), for Black ranks 3 and 4 (index 2 and 3).
     // Ranks 7 and 8 (White) and ranks 1 and 2 (Black) are deliberately excluded: no enemy pawn
     // can ever stand on the rank in front of them, so "cannot be attacked by an enemy pawn"
@@ -527,12 +528,16 @@ fn eval_color(pos: &Position, color: usize, is_white: bool) -> ColorEval {
         let mut outpost_mg = 0i32;
         let mut outpost_eg = 0i32;
 
-        // White outposts: ranks 5-6 (index 4-5). Black pawns attack downwards, so the attacking
-        // black pawn sits one rank index above the piece.
-        // Black outposts: ranks 3-4 (index 2-3). White pawns attack upwards, so the attacking
-        // white pawn sits one rank index below the piece.
-        let (min_rank, max_rank, pawn_delta): (u8, u8, i32) =
-            if is_white { (4, 5, 1) } else { (2, 3, -1) };
+        // White outposts: ranks 5-6 (index 4-5). A white pawn defends from one rank below the
+        // piece (a pawn on d4 defends c5) and the enemy black pawn attacks from one rank above.
+        // Black outposts: ranks 3-4 (index 2-3), mirrored.
+        let (min_rank, max_rank, defend_delta, attack_delta): (u8, u8, i32, i32) = if is_white {
+            (4, 5, -1, 1)
+        } else {
+            (2, 3, 1, -1)
+        };
+        // Every one of our own pieces, used to decide whether an enemy pawn push is blocked.
+        let own_pieces = own_occ;
 
         macro_rules! outpost_piece {
             ($piece:ident, $mg:expr, $eg:expr) => {
@@ -543,21 +548,51 @@ fn eval_color(pos: &Position, color: usize, is_white: bool) -> ColorEval {
                     let r = rank_of(sq);
                     let f = file_of(sq) as i32;
                     if r >= min_rank && r <= max_rank && (1..=6).contains(&f) {
-                        let mut safe = true;
+                        // Defended by one of our own pawns: the pawn stands on an adjacent file,
+                        // one rank behind the piece.
+                        let mut defended = false;
                         for df in [-1, 1] {
                             let nf = f + df;
-                            let nr = r as i32 + pawn_delta;
+                            let nr = r as i32 + defend_delta;
                             if (0..8).contains(&nf) && (0..8).contains(&nr) {
+                                let sq_def = make_square(nf as u8, nr as u8);
+                                if pawns & (1u64 << sq_def) != 0 {
+                                    defended = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if defended {
+                            let mut safe = true;
+                            for df in [-1, 1] {
+                                let nf = f + df;
+                                // The enemy pawn that attacks the piece stands one rank in front.
+                                let nr = r as i32 + attack_delta;
+                                if !(0..8).contains(&nf) || !(0..8).contains(&nr) {
+                                    continue;
+                                }
                                 let attack_sq = make_square(nf as u8, nr as u8);
                                 if enemy_pawns & (1u64 << attack_sq) != 0 {
                                     safe = false;
                                     break;
                                 }
+                                // An enemy pawn two ranks in front can step forward and then
+                                // attack the piece. The push is blocked only by one of our own
+                                // pieces standing on the square it would move to.
+                                let nr2 = r as i32 + 2 * attack_delta;
+                                if (0..8).contains(&nr2) {
+                                    let ahead_sq = make_square(nf as u8, nr2 as u8);
+                                    let blocked = own_pieces & (1u64 << attack_sq) != 0;
+                                    if enemy_pawns & (1u64 << ahead_sq) != 0 && !blocked {
+                                        safe = false;
+                                        break;
+                                    }
+                                }
                             }
-                        }
-                        if safe {
-                            outpost_mg += $mg;
-                            outpost_eg += $eg;
+                            if safe {
+                                outpost_mg += $mg;
+                                outpost_eg += $eg;
+                            }
                         }
                     }
                 }
