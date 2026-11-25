@@ -58,7 +58,7 @@ test uci::tests::info_nps_is_a_rate_when_no_time_has_passed ... ok
 test uci::tests::movestogo_overflow_saturates_instead_of_falling_back_to_40 ... ok
 test search::draw_rule_tests::fifty_move_claim_value_is_at_least_draw ... ok
 
-test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
 
      Running unittests src/main.rs (target/release/deps/flawless-1e9712328a1a0256)
 
@@ -78,8 +78,8 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
      Running tests/cli_divide.rs (target/release/deps/cli_divide-993cb43904f74dbe)
 
 running 3 tests
-test divide_depth_one_totals_the_root_move_count ... ok
 test divide_depth_two_totals_perft_two ... ok
+test divide_depth_one_totals_the_root_move_count ... ok
 test divide_depth_zero_is_refused_with_usage ... ok
 
 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
@@ -91,17 +91,17 @@ test clock_command_returns_bestmove_within_budget ... ok
 test tight_clock_returns_quickly ... ok
 test clock_with_increment_and_movestogo ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
 
      Running tests/correctness.rs (target/release/deps/correctness-4b43e9884c3e3fbb)
 
 running 45 tests
 test castling_right_is_ignored_when_king_is_off_its_home_square ... ok
 test castling_rights_with_rooks_generate_exactly_the_castles ... ok
-test checkmate_and_stalemate_detection ... ok
 test castling_through_check_illegal ... ok
-test ep_capture_legality_pin ... ok
+test checkmate_and_stalemate_detection ... ok
 test clock_limits_never_panics_at_zero_time ... ok
+test ep_capture_legality_pin ... ok
 test fen_accepts_a_legal_double_check_from_knight_and_queen ... ok
 test fen_accepts_genuine_en_passant_targets ... ok
 test fen_accepts_promoted_piece_counts_that_are_reachable ... ok
@@ -123,9 +123,9 @@ test mate_beats_repetition_rule ... ok
 test move_list_capacity_covers_maximum_mobility_of_accepted_positions ... ok
 test magic_vs_walk_exhaustive ... ok
 test outposts_follow_the_classical_definition_and_are_colour_symmetric ... ok
-test perft_cpw_position_3_reference ... ok
-test perft_cpw_position_4_reference ... ok
 test node_cap_is_spent_exactly ... ok
+test perft_cpw_position_4_reference ... ok
+test perft_cpw_position_3_reference ... ok
 test perft_cpw_position_5_reference ... ok
 test perft_cpw_position_6_reference ... ok
 test perft_small_fast ... ok
@@ -142,7 +142,7 @@ test static_evaluation_is_colour_symmetric ... ok
 test tempo_is_awarded_to_the_side_to_move_for_both_colours ... ok
 test search_scores_are_colour_symmetric_on_recorded_pairs ... ok
 
-test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
 
      Running tests/movetime_smoke.rs (target/release/deps/movetime_smoke-55a5e02f0ee6e2ea)
 
@@ -154,13 +154,13 @@ test movetime_uses_its_budget_within_tolerance ... ok
 test movetime_bestmove_reports_a_completed_iteration ... ok
 test ponder_movetime_ponderhit_keeps_the_movetime_deadline ... ok
 test ponder_node_cap_is_enforced_after_ponderhit ... ok
-test quit_during_movetime_exits_cleanly_and_promptly ... ok
 test ponderhit_starts_the_clock_slice_at_the_hit ... ok
+test quit_during_movetime_exits_cleanly_and_promptly ... ok
 test repeated_movetime_searches_in_one_process ... ok
 test terminal_positions_return_null_move_promptly ... ok
 test very_short_movetime_still_returns_a_legal_move ... ok
 
-test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.51s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.37s
 
      Running tests/protocol_regressions.rs (target/release/deps/protocol_regressions-195946d1c00d2074)
 
@@ -180,8 +180,8 @@ test impossible_material_fen_is_rejected_without_crashing ... ok
 test insufficient_material_root_is_searched_and_yields_a_pv ... ok
 test legal_searchmoves_are_respected_without_widening_notice ... ok
 test late_quiet_checking_move_is_not_reduced_past_a_forced_mate ... ok
-test malformed_only_searchmoves_returns_null_and_reports_the_token ... ok
 test low_reply_quiet_mate_threats_are_not_reduced ... ok
+test malformed_only_searchmoves_returns_null_and_reports_the_token ... ok
 test mate_score_is_compared_as_a_whole_token ... ok
 test malformed_setoption_is_reported_on_stdout ... ok
 test mixed_searchmoves_restricts_to_the_legal_named_move ... ok
@@ -217,7 +217,7 @@ test unknown_option_is_reported_on_stdout ... ok
 test unsupported_go_mate_is_reported_on_stdout ... ok
 test sparse_quiet_mate_in_three_is_found_at_depth_six ... ok
 
-test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.03s
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.87s
 
      Running tests/uci_smoke.rs (target/release/deps/uci_smoke-3372ae34f18414bd)
 
@@ -226,15 +226,15 @@ test cli_unknown_command_is_an_error_on_stderr ... ok
 test cli_version_and_help_are_explicit_and_exit_zero ... ok
 test handshake_isready_quit ... ok
 test no_arguments_and_explicit_uci_produce_identical_handshake ... ok
-test cli_existing_subcommands_still_work ... ok
 test no_arguments_exits_cleanly_on_stdin_eof ... ok
+test cli_existing_subcommands_still_work ... ok
 test no_arguments_starts_uci_mode_and_completes_lifecycle ... ok
 test rejected_position_yields_null_bestmove_until_fixed ... ok
 test seeded_fuzz_command_sequences ... ok
 test unknown_commands_do_not_crash ... ok
 test ponderhit_or_stop_racing_search_end_emits_exactly_one_bestmove ... ok
 
-test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.52s
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.59s
 
    Doc-tests flawless
 

@@ -18,5 +18,16 @@ ok   the losing-games file is written
 ok   the losing-games file is empty when there is no loss
 ok   the diagnostic runs over the stale file (rc=0)
 ok   the stale losing games are replaced, not left in place
+ok   both records are parsed (parsed 2)
+ok   the first record keeps its own round header
+ok   the second record keeps its own round header
+ok   the first record keeps its own player headers
+ok   the second record keeps its own player headers
+ok   the first record keeps its own move history
+ok   the second record keeps its own move history
+ok   the records are separated by a blank line
+ok   a single newline still yields two records
+ok   a single newline strips the headers of the later record (the regression this guards)
+ok   a single newline strips the player headers of the later record
 
-20 checks passed, 0 failed
+31 checks passed, 0 failed

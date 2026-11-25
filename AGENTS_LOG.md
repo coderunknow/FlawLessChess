@@ -1284,3 +1284,12 @@ the defect. The suite is now 31 checks.
 The latest local diagnostic run (`benches/diagnose-20261124/`) found no losses at all, so its
 `losing-games.pgn` is empty and the defect was invisible there. It would have bitten the first run
 that produced two or more losses.
+
+### The gate on the corrected head
+
+The full local gate suite ran on `99bef0133f1bc5e2f1d5aab6a5ffc122df349cc7` (tree
+`cfd3ef51263e782c4efbd675d2f01afa9b409af4`) with **50 of 50 steps passing, FAILS=0**, including the
+final check that the head, the tree and the working tree were unchanged during the run. The raw output
+is retained under `benches/gate-99bef01/`. The gate covers the corrected diagnostic (including the
+blank-line PGN separator) and the corrected Python suites: the weakness-diagnostic suite is 31 checks
+and the benchmark-request resolver suite is 33.
