@@ -130,7 +130,7 @@ pub struct Searcher<'a> {
     /// Check extensions consumed along the current search line, indexed by ply. `ext_path[ply]`
     /// counts every extension granted to reach this node; a node may extend only while the total
     /// stays under [`EXT_BUDGET`] (bounded-extension rule, see that constant).
-    ext_path: [i32; MAX_PLY as usize],
+    ext_path: [i32; MAX_PLY as usize + 1],
 }
 
 impl<'a> Searcher<'a> {
@@ -156,7 +156,7 @@ impl<'a> Searcher<'a> {
             nodes: 0,
             node_cap,
             seldepth: 0,
-            ext_path: [0; MAX_PLY as usize],
+            ext_path: [0; MAX_PLY as usize + 1],
             start: Instant::now(),
             root_moves: None,
             root_best: None,
