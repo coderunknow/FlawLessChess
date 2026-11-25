@@ -1127,3 +1127,53 @@ another run, and the spread is not expected to narrow.
 
 The three runs above `98e5cd9` in the earlier table (`504924b` 40.0%, `78f42ca` 42.5%, `dcdc4b4`
 36.2%) remain on a *different* engine and are not part of this range.
+
+---
+
+## 2026-11-25 — Addendum: the extended profile on the final head
+
+A third extended run was dispatched against the exact head of the branch and read back.
+
+* **Candidate commit measured:** `13f8162ebe66af286447603e4026e2c990351538` (`13f8162`).
+* **Pinned baseline:** `6ab5b3349264c6c0a740c433ce454f8e1fed698a` (`6ab5b33`).
+* **Hosted workflow run:** `45546563480` (push dispatch of revision 6 of the request marker),
+  completed/success.
+* **Seeds:** 20261201, 20261202, 20261203 — independent of the seeds of the two earlier extended runs.
+
+| Replicate | Seed | Hosted artifact name | Artifact id |
+| --------- | ---- | -------------------- | ----------- |
+| 1 | 20261201 | `relative-strength-extended-45546563480-1` | `14994002536` |
+| 2 | 20261202 | `relative-strength-extended-45546563480-2` | `14993832110` |
+| 3 | 20261203 | `relative-strength-extended-45546563480-3` | `14994391549` |
+| pooled | — | `relative-strength-extended-aggregate-45546563480` | `14994810229` |
+
+Result read back from the published summary: **229 W / 163 D / 208 L** of 600, score
+**310.5/600 = 51.7%**, relative Elo **-11.0 to +35.4** (95% CI, opening-clustered), classification
+**INCONCLUSIVE**, 100 opening clusters, elapsed 8467.4 s.
+
+The published title reads `seeds 20261201..20261203`. It read `seeds ..2` for the previous run,
+because the publishing step did not receive the seed base; that defect was found by review and is
+fixed, and this run confirms the fix.
+
+The engine source at `13f8162` is byte-identical to the final head of the branch: the last change
+to `src/` is still the outpost refinement `98e5cd9`, and `Cargo.toml`, `Cargo.lock`,
+`rust-toolchain.toml` and `build.rs` are unchanged since then. The commits between `13f8162` and
+the final head change the request marker, the review fixes and the records only.
+
+### The three extended runs, side by side
+
+| Revision | Candidate | Run | Games | W/D/L | Score | Relative Elo (95% CI) | Classification |
+|---|---|---|---|---|---|---|---|
+| 1 (pre-refinement) | `78f42ca` | `45426475825` | 600 | 217 / 164 / 219 | 49.8% | -23.2 to +21.5 | INCONCLUSIVE |
+| 2 (refined) | `5be7d7b` | `45529006866` | 600 | 227 / 156 / 217 | 50.8% | -19.7 to +31.4 | INCONCLUSIVE |
+| 3 (final head) | `13f8162` | `45546563480` | 600 | 229 / 163 / 208 | 51.7% | -11.0 to +35.4 | INCONCLUSIVE |
+
+The point estimates drift upward across the three runs — 49.8%, 50.8%, 51.7% — and **every interval
+straddles 50%**. That is what a sequence of inconclusive results looks like when the underlying
+effect is small: the estimates wander around the baseline in the direction the noise allows, and the
+intervals keep covering it. Reading the upward drift as a strength signal would be reading noise.
+
+**The honest conclusion is unchanged: no strength difference against the pinned baseline `6ab5b33` is
+measurable.** This is screening evidence against a single opponent at a fixed movetime. It is not an
+official rating, not an absolute rating, and not a strength claim. The absolute V1 rating gate
+remains UNKNOWN / NOT MEASURED / NOT MET.

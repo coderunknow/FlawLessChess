@@ -73,8 +73,15 @@ commit; verified 2026-11-24).
 >
 > * **Extended profile, revision 2** (run `45529006866`, candidate `5be7d7b`, 600 games, 100 opening
 >   clusters): **227 W / 156 D / 217 L**, **50.8%**, relative Elo **-19.7 to +31.4** (95% CI),
->   **INCONCLUSIVE**. The first revision gave 49.8% (-23.2 to +21.5), also INCONCLUSIVE. The point
->   estimate moved by one point and the interval still straddles 50%.
+>   **INCONCLUSIVE**.
+> * **Extended profile, revision 3 — the final head** (run `45546563480`, candidate `13f8162`, 600 games,
+>   100 opening clusters, independent seed 20261201/02/03): **229 W / 163 D / 208 L**, **51.7%**,
+>   relative Elo **-11.0 to +35.4** (95% CI), **INCONCLUSIVE**. The engine source at the measured
+>   candidate is byte-identical to the final head.
+>
+>   The three extended runs read 49.8%, 50.8% and 51.7%, and **every interval straddles 50%**. The
+>   point estimates drift while the interval keeps covering the baseline: that is what a small
+>   underlying effect looks like, and reading the drift as a strength signal would be reading noise.
 > * **Ablation matrix** (run `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`,
 >   200 games per variant): `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms`
 >   46.8% — **every variant INCONCLUSIVE with overlapping intervals**. The study therefore does **not**

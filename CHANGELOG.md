@@ -46,6 +46,16 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   classification **INCONCLUSIVE**. The point estimate moved from 49.8% to 50.8% between the two
   revisions and the interval still straddles 50%: **no measurable strength difference against the
   pinned baseline**. Screening evidence only — not an absolute rating and not a strength claim.
+- **Measured (relative benchmark, screening only):** the revision-3 extended run on the exact final head
+  (hosted run `45546563480`, candidate `13f8162`, 600 real UCI games, 100 opening clusters, independent
+  seed) finished **229 W / 163 D / 208 L**, score **310.5/600 = 51.7%**, relative Elo **-11.0 to +35.4**
+  (95% CI), classification **INCONCLUSIVE**. The three extended runs now read 49.8%, 50.8% and 51.7%,
+  and **every interval straddles 50%**: the point estimates drift while the interval keeps covering the
+  baseline, which is what a small underlying effect looks like. **No measurable strength difference
+  against the pinned baseline.** Screening evidence only — not an absolute rating and not a strength
+  claim. The published title now reads `seeds 20261201..20261203`; the earlier run read `seeds ..2`
+  because the publishing step did not receive the seed base, which the review found and this branch
+  fixed.
 - **Measured (ablation matrix, screening only):** the four variants of the ablation study (hosted run
   `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`, 200 games each) came out at
   `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms` 46.8%, and **every variant is

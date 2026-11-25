@@ -128,13 +128,15 @@ What this iteration added and verified:
 - [x] Hosted CI on the same head: Ubuntu and Windows format/clippy/test jobs, the MSRV 1.80 job and the
       Windows release artifact job are green, and the quick paired benchmark job completes and publishes its
       summary.
-- [x] Relative screening evidence exists and was **read back**, twice. The first hosted three-replicate
-      extended profile (600 real UCI games, 100 opening clusters, candidate `78f42ca`, run `45426475825`)
-      finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
-      classification **INCONCLUSIVE**. The second, on the refined head (candidate `5be7d7b`, run
-      `45529006866`), finished **227 W / 156 D / 217 L**, score **50.8%**, relative Elo **-19.7 to +31.4**
-      (95% CI), classification **INCONCLUSIVE**. The point estimate moved by one point and the interval
-      still straddles 50%: the candidate is **not** measurably different from the pinned baseline.
+- [x] Relative screening evidence exists and was **read back**, three times. The first hosted
+      three-replicate extended profile (600 real UCI games, 100 opening clusters, candidate `78f42ca`,
+      run `45426475825`) finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to
+      +21.5** (95% CI), classification **INCONCLUSIVE**. The second, on the refined head (candidate
+      `5be7d7b`, run `45529006866`), finished **227 W / 156 D / 217 L**, score **50.8%**, relative Elo
+      **-19.7 to +31.4** (95% CI), classification **INCONCLUSIVE**. The third, on the final head
+      (candidate `13f8162`, run `45546563480`, independent seed), finished **229 W / 163 D / 208 L**,
+      score **51.7%**, relative Elo **-11.0 to +35.4** (95% CI), classification **INCONCLUSIVE**. Every
+      interval straddles 50%: the candidate is **not** measurably different from the pinned baseline.
       Recorded as screening evidence only; it is not a strength claim.
 - [x] The ablation study was run and **read back** (hosted run `45529550258`, candidate `d306cbc`,
       `screen` profile, seed `20261130`, 200 games per variant): `full` 53.5%, `no-space` 53.8%,
@@ -159,10 +161,15 @@ What this iteration added and verified:
       INCONCLUSIVE. The engine source (`src/`) is byte-identical between the measured candidate
       `5be7d7b` and the current head; only the harness, the workflow and the records changed in between,
       and the candidate SHA that was actually built and measured is recorded in `AGENTS_LOG.md`.
-- [ ] **Pooled extended benchmark on this exact head.** Revision 6 of the request marker dispatches the
+- [x] **Pooled extended benchmark on this exact head.** Revision 6 of the request marker dispatched the
       three-replicate extended profile against the exact final head with an independent seed
-      (20261201/02/03). It has to finish and be read back before this item can be checked. The result
-      is expected to be INCONCLUSIVE again; it is a measurement, not a target.
+      (20261201/02/03). It finished and was read back: **229 W / 163 D / 208 L** of 600, score
+      **51.7%**, relative Elo **-11.0 to +35.4** (95% CI), **INCONCLUSIVE** (hosted run
+      `45546563480`). The engine source at the measured candidate `13f8162` is byte-identical to the
+      final head. The three extended runs now read 49.8%, 50.8% and 51.7%, every interval straddling
+      50%: the point estimates drift while the interval keeps covering the baseline. That is what
+      small underlying effects look like, and reading the drift as a strength signal would be reading
+      noise. No strength difference is measurable.
 - [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). A review of the
       previous head was read back and dispositioned in `67bee13`; a review of the final head has to be
       requested and read back before this item can be checked.
