@@ -62,8 +62,8 @@ commit; verified 2026-11-24).
 >    attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the undefended case
 >    were added as regressions.
 >
-> Local gate suite on `02b58bd`: **50/50 steps, FAILS=0** (raw output retained under
-> `benches/gate-02b58bd/`). Within it: fmt clean, clippy `-D warnings` clean, `cargo test --release
+> Local gate suite on `ff10c55`: **50/50 steps, FAILS=0** (raw output retained under
+> `benches/gate-ff10c55/`). Within it: fmt clean, clippy `-D warnings` clean, `cargo test --release
 > --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
 > 112/112, benchmark suite 37/37, weakness-diagnostic suite 20/20, benchmark-request resolver suite
 > 33/33, tactical diagnostic 6/6 on the refined engine. The bench signature stays at

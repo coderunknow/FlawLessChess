@@ -87,14 +87,14 @@ Current PR head: see `git log --oneline -1` / `gh pr view 1 --json headRefOid`.
 rating gate, the pooled extended benchmark and an independent review, and they are listed below.
 
 **Tested revision.** The full local gate suite (`scripts/final_gate.sh`) was run on commit
-`02b58bd16cda93281ff7c08307431e19631fffaf` (tree `f389c4a9eee9eeded421cd0c9ea758455b6c16a8`): **50 of 50
+`ff10c556a1654a0d473b89db4cd2e5916119e456` (tree `6f2a825798e38f5416a62a81a1de02ab676ee9db`): **50 of 50
 steps passed, FAILS=0**, including the final check that the head, the tree and the working tree were
 unchanged during the run. The release binary digest was
 `09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c6737992b4698`. The raw output of that run — the
-summary and the log of every step — is retained in the repository under `benches/gate-02b58bd/`, and
-`benches/gate-02b58bd/summary.txt` names the commit and the tree it ran on. The commit that follows
-this one changes only these records; it does not touch `src/` or any script the gate covers, so the
-engine that produced the numbers is the engine on this branch.
+summary and the log of every step — is retained in the repository under `benches/gate-ff10c55/`, and
+`benches/gate-ff10c55/summary.txt` names the commit and the tree it ran on. The commit that follows
+this one changes only these records and the retained evidence; it does not touch `src/` or any script
+the gate covers, so the engine that produced the numbers is the engine on this branch.
 
 What this iteration added and verified:
 
@@ -107,8 +107,8 @@ What this iteration added and verified:
 - [x] The quick regression screen runs on every pull request of this repository (fork pull requests
       are excluded, because the job runs the pull request's own code with a `pull-requests: write`
       token). It remains a screen and not a strength measurement.
-- [x] Local gate suite on the exact head `02b58bd`, with the raw output retained under
-      `benches/gate-02b58bd/`: **50/50 steps, FAILS=0** (fmt, clippy debug and
+- [x] Local gate suite on the exact head `ff10c55`, with the raw output retained under
+      `benches/gate-ff10c55/`: **50/50 steps, FAILS=0** (fmt, clippy debug and
       release, release and debug builds, release and debug test suites, every Python harness suite,
       the perft and legal-move differentials, the UCI protocol and fuzz probes, the clock and
       time-budget probes, the self-play probes, the full-game probe, and the head/tree/clean-tree
@@ -170,9 +170,12 @@ What this iteration added and verified:
       50%: the point estimates drift while the interval keeps covering the baseline. That is what
       small underlying effects look like, and reading the drift as a strength signal would be reading
       noise. No strength difference is measurable.
-- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). A review of the
-      previous head was read back and dispositioned in `67bee13`; a review of the final head has to be
-      requested and read back before this item can be checked.
+- [ ] **Fresh independent review at the final head SHA** (CodeRabbit or equivalent). Three review rounds
+      have been read back and dispositioned on this branch: the first (20 findings) in `67bee13`, the
+      second (14 findings, 9 still valid) in `25d7d66`, and the third, whose findings were all confirmed
+      resolved by the reviewer itself. The last of those rounds was against `c428d66`, and this branch
+      has moved on since, so a review of the exact final head still has to be requested and read back
+      before this item can be checked.
 - [x] **PR #2 audited read-only** and left untouched: 49 commits, 12,971 insertions, 66 files, draft and
       conflicting with `main`. The two classical outpost conditions that this branch was missing were found
       there and ported into this branch's own implementation; nothing of PR #2 was merged or cherry-picked.

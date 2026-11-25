@@ -1,4 +1,4 @@
-plies=213 en_passant=1 castles=2 promotions=0
+plies=171 en_passant=1 castles=1 promotions=1
 termination: CHECKMATE result=1-0
-first moves: e5f6 g8f6 d2d4 b8c6 g1f3 d8d6 f1b5 c8g4
+first moves: e5f6 g8f6 d2d4 b8c6 g1f3 d8d6 b1c3 e8d8
 PASS: every engine move was legal; the game reached its end under the rules or the ply cap.

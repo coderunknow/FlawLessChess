@@ -1,5 +1,5 @@
-commit 02b58bd16cda93281ff7c08307431e19631fffaf
-tree   f389c4a9eee9eeded421cd0c9ea758455b6c16a8
+commit ff10c556a1654a0d473b89db4cd2e5916119e456
+tree   6f2a825798e38f5416a62a81a1de02ab676ee9db
 dirty-at-start 0
 fmt rc=0 last: 
 clippy_debug rc=0 last:     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
@@ -10,7 +10,7 @@ sha256_release rc=0 last: 09ed62b6cf38d3dc0a739dcb3ecd594e4b7be1b51855b4b1988c67
 test_release rc=0 last: 
 test_debug rc=0 last: 
 py_test_aggregate_60 rc=0 last: aggregate 60-shard synthetic: rc=0 games=120 PASS
-py_test_benchmark_request_resolver rc=0 last: 17 checks passed, 0 failed
+py_test_benchmark_request_resolver rc=0 last: 33 checks passed, 0 failed
 py_test_diagnose_weaknesses rc=0 last: 20 checks passed, 0 failed
 py_test_make_batch_dispatch rc=0 last: make_batch_dispatch recovery tests: 7/7 PASS
 py_test_match rc=0 last: 112 checks passed, 0 failed
@@ -33,7 +33,7 @@ uci_extreme_args rc=0 last: FAILURES: 0
 uci_grammar_s201 rc=0 last: seed=201 sessions=100 failures=0
 interleave_s11 rc=0 last: seed=11 sessions=25 steps=300 failures=0
 interleave_dbg_s7 rc=0 last: seed=7 sessions=20 steps=300 failures=0
-resource_probe rc=0 last: hash=1024 MB  movetime=200 ms  wall=   201 ms ( 100%)  cpu= 0.20 s ( 100% of one core)  idle_rss=   5.0 MiB  peak_rss=  42.3 MiB  depth=8 nodes=49062 
+resource_probe rc=0 last: hash=1024 MB  movetime=200 ms  wall=   201 ms ( 100%)  cpu= 0.19 s (  95% of one core)  idle_rss=   4.9 MiB  peak_rss=  42.1 MiB  depth=8 nodes=49062 
 fen_extremes_s101 rc=0 last: seed=101 cases=400 oracle_valid=161 failures=0
 fen_extremes_dbg_s9 rc=0 last: seed=9 cases=150 oracle_valid=58 failures=0
 tt_bestmove_s41 rc=0 last: positions 400 hash_mb 1 depth 6 failures 0 exit 0
@@ -45,10 +45,10 @@ multipv_s92 rc=0 last: positions 30 multipv 4 failures 0
 negative_mate_s77 rc=0 last: positions 12 failures 0
 clock_sweep_s71 rc=0 last: 60/60 cases within the usable clock; failures=0
 time_budget rc=0 last: 8/8 cases passed
-selfplay_1000_sd rc=0 last: plies 156 base 1000 inc 0 mtg None think 1.46s left W 269 B 268 min W 269 min B 268 failures 0
-selfplay_300_sd rc=0 last: plies 93 base 300 inc 0 mtg None think 0.16s left W 205 B 232 min W 205 min B 232 failures 0
-selfplay_40_15 rc=0 last: plies 200 base 15000 inc 150 mtg 40 think 58.69s left W 695 B 614 min W 545 min B 464 failures 0
+selfplay_1000_sd rc=0 last: plies 200 base 1000 inc 0 mtg None think 1.51s left W 240 B 245 min W 240 min B 245 failures 0
+selfplay_300_sd rc=0 last: plies 112 base 300 inc 0 mtg None think 0.18s left W 200 B 219 min W 200 min B 219 failures 0
+selfplay_40_15 rc=0 last: plies 200 base 15000 inc 150 mtg 40 think 58.73s left W 660 B 614 min W 473 min B 454 failures 0
 fullgame_mt20 rc=0 last: PASS: every engine move was legal; the game reached its end under the rules or the ply cap.
 fullgame_mt60 rc=0 last: PASS: every engine move was legal; the game reached its end under the rules or the ply cap.
-head_unchanged_at_end rc=0 last: head 02b58bd16cda93281ff7c08307431e19631fffaf tree f389c4a9eee9eeded421cd0c9ea758455b6c16a8 clean
+head_unchanged_at_end rc=0 last: head ff10c556a1654a0d473b89db4cd2e5916119e456 tree 6f2a825798e38f5416a62a81a1de02ab676ee9db clean
 FAILS=0

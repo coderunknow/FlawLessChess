@@ -40,7 +40,9 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 - **Added (tests): four new benchmark-harness checks** covering the candidate exclusion, the opening-order
   digest and the ablation-mask consistency rule (benchmark suite 37/37), a check that a perfect score is a
   positive relative signal, and a resolver suite (33 checks) that pins both the push-request and the
-  manual-dispatch branches of the benchmark request resolver.
+  manual-dispatch branches of the benchmark request resolver. The weakness diagnostic gained its own
+  suite (20 checks) covering the replayable PGN, the unfinished-game handling and the replace-on-every-run
+  behaviour of the losing-games file.
 
 - **Measured (relative benchmark, screening only):** the revision-2 extended run on the refined head
   (hosted run `45529006866`, candidate `5be7d7b`, 600 real UCI games, 100 opening clusters) finished
