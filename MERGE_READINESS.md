@@ -170,7 +170,12 @@ What this iteration added and verified:
       regression screen. The three runs below `98e5cd9` (40.0%, 42.5%, 36.2%) are on a different engine
       and are not part of that range.
 - [ ] **Absolute V1 rating gate: NOT MET.** Still UNKNOWN / NOT MEASURED. The relative screening result above
-      is not an absolute rating and cannot be used as one.
+      is not an absolute rating and cannot be used as one. **In flight (2026-11-25):** the ENGINE-3
+      (PR #6 candidate) hosted binary hash `733de4e5…` is frozen from the `verify-flawless` annotation;
+      CTRL-3 and six SCREEN-E3 runs (960 games at 40/15) are dispatched against the three frozen CCRL
+      anchors; the recovered CTRL-2-R (ENGINE-1) null control is PASS and SCREEN-3 is measured. The
+      pre-registered enlarged-design decision rule is fixed in PREREGISTRATION.md; the confirmatory
+      batches remain blocked until the ENGINE-3 power assessment is a reviewed, evidence-backed PASS.
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
 - [x] **Pooled extended benchmark on the refined head.** The revision-2 extended run on the refined head

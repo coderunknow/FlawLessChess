@@ -1345,3 +1345,14 @@ downloads remain blocked at the blob hosts). Committed evidence: `benches/eviden
   the workflow documents for this sandbox; the CLOCK-1 freeze attempt failed only because it looked at
   the check-run summary instead). Bench signature unchanged `141943aa23b3fc68`. ENGINE-1/ENGINE-2
   evidence does not transfer; CTRL-3 and six SCREEN-E3 runs are registered for the candidate.
+
+### The ENGINE-3 campaign is dispatched
+
+Seven deliberate dispatches (top-commit `benches/dispatch.json` marker pushes, revisions 15-24):
+CTRL-3 (run 45612655219, 120 shards x 2) and SCREEN-E3-A1/A2/A3 (runs 45612820092 / 45613353274 /
+45612864587) + SCREEN-E3-B1/B2/B3 (runs 45613616430 / 45613863246 / 45612928479), 60 shards x 2
+each. 960 real UCI games at 40/15 against the three frozen anchors, all on ENGINE-3
+(`733de4e5…`). Three dispatch events coalesced away on the first burst (GitHub synchronise events
+deduplicate pushes within seconds); they were re-dispatched with 95 s spacing at revisions 22-24.
+The B-suite runs share labels with the A-suite runs, so their in-run evidence jobs will refuse to
+overwrite and the B evidence is registered for bridge collection into `screening-b/`.

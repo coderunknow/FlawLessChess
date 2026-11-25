@@ -654,3 +654,12 @@ Known intrinsic limitation to be reported with any PASS: power at alternatives b
 by construction; a true rating near the threshold can yield INCONCLUSIVE, which is fail-closed and
 never partial credit. The final evidence method remains the registered opening-cluster bootstrap,
 not this delta-method approximation.
+
+### SCREEN-E3 evidence-path clarification (2026-11-25, append-only)
+
+The six SCREEN-E3 dispatches label their A-suite and B-suite runs identically (`<pool key>-e3`).
+The in-run evidence job writes `benches/evidence/screening/<label>/` and refuses to overwrite, so
+the A-suite runs land there as registered, while the B-suite runs' evidence is collected through
+`benches/evidence-bridge` (revision 5) into `benches/evidence/screening-b/<label>/`. The games,
+shards and manifests are identical either way; only the committed directory differs. The power
+assessment consumes the two roots accordingly.
