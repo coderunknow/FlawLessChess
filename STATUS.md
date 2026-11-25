@@ -496,27 +496,40 @@ summary is published to a pull request comment.
   thread): **217 W / 164 D / 219 L**, score 299.0/600 = **49.8%**, relative Elo **-23.2 to +21.5**
   (95% CI, opening-clustered percentile bootstrap). Classification **INCONCLUSIVE**, `valid: true`.
   **No strength difference is measurable against the pinned baseline.**
-- Quick profile, hosted CI, 40 games per run on the **same 20 openings and the same seed**, over seven
-  runs of heads whose engine code differs in at most one term:
+- Quick profile, hosted CI, 40 games per run on the **same 20 openings and the same seed**. The last
+  change to `src/` on this branch is `98e5cd9` (the refined outpost term), so every head below it has
+  a **byte-identical release binary**; the three heads above it do not:
 
 | Head | Engine change | W/D/L | Score | Classification |
 |---|---|---|---|---|
 | `504924b` | outpost fixture fix | 9/14/17 | 40.0% | INCONCLUSIVE |
 | `78f42ca` | benchmark dispatch | 11/12/17 | 42.5% | INCONCLUSIVE |
 | `dcdc4b4` | docs only | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE |
-| `98e5cd9` | refined outpost term | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `98e5cd9` | refined outpost term (last `src/` change) | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `794a465` | **no engine change** | 13/13/14 | 48.8% | INCONCLUSIVE |
 | `5be7d7b` | **no engine change** | 16/8/16 | 50.0% | INCONCLUSIVE |
 | `6aae7f7` | **no engine change** | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
 | `40b3556` | **no engine change** | 17/8/15 | 52.5% | INCONCLUSIVE |
+| `90227a6` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
+| `7510ded` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
+| `d306cbc` | **no engine change** | 22/12/6 | 55.0% | INCONCLUSIVE |
+| `c2cc288` | **no engine change** | 16/9/15 | 51.2% | INCONCLUSIVE |
+| `3e0fe75` | **no engine change** | 15/13/12 | 53.8% | INCONCLUSIVE |
+| `f0316b0` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
 
-  Three of those heads have **no engine change at all** (`5be7d7b`, `6aae7f7`, `40b3556` differ from
-  `98e5cd9` only in documentation and workflow files) and they scored 50.0%, 65.0% and 52.5%. The same
-  profile therefore swings from 36.2% to 65.0% on an unchanged engine. At a fixed 100 ms movetime the
-  reached depth depends on the machine speed and the timing jitter, so the played games are **not**
-  reproducible across runs even with the same opening seed — the seeded shuffle fixes the opening order,
-  not the games. A 40-game profile at this time control carries roughly ±30 Elo of pure sampling noise and
-  its classification label must not be read as a strength signal. The 600-game profile is the only one of
-  these worth reading.
+  **On an unchanged engine the profile ranges from 48.8% to 65.0%** (eleven runs, listed above), and
+  the same unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run
+  and `INCONCLUSIVE` in ten others. The 36.2% low and the
+  `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label come from `dcdc4b4`, which is **before** the outpost
+  refinement and therefore a *different* engine: that pair must not be read as "the same code scoring
+  36.2% and 65.0%". The overall observed range across all heads is 36.2%–65.0%, but it spans two
+  different engines; the unchanged-engine range is 48.8%–65.0%.
+
+  At a fixed 100 ms movetime the reached depth depends on the machine speed and the timing jitter, so
+  the played games are **not** reproducible across runs even with the same opening seed — the seeded
+  shuffle fixes the opening order, not the games. A 40-game profile at this time control carries
+  roughly ±30 Elo of pure sampling noise and its classification label must not be read as a strength
+  signal. The 600-game profile is the only one of these worth reading.
 - A local run of the same quick profile scored 24/6/10 (67.5%), which is inside the same spread: the
   local machine and the hosted runner play different games.
 - Every one of these is a fixed-movetime screening comparison against a single opponent. None of them is an

@@ -1,0 +1,3 @@
+seed=31 engine exit=0 lines=8971 fens=8971 ep_positions=264
+checked=8356 agree=8356 engine_rejected_valid=9 (justified by material bound: 9) oracle_invalid=606
+RESULT PASS

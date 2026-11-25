@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 import chess
+import chess.pgn
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ENGINE = "./target/release/flawless"  # overridable with --binary
@@ -168,6 +169,26 @@ def material_for(board: chess.Board, color: chess.Color) -> int:
     )
 
 
+def build_pgn(
+    moves: list[chess.Move], game: int, engine_is_white: bool, outcome: str
+) -> str:
+    """The full move history of one lost game, as a PGN record.
+
+    A board diagram would not be a game: a PGN reader has to be able to replay the moves.
+    """
+    pgn_game = chess.pgn.Game()
+    pgn_game.headers["Event"] = "Flawless weakness diagnostic"
+    pgn_game.headers["Site"] = "local"
+    pgn_game.headers["Round"] = str(game + 1)
+    pgn_game.headers["White"] = "candidate" if engine_is_white else "greedy-eval-opponent"
+    pgn_game.headers["Black"] = "greedy-eval-opponent" if engine_is_white else "candidate"
+    pgn_game.headers["Result"] = outcome
+    node: chess.pgn.GameNode = pgn_game
+    for move in moves:
+        node = node.add_variation(move)
+    return str(pgn_game)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--games", type=int, default=10)
@@ -248,15 +269,18 @@ def main() -> int:
             outcome == "0-1" and not engine_is_white
         )
         engine_drew = outcome == "1/2-1/2"
+        # A game that hit the ply cap has the result "*". It is not a loss: it is unfinished.
+        # Counting it as one would turn a truncated game into a reported defeat.
+        engine_lost = (outcome == "1-0" and not engine_is_white) or (
+            outcome == "0-1" and engine_is_white
+        )
+        unfinished = outcome == "*"
         print(
             f"game {game}: engine={'W' if engine_is_white else 'B'} result={outcome} "
             f"engine_won={engine_won} plies={len(moves)} time={time.time() - game_start:.1f}s"
         )
-        if not engine_won and not engine_drew:
-            game_board = chess.Board()
-            for move in moves:
-                game_board.push(move)
-            losing_games.append(str(game_board))
+        if engine_lost:
+            losing_games.append(build_pgn(moves, game, engine_is_white, outcome))
         results.append(
             {
                 "game": game,
@@ -265,15 +289,20 @@ def main() -> int:
                 "plies": len(moves),
                 "engine_won": engine_won,
                 "engine_drew": engine_drew,
+                "engine_lost": engine_lost,
+                "unfinished": unfinished,
             }
         )
 
     with (out / "weaknesses.jsonl").open("w", encoding="utf-8") as handle:
         for entry in flagged:
             handle.write(json.dumps(entry) + "\n")
-    if losing_games:
-        with (out / "losing-games.pgn").open("w", encoding="utf-8") as handle:
-            handle.write("\n".join(losing_games) + "\n")
+    # The file is always rewritten, so a run without losses cannot leave the losing games of an
+    # earlier run next to a summary that reports none.
+    with (out / "losing-games.pgn").open("w", encoding="utf-8") as handle:
+        handle.write("\n".join(losing_games))
+        if losing_games:
+            handle.write("\n")
 
     summary = {
         "schema": 1,

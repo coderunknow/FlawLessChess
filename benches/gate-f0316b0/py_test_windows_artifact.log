@@ -1,0 +1,32 @@
+................../usr/lib/python3.11/unittest/case.py:579: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.11/unittest/case.py:579: ResourceWarning: unclosed file <_io.BufferedReader name=10>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/user/FlawLessChess/scripts/test_windows_artifact.py:259: ResourceWarning: unclosed file <_io.BufferedWriter name=5>
+  with self.assertRaises(wa.CheckError):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/user/FlawLessChess/scripts/test_windows_artifact.py:259: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  with self.assertRaises(wa.CheckError):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/user/FlawLessChess/scripts/test_windows_artifact.py:259: ResourceWarning: unclosed file <_io.BufferedReader name=10>
+  with self.assertRaises(wa.CheckError):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/user/FlawLessChess/scripts/test_windows_artifact.py:241: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  hs, bestmove, code, lines = wa.uci_session_bestmove(sys.executable, [self.script], "fake")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/user/FlawLessChess/scripts/test_windows_artifact.py:241: ResourceWarning: unclosed file <_io.BufferedReader name=10>
+  hs, bestmove, code, lines = wa.uci_session_bestmove(sys.executable, [self.script], "fake")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./usr/lib/python3.11/traceback.py:240: ResourceWarning: unclosed file <_io.BufferedReader name=6>
+  tb.tb_frame.clear()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.11/traceback.py:240: ResourceWarning: unclosed file <_io.BufferedReader name=10>
+  tb.tb_frame.clear()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.
+----------------------------------------------------------------------
+Ran 22 tests in 3.052s
+
+OK

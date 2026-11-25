@@ -234,7 +234,10 @@ def summarize_records(
     elo_high = _elo(score_ci[1])
     if score_ci[1] <= 0.0 or (elo_high is not None and elo_high < SEVERE_REGRESSION_ELO):
         classification = "SEVERE_REGRESSION"
-    elif elo_low is not None and elo_low > 0.0:
+    elif score_ci[0] > 0.5:
+        # The score interval is the boundary test, not the Elo estimate. At a perfect score the
+        # Elo model is undefined (the logistic Elo has no finite value at 1.0), so testing the
+        # Elo estimate alone would classify a clean sweep as INCONCLUSIVE.
         classification = "POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY"
     elif score_ci[1] < 0.5:
         classification = "NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE"

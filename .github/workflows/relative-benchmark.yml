@@ -71,7 +71,15 @@ jobs:
             printf 'profile=%s\n' "$INPUT_PROFILE" >> "$GITHUB_OUTPUT"
             printf 'seed=%s\n' "$INPUT_SEED" >> "$GITHUB_OUTPUT"
             printf 'variants=[{"name":"full","ablate":""}]\n' >> "$GITHUB_OUTPUT"
-            printf 'suites=benches/openings-20.txt\n' >> "$GITHUB_OUTPUT"
+            # The quick profile is the 20-opening screen. The screen and extended profiles are
+            # the 100-opening tournament and are frozen to the two batch suites, so a manual
+            # dispatch measures the same openings as a dispatched one.
+            if [ "$INPUT_PROFILE" = "quick" ]; then
+              printf 'suites=benches/openings-20.txt\n' >> "$GITHUB_OUTPUT"
+            else
+              printf 'suites=benches/rating-openings-100-batchA.txt,benches/rating-openings-100-batchB.txt\n' \
+                >> "$GITHUB_OUTPUT"
+            fi
             exit 0
           fi
           if [ "$EVENT_NAME" = "push" ]; then
@@ -92,6 +100,20 @@ jobs:
           suites = req.get("opening_suites") or ["benches/openings-20.txt"]
           if not isinstance(suites, list) or not suites:
               raise SystemExit("opening_suites must be a non-empty list")
+          if profile == "extended":
+              # The extended job runs the full candidate and nothing else: it does not consume
+              # the variants, and it does not consume the suites. A request that asks for
+              # something the job would ignore is rejected here rather than measured wrongly.
+              if len(variants) != 1 or variants[0].get("name") != "full" or variants[0].get("ablate", ""):
+                  raise SystemExit(
+                      "the extended profile runs the full candidate only; it does not support "
+                      "ablation variants"
+                  )
+              if suites != ["benches/rating-openings-100-batchA.txt", "benches/rating-openings-100-batchB.txt"]:
+                  raise SystemExit(
+                      "the extended profile is frozen to the two batch opening suites; "
+                      f"got {suites!r}"
+                  )
           print(f"profile={profile}")
           print(f"seed={seed}")
           print("suites=" + ",".join(suites))
@@ -267,17 +289,27 @@ jobs:
           CARGO_TARGET_DIR: ${{ runner.temp }}/baseline-target
 
       - name: Run 100 paired openings (200 real UCI games) for this independent seed
+        env:
+          # The suites come from the resolved request, so the run measures exactly the openings
+          # that were requested. The resolver rejects an extended request that names any other
+          # suites, because the extended profile is a frozen tournament.
+          EXTENDED_SUITES: ${{ needs.request.outputs.suites }}
         run: |
           set -euo pipefail
           case "$SEED_BASE" in *[!0-9]*|'') echo "invalid seed: $SEED_BASE"; exit 2 ;; esac
           seed=$((SEED_BASE + RUN_INDEX - 1))
+          suite_args=()
+          IFS=',' read -ra suites <<< "$EXTENDED_SUITES"
+          for suite in "${suites[@]}"; do
+            suite_args+=(--opening-suite "$suite")
+          done
+          if [ "${#suite_args[@]}" -eq 0 ]; then echo "no opening suites resolved" >&2; exit 2; fi
           sha256sum target/release/flawless "${RUNNER_TEMP}/baseline-target/release/flawless"
           python scripts/relative_benchmark.py run \
             --profile extended \
             --candidate "$PWD/target/release/flawless" \
             --baseline "${RUNNER_TEMP}/baseline-target/release/flawless" \
-            --opening-suite benches/rating-openings-100-batchA.txt \
-            --opening-suite benches/rating-openings-100-batchB.txt \
+            "${suite_args[@]}" \
             --seed "$seed" \
             --candidate-sha "$CANDIDATE_SHA" \
             --baseline-sha "$BASELINE_SHA" \

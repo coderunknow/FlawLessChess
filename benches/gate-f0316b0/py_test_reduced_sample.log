@@ -1,0 +1,8 @@
+PASS exact 100/50 paired design
+PASS missing counted slot (including unadjudicated case)
+PASS counted engine-error record
+PASS duplicate/missing schedule index
+PASS AB/BA reversal violation
+PASS registered opening mismatch
+PASS unadjudicated result counted
+reduced_sample: 7/7 PASS

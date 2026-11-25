@@ -1036,3 +1036,74 @@ was reproduced and is a **false positive**: the cited position
 the defended variant `4k3/1p6/8/2N5/3P4/8/8/4K3 w - - 0 1` also scores outpost 0, because the b7 pawn
 steps to b6 and attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the
 undefended case were added as regressions.
+
+---
+
+## 2026-11-25 — Addendum: the quick-profile variance, corrected
+
+The 2026-11-24 entry above claims that the 40-game quick profile "swings from 36.2% to 65.0% on an
+unchanged engine" and that it produced both a `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` and a
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` label "for the same code". **Both claims are wrong as
+written.** This addendum corrects them; the entry above is left untouched because the log is
+append-only.
+
+The error: the 36.2% run used `dcdc4b4`, which is **before** `98e5cd9` (the refined outpost term, the
+last change to `src/` on this branch). The 65.0% run used `6aae7f7`, which is **after** it. The two
+runs therefore used different engines, and they cannot be paired as "the same code".
+
+What the runs actually show. The last change to `src/` on this branch is `98e5cd9`; `Cargo.toml`,
+`Cargo.lock`, `rust-toolchain.toml` and `build.rs` are unchanged since then, so every head below
+`98e5cd9` in this list produced a **byte-identical release binary**:
+
+| Head | Engine change | W/D/L | Score | Classification |
+|---|---|---|---|---|
+| `504924b` | outpost fixture fix | 9/14/17 | 40.0% | INCONCLUSIVE |
+| `78f42ca` | benchmark dispatch | 11/12/17 | 42.5% | INCONCLUSIVE |
+| `dcdc4b4` | docs only | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE |
+| `98e5cd9` | refined outpost term (last `src/` change) | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `794a465` | **no engine change** | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `5be7d7b` | **no engine change** | 16/8/16 | 50.0% | INCONCLUSIVE |
+| `6aae7f7` | **no engine change** | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `40b3556` | **no engine change** | 17/8/15 | 52.5% | INCONCLUSIVE |
+| `90227a6` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
+| `7510ded` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
+| `d306cbc` | **no engine change** | 22/12/6 | 55.0% | INCONCLUSIVE |
+| `c2cc288` | **no engine change** | 16/9/15 | 51.2% | INCONCLUSIVE |
+| `3e0fe75` | **no engine change** | 15/13/12 | 53.8% | INCONCLUSIVE |
+| `f0316b0` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
+
+The corrected claims:
+
+* **On an unchanged engine the profile ranges from 48.8% to 65.0%** — eleven runs of a
+  byte-identical binary over the same 20 openings and the same seed.
+* **On that same unchanged engine the label is not stable**: one run produced
+  `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` (`6aae7f7`, 65.0%) and the other ten produced
+  `INCONCLUSIVE`.
+* The `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label belongs to `dcdc4b4`, a **different** engine.
+* The overall range across all heads is 36.2%–65.0%, but that range spans two different engines and
+  must not be quoted as an unchanged-engine spread.
+
+The conclusion does not change: the 40-game quick profile is a regression screen, not a strength
+signal. The corrected numbers make the case stronger rather than weaker — the spread on *identical*
+code is 16.2 points, and the label flips on identical code.
+
+### Consequence for the ablation study
+
+The ablation entry above compares the spread between the four variants against "the 36.2%-65.0%
+spread that the same profile produced across repeated runs of an unchanged engine". That comparison
+is corrected to the unchanged-engine spread of **48.8%-65.0%**. Note that the ablation matrix uses the
+`screen` profile (200 games) and the variance figures come from the `quick` profile (40 games), so
+the two are not the same instrument; the conclusion rests on the overlapping confidence intervals,
+which stand on their own.
+
+The honest statement of what the ablation study establishes:
+
+* Each variant is **INCONCLUSIVE** against the baseline, and the four intervals overlap completely.
+* The point estimates differ (46.8% to 53.8%), which is the direction one would expect, but the
+  design cannot separate that difference from the profile's own noise.
+* The switch itself is verified deterministically: the named terms are removed from the evaluation
+  and the scores change accordingly.
+* The **magnitude** of each term's contribution is **not** measured. A sharper design would need a
+  paired difference over the shared openings and a time control that makes the played games
+  reproducible; the artifacts of this run cannot be downloaded from the development sandbox, so that
+  paired analysis was not performed here.

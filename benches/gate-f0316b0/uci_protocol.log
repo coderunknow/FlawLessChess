@@ -1,0 +1,13 @@
+PASS   handshake
+PASS   no banner
+PASS   depth-4 after moves
+PASS   10ms clock no hang
+PASS   movetime 300
+PASS   infinite+stop
+PASS   quit during infinite
+PASS   setoption/junk tolerant
+PASS   position fen promo
+PASS   stalemate
+PASS   en passant capture
+PASS   searchmoves illegal only
+12/12 passed

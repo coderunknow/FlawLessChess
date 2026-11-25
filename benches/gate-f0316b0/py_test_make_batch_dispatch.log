@@ -1,0 +1,12 @@
+make_batch_dispatch: BLOCKED — duplicate counted schedule_index 0 across committed runs
+make_batch_dispatch: BLOCKED — run-1: manifest identity/time-control mismatch: {'batch': 'A', 'anchor': 'akimbo-0.1.1', 'engine_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'anchor_sha256': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'opening_suite_sha256': 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'time_control': {'mode': 'clock', 'period_moves': 40, 'period_seconds': 900.001}}
+make_batch_dispatch: BLOCKED — run-1: schedule_index 0 does not match opening-00/AB
+make_batch_dispatch: BLOCKED — power assessment was computed from a different engine binary SHA-256
+PASS exact reverse-color slot recovered without replaying counted AB
+PASS complete AB/BA pair is never scheduled again
+PASS duplicate counted slot across runs
+PASS time-control identity mismatch
+PASS registered opening mismatch
+PASS matching engine SHA is accepted by the power guard
+PASS power assessment engine-SHA mismatch
+make_batch_dispatch recovery tests: 7/7 PASS

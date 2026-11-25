@@ -49,10 +49,10 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
 - **Measured (ablation matrix, screening only):** the four variants of the ablation study (hosted run
   `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`, 200 games each) came out at
   `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms` 46.8%, and **every variant is
-  INCONCLUSIVE with overlapping intervals**. The study therefore **does not measure the contribution
-  of any of the three terms** at this sample size: the spread between the variants is far smaller
-  than the 36.2%-65.0% spread that the same profile produced across repeated runs of an unchanged
-  engine. The switch itself is verified; the magnitude of each term's contribution is not measured.
+  INCONCLUSIVE with completely overlapping intervals**. The study therefore **does not measure the
+  contribution of any of the three terms** at this sample size. The switch itself is verified
+  deterministically; the magnitude of each term's contribution is not measured. A sharper design
+  would need a paired difference over the shared openings and a reproducible time control.
 
 ## [Unreleased] — outpost correction, tempo semantics, ablation switch, paired benchmark (2026-11-24)
 
@@ -88,12 +88,15 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)
   finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
   classification **INCONCLUSIVE**. No strength difference against the pinned baseline is measurable. The
-  Seven hosted quick runs of the same 20-opening profile ranged from **36.2% to 65.0%**, and three of
-  them ran on heads with **no engine change at all** (50.0%, 65.0%, 52.5%). A fixed 100 ms movetime makes
-  the reached depth depend on the machine speed and the timing jitter, so the played games are not
-  reproducible across runs even with the same opening seed: the seeded shuffle fixes the opening order, not
-  the games. The 40-game profile therefore carries roughly ±30 Elo of pure sampling noise and its
-  classification label must not be read as a strength signal; the 600-game profile is the meaningful one.
+  Eleven hosted quick runs of the same 20-opening profile, on heads with a **byte-identical release
+  binary** (the last change to `src/` on the branch is the outpost refinement `98e5cd9`), ranged from
+  **48.8% to 65.0%**, and the same unchanged engine produced the label
+  `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and `INCONCLUSIVE` in the other ten. A fixed
+  100 ms movetime makes the reached depth depend on the machine speed and the timing jitter, so the
+  played games are not reproducible across runs even with the same opening seed: the seeded shuffle
+  fixes the opening order, not the games. The 40-game profile therefore carries roughly ±30 Elo of
+  pure sampling noise and its classification label must not be read as a strength signal; the 600-game
+  profile is the meaningful one.
 
 ## [Unreleased] — engine improvements (2026-11-24)
 

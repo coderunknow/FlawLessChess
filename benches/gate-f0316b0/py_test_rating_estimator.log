@@ -1,0 +1,24 @@
+note: pool anchors without batch evidence (excluded from the gate): ['p0', 'p3', 'p5']
+PASS batch_a: calibrated 95% CI lower bound 2291.558234515254 > 0.0 (strict, unrounded)
+PASS batch_b: calibrated 95% CI lower bound 2291.607266984118 > 0.0 (strict, unrounded)
+PASS combined: calibrated 95% CI lower bound 2292.544245399495 > 0.0 (strict, unrounded)
+PASS batch_a/p1: |d| <= 400 (no saturation; d=235.13196882514023)
+PASS batch_a/p1: counted games 850 >= 10
+PASS batch_a/p2: |d| <= 400 (no saturation; d=235.13196882514023)
+PASS batch_a/p2: counted games 850 >= 10
+PASS batch_a/p4: |d| <= 400 (no saturation; d=235.13196882514023)
+PASS batch_a/p4: counted games 850 >= 10
+PASS batch_a: GLS used (fallback would need explicit preregistered handling)
+PASS batch_b/p1: |d| <= 400 (no saturation; d=235.13196882514023)
+PASS batch_b/p1: counted games 850 >= 10
+PASS batch_b/p2: |d| <= 400 (no saturation; d=235.13196882514023)
+PASS batch_b/p2: counted games 850 >= 10
+PASS batch_b/p4: |d| <= 400 (no saturation; d=235.13196882514023)
+PASS batch_b/p4: counted games 850 >= 10
+PASS batch_b: GLS used (fallback would need explicit preregistered handling)
+FAIL null control anchor-vs-anchor within +/-75 (err=265.13196882514023)
+FAIL null control self-match consistent with 0.5 (CI=[0.7876470588235294, 0.8011764705882353])
+PASS >= 3 eligible anchors with evidence in both batches
+GATE: FAIL  (details in /tmp/tmp6gs90865/out.json)
+
+65 checks passed, 0 failed

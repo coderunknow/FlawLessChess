@@ -71,9 +71,20 @@ FLAWLESS_ABLATE=space python scripts/relative_benchmark.py run --profile quick \
   --candidate-sha "$CANDIDATE_SHA" --baseline-sha "$BASELINE_SHA" --out bench/no-space
 ```
 
-The difference between the two summaries is the measured contribution of the ablated term. The
-two runs use the same seed and the same opening suite, so the schedule is identical and the
-comparison is paired.
+The two runs use the same seed and the same opening suite, so the schedule is identical and the
+comparison is paired over the openings.
+
+**The difference between the two summaries is a screening estimate, not a measured contribution.**
+The same openings do not make fixed-movetime games reproducible: the reached depth depends on the
+machine speed and the timing jitter, so the played games differ between runs even with the same seed.
+The hosted ablation study is the concrete demonstration: every variant came out INCONCLUSIVE with
+completely overlapping intervals, so the study could not distinguish the variants from noise at that
+sample size.
+
+A term's contribution is only established when the difference between the ablated and the full engine
+is large compared with the profile's own run-to-run spread on an *unchanged* engine, and when the
+paired difference over the shared openings is itself significant. Until then, report the difference as
+an estimate and say plainly that the measurement is inconclusive.
 
 **Ablation output is a diagnostic, not a strength claim.** It says how much a term moves the
 score of a fixed opponent pool; it is not a rating, and a term that measures as "important" does

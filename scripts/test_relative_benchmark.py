@@ -178,6 +178,30 @@ def test_three_run_aggregate_is_clustered_and_provenance_checked() -> None:
         check(len(result["replicates"]) == 3, "aggregate records all replicate seeds")
 
 
+def test_a_perfect_score_is_a_positive_relative_signal() -> None:
+    # At a perfect score the logistic Elo model has no finite value (the boundary is 1.0), so
+    # the classification must be driven by the score interval and not by the Elo estimate.
+    games: list[dict] = []
+    names = []
+    for i in range(20):
+        name = f"open-{i}"
+        names.append(name)
+        # The results are from White's perspective: the candidate is White in the first game and
+        # Black in the second, so a candidate win is "1-0" then "0-1".
+        games += make_pair(name, "1-0", "0-1")
+    summary = rb.summarize_records(games, names, 17, bootstrap_replicates=1000)
+    check(summary["valid"], "a clean sweep is structurally valid")
+    check(summary["games"] == 40, "every game of the sweep is scored")
+    check(summary["score"]["fraction"] == 1.0, "the sweep scores a full point per game")
+    check(
+        summary["classification"] == "POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY",
+        "a perfect score is a positive relative signal, not INCONCLUSIVE",
+    )
+    check(summary["relative_elo"]["estimate"] is None, "the Elo boundary stays null, not clamped")
+    check(summary["relative_elo"]["ci95"] == [None, None], "the boundary CI values stay null")
+    check(not summary["severe_regression"], "a perfect score is not a severe regression")
+
+
 def test_game_without_the_candidate_is_excluded_from_the_scorable_set() -> None:
     # A row that does not name the candidate cannot be scored. It must be left out of the
     # confidence interval as well, otherwise the interval and the point estimate are computed
@@ -306,6 +330,7 @@ def main() -> int:
     test_invalid_or_uncounted_game_is_not_scored()
     test_zero_score_is_severe_without_finite_elo_claim()
     test_three_run_aggregate_is_clustered_and_provenance_checked()
+    test_a_perfect_score_is_a_positive_relative_signal()
     test_game_without_the_candidate_is_excluded_from_the_scorable_set()
     test_opening_order_digest_is_verified_before_aggregation()
     test_replicates_with_different_ablation_masks_cannot_be_combined()
