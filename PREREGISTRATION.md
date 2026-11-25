@@ -663,3 +663,41 @@ the A-suite runs land there as registered, while the B-suite runs' evidence is c
 `benches/evidence-bridge` (revision 5) into `benches/evidence/screening-b/<label>/`. The games,
 shards and manifests are identical either way; only the committed directory differs. The power
 assessment consumes the two roots accordingly.
+
+### Game-analysis defect scan (2026-11-25, append-only)
+
+Method: replay every recorded 40/15 anchor game (SCREEN-2/SCREEN-3, 360 games) plus the CTRL-2-R
+self-matches (240); scan for (a) material given away at one-ply SEE with full recapture
+accounting, (b) mate-in-1 missed or allowed, (c) illegal moves/engine errors, (d) time-flag
+patterns and clock-at-end asymmetry, (e) fifty-move draws from positions of stable material
+advantage. Blunder candidates were cross-checked against BOTH the engine at depth 12+ AND the
+strong opponents' actual replies in the games. Findings and dispositions:
+
+1. **VERIFIED DEFECT — unbounded check extensions (fixed in 7ba0576).** `go depth` failed to
+   complete on queen-check endgames (depth 12 > 300 s on an 8-piece position; depth-8 tree 3.2M
+   nodes vs 49k at startpos; node curve ~5.5x per depth). Cause: the +1 check extension fired on
+   every evasion of a checking line with no per-line bound. Fix: per-line EXT_BUDGET = 3 (see
+   scripts/analyze_game_losses.py commit message and search.rs for the measured curve). All
+   registered tests and probes green after the fix. Superseding effect: the PR #6 candidate is
+   now ENGINE-4 (search change alters the bench signature and binary hash); ENGINE-3 stays frozen
+   for the in-flight campaign, whose runs pin their own dispatch commits.
+2. **Refuted — tactical blindness hypothesis.** The one-ply SEE flagged 90 "severe" hangs in
+   materially-equal positions; **the strong opponents collected 0 of 67 checked flags** (67/67
+   declined, e.g. a "hanging queen" that was poisoned). The engine's depth-12 judgments matched
+   the opponents' verdicts; the scanner's exchange model was the false-positive source. Tool
+   corrected (3-ply exchange simulation).
+3. **Refuted — mate-detection defect.** 0 missed mate-in-1 across 600+ recorded games; mate
+   probes (mate1 120/120, mate_distance mate-in-2 exact, negative_mate, multipv) green.
+4. **Refuted — time-manager defect.** The flag-era runs (screening-1 / control/flawless-self)
+   predate the registered CLOCK-1 budget; current clock behaviour verified (clock_sweep 60/60,
+   time_budget 8/8, selfplay 300/15000, screening-2/3 zero flags in 360 games). Flawless spends
+   the full period budget by design (soft = (t-reserve)/mtg).
+5. **Noted, strength-only — endgame conversion.** The 11 fifty-move draws vs akimbo had stable
+   material peaks of +0..+400cp (mostly +100..+350); no code defect found; consistent with
+   reduced endgame search depth (partially mitigated by finding 1).
+
+Registration: the ENGINE-4 candidate will be frozen after the full validation gate on the fixed
+tree; the per-engine campaign (CTRL-4 + SCREEN-E4-A/B + reviewed power assessment) is required
+before any confirmatory dispatch, exactly as for ENGINE-2/ENGINE-3 (per-engine hash restriction
+above). The design-decision rule (2026-11-25) is unchanged and will be applied to ENGINE-4's
+screening covariances.

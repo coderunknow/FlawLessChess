@@ -1356,3 +1356,17 @@ each. 960 real UCI games at 40/15 against the three frozen anchors, all on ENGIN
 deduplicate pushes within seconds); they were re-dispatched with 95 s spacing at revisions 22-24.
 The B-suite runs share labels with the A-suite runs, so their in-run evidence jobs will refuse to
 overwrite and the B evidence is registered for bridge collection into `screening-b/`.
+
+### 2026-11-25 — engine game-analysis defect scan (findings above in PREREGISTRATION)
+
+Replayed 600+ recorded 40/15 games (SCREEN-2/3 anchors + CTRL-2-R). Built
+scripts/analyze_game_losses.py (3-ply exchange-simulation blame scanner, opponent-validated).
+VERIFIED FIX (7ba0576): bounded check extensions (EXT_BUDGET=3) — `go depth` non-termination on
+queen-check endgames fixed (depth-12 on the reference position: >300 s -> 109 s). Validation on
+the fixed tree: 183/183 release + 177/177 debug tests, search_sweep, tt_bestmove 400x2,
+searchmoves, pv_legality, mate1 120/120, negative_mate 12/12, multipv 30/30, mate_distance
+20/20, perft_random, clock_sweep 60/60, time_budget 8/8, selfplay clock, fmt/clippy clean.
+Refuted with evidence: tactical-blindness (0/67 opponent-collected flags), mate detection
+(0 missed mate-in-1 in 600+ games), time manager (registered CLOCK-1 design; current probes
+green), conversion (fifty-move draws were near-equal shuffles). ENGINE-3 campaign unaffected
+(runs pin dispatch commits); PR #6 candidate = ENGINE-4 pending full gate + per-engine campaign.
