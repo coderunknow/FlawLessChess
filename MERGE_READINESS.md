@@ -104,6 +104,10 @@ What this iteration added and verified:
       (600 real UCI games, 100 opening clusters) finished **217 W / 164 D / 219 L**, score **49.8%**, relative
       Elo **-23.2 to +21.5** (95% CI), classification **INCONCLUSIVE**. The candidate is **not** measurably
       different from the pinned baseline. Recorded as screening evidence only; it is not a strength claim.
+- [x] The 40-game quick screen is **not** usable as a strength signal: seven hosted runs of the identical
+      profile ranged from 36.2% to 65.0%, and three of them ran on heads with no engine change at all
+      (50.0%, 65.0%, 52.5%). A fixed 100 ms movetime makes the played games machine- and jitter-dependent, so
+      the seed fixes the opening order but not the games. The quick screen stays a regression screen.
 - [ ] **Absolute V1 rating gate: NOT MET.** Still UNKNOWN / NOT MEASURED. The relative screening result above
       is not an absolute rating and cannot be used as one.
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read

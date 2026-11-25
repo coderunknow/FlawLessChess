@@ -892,12 +892,19 @@ movetime 100 ms, hash 64 MB, one thread — finished **217 W / 164 D / 219 L of 
 49.8%**, relative Elo **-23.2 to +21.5** (95% CI, opening-clustered percentile bootstrap), classification
 **INCONCLUSIVE**, `valid: true`. No strength difference against the pinned baseline is measurable.
 
-The quick profile is far noisier than the profile size suggests: two hosted runs of the identical 40-game
-profile scored 40.0% and 42.5%, while a local run of the same profile scored 67.5%. The reason is that a
-fixed 100 ms movetime makes the reached depth depend on the machine speed and the timing jitter, so the
-played games are **not** reproducible across machines even with the same opening seed. The seeded shuffle
-fixes the *opening order*, not the games. A 40-game profile at this time control therefore carries a
-sampling noise of tens of Elo points on its own, and the 600-game profile is the only one worth reading.
+The quick profile is far noisier than the profile size suggests. Seven hosted runs of the same 20-opening
+profile with the same seed, over heads whose engine code differs in at most one term, scored 40.0%, 42.5%,
+36.2%, 48.8%, 50.0%, 65.0% and 52.5%. **Three of those heads have no engine change at all** — `5be7d7b`,
+`6aae7f7` and `40b3556` differ from `98e5cd9` only in documentation and workflow files — and they scored
+50.0%, 65.0% and 52.5%. The same profile therefore swings from 36.2% to 65.0% on an unchanged engine, and
+it produced both a `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label and a
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` label for the same code.
+
+The reason is that a fixed 100 ms movetime makes the reached depth depend on the machine speed and the
+timing jitter, so the played games are **not** reproducible across runs even with the same opening seed.
+The seeded shuffle fixes the *opening order*, not the games. A 40-game profile at this time control carries
+roughly ±30 Elo of pure sampling noise, and its classification label must not be read as a strength
+signal. The 600-game profile is the only one of these worth reading.
 
 All of this is a fixed-movetime screening comparison against a single opponent. It is not an official
 rating, not an absolute rating, and not a strength claim.

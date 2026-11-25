@@ -437,11 +437,29 @@ summary is published to a pull request comment.
   thread): **217 W / 164 D / 219 L**, score 299.0/600 = **49.8%**, relative Elo **-23.2 to +21.5**
   (95% CI, opening-clustered percentile bootstrap). Classification **INCONCLUSIVE**, `valid: true`.
   **No strength difference is measurable against the pinned baseline.**
-- Quick profile, hosted CI, 40 games each on two consecutive heads: **9/14/17 (40.0%)** and **11/12/17
-  (42.5%)**, both INCONCLUSIVE. A local run of the same profile scored 24/6/10 (67.5%). The spread across
-  identical profiles is the important finding: at a fixed 100 ms movetime the played games depend on the
-  machine speed and the timing jitter, so the games are **not** reproducible across machines even with the
-  same seed, and a 40-game profile is dominated by noise. The 600-game profile is the meaningful one.
+- Quick profile, hosted CI, 40 games per run on the **same 20 openings and the same seed**, over seven
+  runs of heads whose engine code differs in at most one term:
+
+| Head | Engine change | W/D/L | Score | Classification |
+|---|---|---|---|---|
+| `504924b` | outpost fixture fix | 9/14/17 | 40.0% | INCONCLUSIVE |
+| `78f42ca` | benchmark dispatch | 11/12/17 | 42.5% | INCONCLUSIVE |
+| `dcdc4b4` | docs only | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE |
+| `98e5cd9` | refined outpost term | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `5be7d7b` | **no engine change** | 16/8/16 | 50.0% | INCONCLUSIVE |
+| `6aae7f7` | **no engine change** | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `40b3556` | **no engine change** | 17/8/15 | 52.5% | INCONCLUSIVE |
+
+  Three of those heads have **no engine change at all** (`5be7d7b`, `6aae7f7`, `40b3556` differ from
+  `98e5cd9` only in documentation and workflow files) and they scored 50.0%, 65.0% and 52.5%. The same
+  profile therefore swings from 36.2% to 65.0% on an unchanged engine. At a fixed 100 ms movetime the
+  reached depth depends on the machine speed and the timing jitter, so the played games are **not**
+  reproducible across runs even with the same opening seed — the seeded shuffle fixes the opening order,
+  not the games. A 40-game profile at this time control carries roughly ±30 Elo of pure sampling noise and
+  its classification label must not be read as a strength signal. The 600-game profile is the only one of
+  these worth reading.
+- A local run of the same quick profile scored 24/6/10 (67.5%), which is inside the same spread: the
+  local machine and the hosted runner play different games.
 - Every one of these is a fixed-movetime screening comparison against a single opponent. None of them is an
   official or absolute rating, and none of them is a strength claim.
 

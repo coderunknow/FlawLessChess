@@ -36,8 +36,12 @@ All notable changes are documented here. SemVer 2.0.0. Versions before the V1 re
   games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)
   finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
   classification **INCONCLUSIVE**. No strength difference against the pinned baseline is measurable. The
-  40-game quick profile ranges from 40.0% to 67.5% across identical profiles, because a fixed 100 ms
-  movetime makes the played games machine-dependent; the 600-game profile is the meaningful one.
+  Seven hosted quick runs of the same 20-opening profile ranged from **36.2% to 65.0%**, and three of
+  them ran on heads with **no engine change at all** (50.0%, 65.0%, 52.5%). A fixed 100 ms movetime makes
+  the reached depth depend on the machine speed and the timing jitter, so the played games are not
+  reproducible across runs even with the same opening seed: the seeded shuffle fixes the opening order, not
+  the games. The 40-game profile therefore carries roughly ±30 Elo of pure sampling noise and its
+  classification label must not be read as a strength signal; the 600-game profile is the meaningful one.
 
 ## [Unreleased] — engine improvements (2026-11-24)
 
