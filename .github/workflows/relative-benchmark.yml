@@ -172,6 +172,9 @@ jobs:
 
       - name: Publish the benchmark summary (job summary and pull request comment)
         if: always()
+        # The publish step never decides the outcome of the job: when the benchmark itself failed
+        # there is no summary to publish, and the benchmark step already reported the failure.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -310,6 +313,7 @@ jobs:
 
       - name: Publish the pooled result (job summary and pull request comment)
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_BRANCH: ${{ github.ref_name }}
