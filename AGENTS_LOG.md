@@ -1370,3 +1370,26 @@ Refuted with evidence: tactical-blindness (0/67 opponent-collected flags), mate 
 (0 missed mate-in-1 in 600+ games), time manager (registered CLOCK-1 design; current probes
 green), conversion (fifty-move draws were near-equal shuffles). ENGINE-3 campaign unaffected
 (runs pin dispatch commits); PR #6 candidate = ENGINE-4 pending full gate + per-engine campaign.
+
+
+## 2026-11-25 — ENGINE-4 freeze, campaign registration, Phase-2 tooling (branch arena/247fe7df-flawlesschess, PR #6 draft)
+
+Sandbox snapshot restored mid-session (toolchain/venv wiped, git history reset to base): the
+working tree was a strict subset of the pushed state, so `git reset --hard origin/<branch>`
+restored `5fa99a8` exactly; toolchain rebuilt per docs/ENVIRONMENT.md (restore #5, npm
+`@toolchain-bin/*` 1.99.0 pins + python-chess 1.11.2). Bench of the rebuilt binary reproduces
+ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for behavior).
+
+- Phase-2 tooling (`e717dc3`): `scripts/power_analysis_v2.py` takes `--engine-sha` (required,
+  enforced against every manifest) and `--labels-a/--labels-b` (campaign-suffixed anchor ids;
+  `pool_key`/`validate_label_sets` fail loud). SCREEN-E4's B-suite runs will carry `-e4b` labels
+  so in-run evidence cannot collide with the A-suite dirs (the SCREEN-E3 overwrite problem and
+  its bridge do not recur). E3 invocation byte-stable (defaults unchanged); fixture checks
+  10/10 in `scripts/test_power_analysis.py`.
+- ENGINE-4 frozen + CTRL-4/SCREEN-E4-A/B registered in PREREGISTRATION.md before dispatch
+  (seeds 20261217-20261223). ENGINE-3's in-flight campaign evidence stays with ENGINE-3
+  (frozen `733de4e5…` / `141943aa23b3fc68`); no transfer between engines.
+- Hosted identity channel re-verified: verify-flawless check-run 139331041790 at the `c59da29`
+  PR head reports `binary_sha256=bbf9582d… bench_signature=849a85bf7e8e1eba` (ubuntu24
+  20261116.133.1, rustc 1.99.0). The runner digest is the dispatch identity; the sandbox digest
+  `b63f5ad1…` differs in linker only.

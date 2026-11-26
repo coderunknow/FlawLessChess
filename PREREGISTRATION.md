@@ -701,3 +701,76 @@ tree; the per-engine campaign (CTRL-4 + SCREEN-E4-A/B + reviewed power assessmen
 before any confirmatory dispatch, exactly as for ENGINE-2/ENGINE-3 (per-engine hash restriction
 above). The design-decision rule (2026-11-25) is unchanged and will be applied to ENGINE-4's
 screening covariances.
+
+### ENGINE-4 freeze and campaign registrations (2026-11-25, append-only)
+
+**ENGINE-4 freeze.** The full validation gate on the fixed tree passed (52/52 steps, `FAILS=0`,
+record `benches/gate-c59da29/`; the search fix is `7ba0576` + `a33065e`, EXT_BUDGET=3 with the
+`ext_path` ply+1 hardening). Frozen identity, taken from the hosted `verify-flawless` annotation
+(check-run 139331041790, PR-head build of `c59da29`, image `ubuntu24 20261116.133.1`, rustc
+1.99.0 `b940084d7`):
+
+- bench signature: **`849a85bf7e8e1eba`** (the anchor-verify pin moved to this value in `c59da29`
+  as that workflow's contract requires);
+- release binary SHA-256: **`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`**
+  (ubuntu-24.04 runner build; the sandbox build `b63f5ad1…` differs in linker only and is not the
+  dispatch identity, exactly as for ENGINE-3's freeze).
+
+ENGINE-3's frozen identity (`733de4e5…` / `141943aa23b3fc68`) is unchanged and its in-flight
+campaign (CTRL-3 + SCREEN-E3-A/B, runs dispatched 2026-11-25) stays attributed to ENGINE-3. No
+ENGINE-3 evidence transfers to ENGINE-4: each engine's campaign stands on its own control,
+screening and reviewed power assessment (per-engine hash restriction above).
+
+**CTRL-4 (registered before dispatch).** Candidate-specific self-match null control for ENGINE-4:
+`benches/evidence/control/flawless-self-e4/`, batch `CTRL`, anchor `flawless-self-e4`,
+white = black = `flawless`, 60 openings x 2 paired repetitions x AB/BA = 240 counted games
+(120 shards x 2), suite `benches/rating-openings-batchA.txt`
+(`2c4a54d8…`), TC 40/15 (CLOCK-1), seed **20261217**, estimator seed 20261217. Acceptance:
+seat-perspective score 0.5 must lie inside the 95% opening-cluster bootstrap CI (the CTRL-2-R /
+CTRL-3 rule; ENGINE-3's CTRL-3 PASS would not transfer to this engine).
+
+**SCREEN-E4-A1/A2/A3 (registered before dispatch).** Screening versus the three calibrated
+anchors on suite A (`benches/rating-openings-batchA.txt`, `2c4a54d8…`): 60 openings x 2 paired
+repetitions x AB/BA = 120 counted games per anchor (60 shards x 2), TC 40/15 (CLOCK-1).
+Runs and labels:
+
+| dispatch | run | seed | label (in-run evidence dir) | anchor |
+|---|---|---|---|---|
+| SCREEN-E4-A1 | `topple-0.1.1` | 20261218 | `topple-0.1.1-e4` | `benches/evidence/screening/topple-0.1.1-e4/` |
+| SCREEN-E4-A2 | `topple-0.2.1` | 20261219 | `topple-0.2.1-e4` | `benches/evidence/screening/topple-0.2.1-e4/` |
+| SCREEN-E4-A3 | `akimbo-0.1.1` | 20261220 | `akimbo-0.1.1-e4` | `benches/evidence/screening/akimbo-0.1.1-e4/` |
+
+**SCREEN-E4-B1/B2/B3 (registered before dispatch).** The same three anchors on suite B
+(`benches/rating-openings-batchB.txt`, `744a3981…`), same shape, seeds **20261221 / 20261222 /
+20261223**, labels **`topple-0.1.1-e4b` / `topple-0.2.1-e4b` / `akimbo-0.1.1-e4b`**, in-run
+evidence at `benches/evidence/screening/<label>/`. Unlike SCREEN-E3 (whose A- and B-suite runs
+shared one label and forced the registered evidence-bridge into `screening-b/`), the SCREEN-E4
+B-suite runs carry their own `-e4b` labels, so each run's in-run evidence job writes its own
+directory and commits directly — the overwrite collision cannot occur and no bridge is needed.
+The games, shards and manifests are shaped exactly as the A-suite's; only the label (and hence
+the committed directory) differs. `scripts/power_analysis_v2.py` consumes the two roots through
+`--labels-a <…-e4>` / `--labels-b <…-e4b>` with `--engine-sha bbf9582d…` (Phase-2 generalization,
+commit `e717dc3`; fixture-tested, E3 path unchanged).
+
+**ENGINE-4 power assessment (registered invocation).** After the six SCREEN-E4 runs commit their
+evidence: `scripts/power_analysis_v2.py --engine-sha
+bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329 --labels-a topple-0.1.1-e4,
+topple-0.2.1-e4,akimbo-0.1.1-e4 --labels-b topple-0.1.1-e4b,topple-0.2.1-e4b,akimbo-0.1.1-e4b
+--kind "SCREEN-E4 (PREREGISTRATION.md, 2026-11-25)" --screening-b benches/evidence/screening
+--out benches/rating-100-power-assessment.json`. The registered decision rule is unchanged:
+smallest of {rating-100-v1 (50x1), rating-120-v1 (60x1), rating-240-v1 (60x2), rating-360-v1
+(60x3)} games/anchor/batch with simulated P(all three lower bounds > 2000) >= 0.80 at true 2,100
+under 1.5x cluster-SD inflation (250,000 deterministic replicates), else BLOCKED (no weakening of
+CI level, threshold, time control or null controls). The selected design is cross-checked against
+the ENGINE-3 SCREEN-E3 assessment; if the two disagree the larger design is taken and the
+disagreement is documented. The report's `approval` block stays `null` until a named reviewer
+records reviewer/reviewed_at/evidence_ref/decision_rule — the confirmatory dispatch gate enforces
+this.
+
+**Confirmatory gate (unchanged).** The Phase-5 dispatches (make_batch_dispatch.py, both suites,
+the selected design, `--hash bbf9582d…`) run only against an explicit frozen `--target-commit`
+that is at/after the approved power assessment (the resolve step refuses engine/harness/suite/
+pool/power drift between target and dispatch head). Acceptance: two-sided 95% opening-cluster
+bootstrap CI lower endpoint >= 2,000 Elo per batch AND combined; CTRL-4 self-match CI contains
+0.5; opponent-vs-opponent control within +/-75 of 0. Strict aggregation, committed reproducible
+evidence, fail closed — INCONCLUSIVE never counts as partial credit.

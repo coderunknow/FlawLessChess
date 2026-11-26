@@ -180,3 +180,29 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
 - R-05 (claimed i16 clamp of mate scores at high ply): NOT REPRODUCED as stated. MATE_SCORE (30,000) + MAX_PLY (128) = 30,128 < i16::MAX. Added regression tests `tt::mate_score_range_tests` that pin the invariant and the exact round trip at ply 127.
 - Verification run at the head after R-08 (before this commit): CPW perft matrix subset (22 counts across startpos, Kiwipete, positions 3-5) exact; DIFTEST default (300 games) PASSED, 2,321 perft-checked positions, 0 mismatches (python-chess 1.11.2, from index version 1.999 per docs/ENVIRONMENT.md); DIFTEST subset (60 games, seed 1234) PASSED.
 - MSRV 1.80 build: NOT VERIFIED. No Rust 1.80 toolchain is available through the npm mirror and rustup is blocked. Blocker recorded.
+
+
+## Segment 27 — ENGINE-4 freeze and campaign registration (session of 2026-11-25)
+
+- Validation gate at `c59da29`: 52/52 steps, FAILS=0 (record `benches/gate-c59da29/`; the step
+  count is the previous 51 plus the blame-scanner exchange-model suite). The gate itself caught
+  and this session fixed two real defects: `refresh_run_table.py` crashed after any `src/` change
+  (table now groups runs by binary identity and states plainly when the candidate has no hosted
+  runs yet, `ef16a0d`), and the dispatch tests called pre-`18973cc` signatures of
+  `read_committed_runs`/`validate_power` (`ce326c3`, with a full 16-suite pre-flight after).
+- ENGINE-4 frozen (PREREGISTRATION.md, "ENGINE-4 freeze and campaign registrations"): bench
+  `849a85bf7e8e1eba`, runner binary SHA-256 `bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`
+  (verify-flawless check-run 139331041790, image ubuntu24 20261116.133.1, rustc 1.99.0).
+  anchor-verify's bench pin moved with the intentional search change (`c59da29`).
+- Registered before dispatch: CTRL-4 (flawless-self-e4, 240 games, seed 20261217) and
+  SCREEN-E4-A1/A2/A3 + B1/B2/B3 (seeds 20261218-20261223). B-suite runs carry `-e4b` labels so
+  their in-run evidence writes its own directory — the SCREEN-E3 overwrite collision and its
+  evidence-bridge workaround do not recur.
+- `scripts/power_analysis_v2.py` generalized (`e717dc3`): `--engine-sha` + `--labels-a/--labels-b`
+  with pool-key validation; E3 invocation path byte-stable; 10/10 fixture checks.
+- ENGINE-3's campaign (CTRL-3 + SCREEN-E3-A/B, 7 runs) is still executing on the runners; its
+  close-out (evidence verification, CTRL-3 self-match, ENGINE-3 power assessment) proceeds as the
+  runs complete and stays attributed to ENGINE-3's frozen identity. No evidence transfers.
+- Environment: sandbox snapshot restored again (toolchain + venv wiped); rebuilt per
+  docs/ENVIRONMENT.md (restore #5): npm `@toolchain-bin/*` 1.99.0 pins, python-chess 1.11.2;
+  working tree recovered from origin (the remote is the source of truth).
