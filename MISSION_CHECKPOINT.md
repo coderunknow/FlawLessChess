@@ -206,3 +206,33 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
 - Environment: sandbox snapshot restored again (toolchain + venv wiped); rebuilt per
   docs/ENVIRONMENT.md (restore #5): npm `@toolchain-bin/*` 1.99.0 pins, python-chess 1.11.2;
   working tree recovered from origin (the remote is the source of truth).
+
+
+## Segment 28 — ENGINE-3 evidence close-out and trap-class scanner (session of 2026-11-26)
+
+- ENGINE-3 evidence landed and verified (bot commits `7880638`, `87eea6b`, `bba6de2`, `6c71f49`):
+  control/flawless-self-e3 240/240 (self-match PASS: seat score 0.4979, bootstrap CI
+  [0.4625, 0.5354] contains 0.5, 10000 reps seed 20261210), screening A-suite topple-0.1.1-e3
+  120/120, topple-0.2.1-e3 119 counted + 1 unadjudicated attempt of 120 (Petroff Defence pair,
+  600-ply shuffle to the move cap, no engine errors), akimbo-0.1.1-e3 120/120. All manifest
+  identities verified (engine 733de4e5..., suites 2c4a54d8.../744a3981..., merged_sha256).
+- The unadjudicated game has a registered disposition (PREREGISTRATION append-only note at
+  `2502a07`, blind to outcomes): complete-case cluster exclusion of any opening lacking its
+  counted AB/BA pair in any screening input, applied at analysis time via
+  `power_analysis_v2.py --exclude-openings` (fail-loud on unmatched names; 12/12 tests).
+  ENGINE-3's assessment therefore runs with "Petroff Defence" excluded (59 clusters/anchor,
+  validated equal across the three A-suite inputs).
+- SCREEN-B evidence request revision 5 drafted from the registered values (three runs:
+  topple-0.1.1-e3 45613616430, topple-0.2.1-e3 45613863246, akimbo-0.1.1-e3 45612928479;
+  purpose screening, batch B, evidence_purpose screening-b; B1/B3 run conclusions 'failure'
+  are the registered in-run overwrite refusals - every shard job succeeded and the bridge gate
+  at `779f275` accepts them on that condition). Pushes with the completed B2 run.
+- Phase-4 game review: the game-loss scanner now covers the queen-trap class (quiet-reply
+  cornered queens, the rook-lift family the deep-dive identified). Outcome adjudication over
+  480 games: 10 trap candidates, 7 punished by the actual reply, 6 collected; on ENGINE-3's
+  own 360 E3 games 5/5 played traps captured the queen - a real ENGINE-3 weakness class for
+  the ENGINE-4 search work to re-measure. capture-reply net collection ~48% (485/1041).
+  See AGENTS_LOG.md 2026-11-26 for the full record.
+- E4 campaign (Phase 3 dispatches revs 25-31): all 7 runs resolved the dispatch markers and
+  queue their shard matrices behind the E3 tail; per-engine evidence lands in-run
+  (control/flawless-self-e4, screening/*-e4*, screening/*-e4b*) with no bridge.

@@ -1428,3 +1428,31 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   not chosen. The old loss is old-engine shallow-queen-play weakness, not an ENGINE-4 defect.
 - Phase-4 game review will extend the scanner to trap-class tactics (rook lifts, trapped queens)
   in addition to the exchange model, and walk the worst ENGINE-4 losses manually like this.
+
+
+### Game-loss scanner extended to the queen-trap class (2026-11-26, follow-up to the deep-dive)
+
+- `scripts/analyze_game_losses.py` gains `queen_traps_after` (quiet-reply queen traps, the
+  rook-lift/trapped-queen class the deep-dive identified as a method gap) and
+  `loss_if_captured_at` (destination-scoped exchange: an escape is judged by the queen's own
+  exchange at its landing square, not by unrelated material hanging elsewhere). The detector
+  requires the quiet reply to CREATE the attack (pre-existing hangs belong to the capture-reply
+  net), skips checking replies, and adjudicates mechanical other-piece defenses (safe capture of
+  the attacker, safe interposition) before flagging. 8 fixture tests pin every rule; three
+  fixture-geometry traps found and fixed during the work (a d2-starting knight polluting the
+  "quiet" reply with a capture, the a2 pawn defending b1, the c3 attacker being capturable by
+  the b2 pawn / a2 knight).
+- Outcome adjudication against the game records (flags matched by fen+move+ply; collection =
+  the mover's material actually dropping >= 150cp within 3 plies, or the queen count actually
+  dropping within 5 plies):
+  - capture-reply net (`moved_piece`): 485 collected / 556 missed across screening-2/topple-0.2.1
+    and the three ENGINE-3 suites (1041 flags in 480 games) - the known one-ply-SEE noise level.
+  - queen-trap (new class): 10 candidates in 480 games; the flagged reply was played in 7; the
+    queen was captured within 5 plies in 6 of those 7. On ENGINE-3's own E3 suites (360 games):
+    6 candidates, reply played in 5, queen captured 5/5. Quiet-reply queen traps are a REAL,
+    outcome-validated ENGINE-3 weakness class - a direct target for the ENGINE-4 search work
+    (EXT_BUDGET=3 and the two-ply quiet-reply awareness), to be re-measured on the E4 games.
+  - The studied old-engine loss remains classified as before: the game-losing blunder 18...bxc6
+    is a plain one-ply hanging queen (capture-reply net flags it at 580cp); the cornered-queen
+    moves before it were engine-level inaccuracies with defenses the probes found at depth.
+- Diagnostics only - never strength evidence (the script's standing contract).
