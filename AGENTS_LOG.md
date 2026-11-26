@@ -1456,3 +1456,16 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
     is a plain one-ply hanging queen (capture-reply net flags it at 580cp); the cornered-queen
     moves before it were engine-level inaccuracies with defenses the probes found at depth.
 - Diagnostics only - never strength evidence (the script's standing contract).
+
+- Follow-up probe of the six largest collected capture-reply losses (>= 500cp, non-promotion
+  replies) with the SHIPPING ENGINE-4 binary at depth 10: the engine's top line matches the
+  game's move in all six. Five are already-lost positions (Mate on board or forced mate within
+  3-5 in the probe PVs - the material drop is the collapse, not the cause); one is a queen
+  sitting on a pre-existing hang (the capture reply existed before the flagged ply, the known
+  wide-net attribution). No fresh one-move tactical blunder exists at any of the six flagged
+  plies. Combined with the trap-class result (5/5 collected quiet-reply queen traps on the E3
+  games), the Phase-4 defect taxonomy stands: (1) quiet-reply queen traps - real, precise,
+  ENGINE-3 weakness; (2) one-ply capture-reply "collected losses" - mostly late collapses of
+  positions lost earlier or pre-existing hangs; the causal losses sit at earlier plies than the
+  flag, and the deep-dive method (walk the game backward with engine probes) is the tool for
+  those, not the scanner.
