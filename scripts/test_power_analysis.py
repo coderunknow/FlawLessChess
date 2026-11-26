@@ -140,6 +140,62 @@ class PowerAnalysisV2IdentityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "frozen engine binary"):
                 v2.read_manifest(games, "topple-0.1.1-e4b", "B", v2.SUITE_B_SHA256, "b" * 64)
 
+    def _write_v2_anchor_with_openings(self, root, label, batch, engine_sha):
+        """120 attempts: 59 complete pairs + one Petroff pair whose AB leg is unadjudicated."""
+        import power_analysis_v2 as v2
+        directory = os.path.join(root, label)
+        os.makedirs(directory)
+        games_path = os.path.join(directory, "games.jsonl")
+        records = []
+        for i in range(59):
+            records.append({"counted": True, "opening": f"opening-{i:02d}", "white": "flawless",
+                            "black": "anchor", "result": "1-0"})
+            records.append({"counted": True, "opening": f"opening-{i:02d}", "white": "anchor",
+                            "black": "flawless", "result": "0-1"})
+        records.append({"counted": False, "adjudicated": False, "reason": "move_cap_unadjudicated",
+                        "opening": "Petroff Defence", "white": "flawless", "black": "anchor",
+                        "result": "*"})
+        records.append({"counted": True, "opening": "Petroff Defence", "white": "anchor",
+                        "black": "flawless", "result": "1/2-1/2"})
+        with open(games_path, "w", encoding="utf-8", newline="\n") as handle:
+            for record in records:
+                handle.write(json.dumps(record) + "\n")
+        with open(games_path, "rb") as handle:
+            games_sha = hashlib.sha256(handle.read()).hexdigest()
+        manifest = {
+            "batch": batch, "anchor": label, "engine_sha256": engine_sha,
+            "opening_suite_sha256": v2.SUITE_A_SHA256 if batch == "A" else v2.SUITE_B_SHA256,
+            "n_counted": 119, "n_attempts": 120, "merged_sha256": games_sha,
+        }
+        with open(os.path.join(directory, "manifest.json"), "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle)
+        return games_path
+
+    def test_complete_case_cluster_exclusion_accepts_an_unadjudicated_pair(self):
+        import power_analysis_v2 as v2
+        exclude = frozenset(["Petroff Defence"])
+        with tempfile.TemporaryDirectory() as td:
+            games = self._write_v2_anchor_with_openings(td, "topple-0.2.1-e3", "A", "a" * 64)
+            # Without the exclusion the file is rejected (119 counted / one single-leg cluster).
+            with self.assertRaisesRegex(ValueError, "counted once|exactly two counted"):
+                v2.read_manifest(games, "topple-0.2.1-e3", "A", v2.SUITE_A_SHA256, "a" * 64)
+            v2.read_manifest(games, "topple-0.2.1-e3", "A", v2.SUITE_A_SHA256, "a" * 64, exclude)
+            clusters = v2.load_cluster_games(games, exclude=exclude)
+            self.assertEqual(len(clusters), 59)
+            self.assertNotIn("Petroff Defence", clusters)
+            with self.assertRaisesRegex(ValueError, "exactly two counted"):
+                v2.load_cluster_games(games)  # no exclusion: single-leg cluster fails closed
+
+    def test_exclusion_names_must_match_records(self):
+        import power_analysis_v2 as v2
+        exclude = frozenset(["Petroff Defence"])
+        with tempfile.TemporaryDirectory() as td:
+            games = self._write_v2_anchor_with_openings(td, "topple-0.2.1-e3", "A", "a" * 64)
+            # A wrong name excludes nothing: the manifest check must still reject 119 counted.
+            with self.assertRaisesRegex(ValueError, "counted once|manifest counted"):
+                v2.read_manifest(games, "topple-0.2.1-e3", "A", v2.SUITE_A_SHA256, "a" * 64,
+                                 frozenset(["Not An Opening"]))
+
     def test_read_manifest_enforces_label_batch_and_suite(self):
         import power_analysis_v2 as v2
         with tempfile.TemporaryDirectory() as td:

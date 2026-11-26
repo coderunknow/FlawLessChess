@@ -108,7 +108,8 @@ def sha256_jsonl_records(path: str) -> str:
     return digest.hexdigest()
 
 
-def read_manifest(games_path: str, label: str, batch: str, suite_sha: str, engine_sha: str) -> dict:
+def read_manifest(games_path: str, label: str, batch: str, suite_sha: str, engine_sha: str,
+                  exclude: frozenset = frozenset()) -> dict:
     manifest_path = os.path.join(os.path.dirname(games_path), "manifest.json")
     try:
         with open(manifest_path, encoding="utf-8") as handle:
@@ -121,8 +122,8 @@ def read_manifest(games_path: str, label: str, batch: str, suite_sha: str, engin
         raise ValueError(f"{manifest_path}: expected label {label!r}, got {manifest.get('anchor')!r}")
     if manifest.get("opening_suite_sha256") != suite_sha:
         raise ValueError(f"{manifest_path}: suite hash differs from the registered suite")
-    if manifest.get("n_counted") != 120 or manifest.get("n_attempts") != 120:
-        raise ValueError(f"{manifest_path}: expected 120 counted games and 120 attempts")
+    if manifest.get("n_counted") is None or manifest.get("n_attempts") != 120:
+        raise ValueError(f"{manifest_path}: expected 120 attempts with recorded counted totals")
     observed_sha = manifest.get("engine_sha256", "")
     if not re.fullmatch(r"[0-9a-f]{64}", observed_sha):
         raise ValueError(f"{manifest_path}: missing or malformed engine SHA-256")
@@ -133,7 +134,11 @@ def read_manifest(games_path: str, label: str, batch: str, suite_sha: str, engin
         )
     if manifest.get("merged_sha256") != sha256_jsonl_records(games_path):
         raise ValueError(f"{manifest_path}: merged_sha256 does not match games.jsonl")
-    attempts = counted = 0
+    def is_counted(game: dict) -> bool:
+        return bool(game.get("counted") is True and not game.get("engine_error")
+                    and game.get("adjudicated") is not False)
+
+    attempts = counted = excluded_records = excluded_counted = 0
     with open(games_path, encoding="utf-8") as games_file:
         for line_no, raw in enumerate(games_file, 1):
             if not raw.strip():
@@ -142,21 +147,31 @@ def read_manifest(games_path: str, label: str, batch: str, suite_sha: str, engin
                 game = json.loads(raw)
             except ValueError as exc:
                 raise ValueError(f"{games_path}:{line_no}: invalid JSON game record") from exc
+            if game.get("opening") in exclude:
+                excluded_records += 1
+                excluded_counted += 1 if is_counted(game) else 0
+                continue
             attempts += 1
-            if game.get("counted") is True and not game.get("engine_error") and game.get("adjudicated") is not False:
-                counted += 1
-    if attempts != 120 or counted != 120:
-        raise ValueError(f"{games_path}: expected 120 attempts / 120 counted, got {attempts}/{counted}")
+            counted += 1 if is_counted(game) else 0
+    if attempts != 120 - excluded_records or counted != attempts:
+        raise ValueError(
+            f"{games_path}: expected every non-excluded attempt counted once "
+            f"({120 - excluded_records} expected, {counted}/{attempts} counted/attempts observed)")
+    if manifest.get("n_counted") != counted + excluded_counted:
+        raise ValueError(f"{manifest_path}: manifest counted total does not match the games records")
     return manifest
 
 
-def load_cluster_games(path: str, focus: str = "flawless") -> dict[str, list[float]]:
+def load_cluster_games(path: str, focus: str = "flawless",
+                       exclude: frozenset = frozenset()) -> dict[str, list[float]]:
     grouped: dict[str, list[float]] = defaultdict(list)
     with open(path, encoding="utf-8") as handle:
         for line_no, raw in enumerate(handle, 1):
             if not raw.strip():
                 continue
             game = json.loads(raw)
+            if game.get("opening") in exclude:
+                continue
             if game.get("counted") is not True or game.get("engine_error") or game.get("adjudicated") is False:
                 continue
             result = game.get("result")
@@ -398,21 +413,41 @@ def main() -> int:
         "--kind", default="SCREEN-E3 (PREREGISTRATION.md, 2026-11-25)",
         help="provenance string recorded in the report's screening_inputs",
     )
+    parser.add_argument(
+        "--exclude-openings", default="",
+        help=("semicolon-separated opening names excluded from every screening input "
+              "(registered complete-case cluster exclusion: a cluster lacking its counted "
+              "AB/BA pair in any input is dropped from all inputs; fail-loud on names that "
+              "match no record)"),
+    )
     args = parser.parse_args()
 
     if not re.fullmatch(r"[0-9a-f]{64}", args.engine_sha or ""):
         raise ValueError("--engine-sha must be a full lowercase SHA-256 hex digest")
+    exclude = frozenset(name.strip() for name in args.exclude_openings.split(";") if name.strip())
     labels_a = [label.strip() for label in args.labels_a.split(",") if label.strip()]
     labels_b = [label.strip() for label in args.labels_b.split(",") if label.strip()]
     validate_label_sets(labels_a, labels_b)
 
     games = {"A": {}, "B": {}}
+    excluded_seen = {name: 0 for name in exclude}
     for batch, root, suite_sha, labels in (("A", args.screening_a, SUITE_A_SHA256, labels_a),
                                            ("B", args.screening_b, SUITE_B_SHA256, labels_b)):
         for label in labels:
             path = os.path.join(root, label, "games.jsonl")
-            read_manifest(path, label, batch, suite_sha, args.engine_sha)
-            games[batch][label] = load_cluster_games(path)
+            read_manifest(path, label, batch, suite_sha, args.engine_sha, exclude)
+            games[batch][label] = load_cluster_games(path, exclude=exclude)
+            with open(path, encoding="utf-8") as handle:
+                for raw in handle:
+                    if raw.strip():
+                        opening = json.loads(raw).get("opening")
+                        if opening in excluded_seen:
+                            excluded_seen[opening] += 1
+    unmatched = sorted(name for name, n in excluded_seen.items() if n == 0)
+    if unmatched:
+        raise ValueError(
+            f"--exclude-openings names match no screening record (typo or wrong campaign): "
+            f"{unmatched}")
 
     # Variance components and between-opening covariances per suite.
     batch_labels = {"A": labels_a, "B": labels_b}
@@ -502,6 +537,13 @@ def main() -> int:
         "screening_inputs": {
             "kind": args.kind,
             "labels": labels_a if labels_a == labels_b else {"A": labels_a, "B": labels_b},
+            "excluded_openings": {
+                "rule": ("complete-case cluster exclusion: a cluster lacking its counted AB/BA "
+                         "pair in any input is dropped from all inputs (analysis-only; committed "
+                         "evidence untouched)"),
+                "openings": sorted(exclude),
+                "records_skipped_per_input": excluded_seen,
+            },
             "roots": {"A": args.screening_a, "B": args.screening_b},
             "variance_components": {
                 batch: {

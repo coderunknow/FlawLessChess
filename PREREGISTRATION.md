@@ -789,3 +789,30 @@ anchor SHA-256 against the frozen values), suite hash, time control, shard compl
 `merged_sha256` fail-closed on the raw shard artifacts, and refuses duplicate shard ids — those
 checks are the evidence guarantees and are unchanged. The B-suite evidence remains recorded only
 at `benches/evidence/screening-b/<label>/` via request revision 5, exactly as registered above.
+
+### SCREEN-E3 unadjudicated-game disposition (2026-11-26, append-only)
+
+Data-quality event: SCREEN-E3-A2 (`topple-0.2.1-e3`, run 45613353274) recorded one
+`move_cap_unadjudicated` attempt — schedule_index 10 (AB leg of the Petroff Defence pair), a
+600-ply shuffle into a locked opposite-colour-pawn structure with no claimable draw and **no
+engine errors** (all 120 attempts preserved; 119 counted). The registered harness policy is
+explicit: move-cap termination "is NOT a draw ... never silently scored" and unadjudicated
+records "remain uncounted"; its replay rules cover engine-error attempts only, so this slot is
+not recoverable by replay. The committed evidence is final and immutable.
+
+Disposition, fixed NOW and blind to every game outcome/score (decided purely on pair
+completeness, before any strength or variance number was computed):
+
+- **Complete-case cluster exclusion in the analysis layer.** Any opening cluster that lacks its
+  counted AB/BA pair in ANY screening input of a power assessment is excluded from ALL screening
+  inputs of that assessment (all labels, both batches). The exclusion is analysis-only: the
+  committed games.jsonl/manifest.json are never modified. `scripts/power_analysis_v2.py` enforces
+  this through required `--exclude-openings` (fail-loud if a listed opening matches no record),
+  and the report records the excluded openings and the per-input record counts.
+- Applied to the ENGINE-3 assessment: `--exclude-openings "Petroff Defence"` drops that cluster
+  from all six SCREEN-E3 inputs (the A2 file contributes its remaining 59 complete clusters; the
+  other five files lose their complete Petroff pair for cross-anchor cluster-set equality). The
+  design rule, CI level, 2,000 threshold, time control and null controls are unchanged; the
+  variance components are measured on 59 clusters.
+- The same rule governs SCREEN-E4 and any future campaign mechanically, whatever the outcome of
+  the affected games.
