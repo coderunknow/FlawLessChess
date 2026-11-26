@@ -38,12 +38,46 @@ SUITE_B_SHA256 = "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9d
 SUBSET_A_SHA256 = "5abdcdbddec0f22d7e6eff8974ee402363c8c3df318b8110d7204adf69f5c1df"
 SUBSET_B_SHA256 = "ccb4901742eca25b0b10f1a3c9fdfc17b2967a1939c2d7e466c2c5495b6d4253"
 
-# label -> (pool key, published elo, published ci95)
-ANCHORS = {
-    "topple-0.1.1-e3": ("topple-0.1.1", 2324.0, 17.0),
-    "topple-0.2.1-e3": ("topple-0.2.1", 2439.0, 14.0),
-    "akimbo-0.1.1-e3": ("akimbo-0.1.1", 2441.0, 19.0),
+# Pool key -> (published elo, published ci95). Campaign label sets address these
+# anchors under their campaign suffix (-e3, -e4 for suite A, -e4b for suite B).
+ANCHOR_META = {
+    "topple-0.1.1": (2324.0, 17.0),
+    "topple-0.2.1": (2439.0, 14.0),
+    "akimbo-0.1.1": (2441.0, 19.0),
 }
+
+# Campaign label sets: SCREEN-E3 labels its A- and B-suite runs identically; the
+# SCREEN-E4 registration gives the B-suite runs their own -e4b labels so each
+# run's in-run evidence writes its own directory without an overwrite collision.
+DEFAULT_LABELS_A = ("topple-0.1.1-e3", "topple-0.2.1-e3", "akimbo-0.1.1-e3")
+DEFAULT_LABELS_B = DEFAULT_LABELS_A
+E4_LABELS_A = ("topple-0.1.1-e4", "topple-0.2.1-e4", "akimbo-0.1.1-e4")
+E4_LABELS_B = ("topple-0.1.1-e4b", "topple-0.2.1-e4b", "akimbo-0.1.1-e4b")
+
+_LABEL_SUFFIX = re.compile(r"^(?P<key>.+)-e\d+b?$")
+
+
+def pool_key(label: str) -> str:
+    """Strip the campaign suffix (`-e3`, `-e4`, `-e4b`, ...) and validate the anchor."""
+    match = _LABEL_SUFFIX.match(label or "")
+    if not match:
+        raise ValueError(f"screening label {label!r} lacks a campaign suffix like '-e3' or '-e4b'")
+    key = match.group("key")
+    if key not in ANCHOR_META:
+        raise ValueError(f"screening label {label!r} addresses unknown anchor {key!r}")
+    return key
+
+
+def validate_label_sets(labels_a: list[str], labels_b: list[str]) -> None:
+    """Fail closed unless both suites score the same anchors in the same order."""
+    if len(labels_a) != len(labels_b):
+        raise ValueError("labels-a and labels-b must list the same anchors")
+    if not labels_a:
+        raise ValueError("at least one anchor label is required")
+    keys_a = [pool_key(label) for label in labels_a]
+    keys_b = [pool_key(label) for label in labels_b]
+    if keys_a != keys_b:
+        raise ValueError("labels-a and labels-b must address the same anchors in the same order")
 
 # (design label, clusters per batch, paired repetitions per opening)
 DESIGNS = [
@@ -74,7 +108,7 @@ def sha256_jsonl_records(path: str) -> str:
     return digest.hexdigest()
 
 
-def read_manifest(games_path: str, label: str, batch: str, suite_sha: str) -> dict:
+def read_manifest(games_path: str, label: str, batch: str, suite_sha: str, engine_sha: str) -> dict:
     manifest_path = os.path.join(os.path.dirname(games_path), "manifest.json")
     try:
         with open(manifest_path, encoding="utf-8") as handle:
@@ -89,13 +123,13 @@ def read_manifest(games_path: str, label: str, batch: str, suite_sha: str) -> di
         raise ValueError(f"{manifest_path}: suite hash differs from the registered suite")
     if manifest.get("n_counted") != 120 or manifest.get("n_attempts") != 120:
         raise ValueError(f"{manifest_path}: expected 120 counted games and 120 attempts")
-    engine_sha = manifest.get("engine_sha256", "")
-    if not re.fullmatch(r"[0-9a-f]{64}", engine_sha):
+    observed_sha = manifest.get("engine_sha256", "")
+    if not re.fullmatch(r"[0-9a-f]{64}", observed_sha):
         raise ValueError(f"{manifest_path}: missing or malformed engine SHA-256")
-    if engine_sha != ENGINE3_SHA256:
+    if observed_sha != engine_sha:
         raise ValueError(
-            f"{manifest_path}: this report is registered only for ENGINE-3 ({ENGINE3_SHA256}); "
-            f"observed {engine_sha}"
+            f"{manifest_path}: this report is computed only from the frozen engine binary "
+            f"({engine_sha}); observed {observed_sha}"
         )
     if manifest.get("merged_sha256") != sha256_jsonl_records(games_path):
         raise ValueError(f"{manifest_path}: merged_sha256 does not match games.jsonl")
@@ -348,20 +382,43 @@ def main() -> int:
     parser.add_argument("--subset-b", default="benches/rating-openings-100-batchB.txt")
     parser.add_argument("--replicates", type=int, default=REPLICATES)
     parser.add_argument("--out", default="benches/rating-100-power-assessment.json")
+    parser.add_argument(
+        "--engine-sha", required=True,
+        help="frozen engine binary SHA-256 the assessed campaign's runs were built from",
+    )
+    parser.add_argument(
+        "--labels-a", default=",".join(DEFAULT_LABELS_A),
+        help="comma-separated suite-A screening labels (campaign-suffixed anchor ids)",
+    )
+    parser.add_argument(
+        "--labels-b", default=",".join(DEFAULT_LABELS_B),
+        help="comma-separated suite-B screening labels (campaign-suffixed anchor ids)",
+    )
+    parser.add_argument(
+        "--kind", default="SCREEN-E3 (PREREGISTRATION.md, 2026-11-25)",
+        help="provenance string recorded in the report's screening_inputs",
+    )
     args = parser.parse_args()
 
-    labels = list(ANCHORS)
+    if not re.fullmatch(r"[0-9a-f]{64}", args.engine_sha or ""):
+        raise ValueError("--engine-sha must be a full lowercase SHA-256 hex digest")
+    labels_a = [label.strip() for label in args.labels_a.split(",") if label.strip()]
+    labels_b = [label.strip() for label in args.labels_b.split(",") if label.strip()]
+    validate_label_sets(labels_a, labels_b)
+
     games = {"A": {}, "B": {}}
-    for batch, root, suite_sha in (("A", args.screening_a, SUITE_A_SHA256),
-                                   ("B", args.screening_b, SUITE_B_SHA256)):
+    for batch, root, suite_sha, labels in (("A", args.screening_a, SUITE_A_SHA256, labels_a),
+                                           ("B", args.screening_b, SUITE_B_SHA256, labels_b)):
         for label in labels:
             path = os.path.join(root, label, "games.jsonl")
-            read_manifest(path, label, batch, suite_sha)
+            read_manifest(path, label, batch, suite_sha, args.engine_sha)
             games[batch][label] = load_cluster_games(path)
 
     # Variance components and between-opening covariances per suite.
+    batch_labels = {"A": labels_a, "B": labels_b}
     components = {}
     for batch in ("A", "B"):
+        labels = batch_labels[batch]
         sigma_op, sigma_m, cov_op = [], [], []
         for label in labels:
             op, m = variance_components(games[batch][label])
@@ -379,8 +436,8 @@ def main() -> int:
     subset_a = read_suite_names(args.subset_a, 50)
     subset_b = read_suite_names(args.subset_b, 50)
 
-    ratings = [ANCHORS[label][1] for label in labels]
-    calibration_sd = [ANCHORS[label][2] / 1.96 for label in labels]
+    ratings = [ANCHOR_META[pool_key(label)][0] for label in labels_a]
+    calibration_sd = [ANCHOR_META[pool_key(label)][1] / 1.96 for label in labels_a]
 
     designs_out = []
     selected = None
@@ -398,14 +455,14 @@ def main() -> int:
             if missing:
                 raise ValueError(f"{batch}: screening evidence missing clusters {sorted(missing)[:5]}")
             sigma_op, sigma_m = [], []
-            for label in labels:
+            for label in batch_labels[batch]:
                 op, m = variance_components(restricted[label])
                 sigma_op.append(op)
                 sigma_m.append(m)
             cov_op = []
-            for i, li in enumerate(labels):
+            for i, li in enumerate(batch_labels[batch]):
                 row = []
-                for j, lj in enumerate(labels):
+                for j, lj in enumerate(batch_labels[batch]):
                     row.append(opening_covariance(restricted[li], restricted[lj]) if i != j else sigma_op[i])
                 cov_op.append(row)
             design_components[batch] = {"sigma_op": sigma_op, "sigma_m": sigma_m, "cov_op": cov_op}
@@ -435,16 +492,16 @@ def main() -> int:
     status = "PASS" if selected is not None else "BLOCKED"
     report = {
         "design": selected["design"] if selected else "none",
-        "date": "2026-11-25",
+        "date": __import__("datetime").date.today().isoformat(),
         "status": status,
         "eligible_for_confirmatory_dispatch": selected is not None,
-        "engine_sha256": ENGINE3_SHA256,
+        "engine_sha256": args.engine_sha,
         "sample_design": selected["design"] if selected else "none",
         "decision_rule": DESIGN_RULE,
         "power_bar": POWER_BAR,
         "screening_inputs": {
-            "kind": "SCREEN-E3 (PREREGISTRATION.md, 2026-11-25)",
-            "labels": labels,
+            "kind": args.kind,
+            "labels": labels_a if labels_a == labels_b else {"A": labels_a, "B": labels_b},
             "roots": {"A": args.screening_a, "B": args.screening_b},
             "variance_components": {
                 batch: {
