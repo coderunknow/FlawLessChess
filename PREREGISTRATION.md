@@ -774,3 +774,18 @@ pool/power drift between target and dispatch head). Acceptance: two-sided 95% op
 bootstrap CI lower endpoint >= 2,000 Elo per batch AND combined; CTRL-4 self-match CI contains
 0.5; opponent-vs-opponent control within +/-75 of 0. Strict aggregation, committed reproducible
 evidence, fail closed — INCONCLUSIVE never counts as partial credit.
+
+
+### SCREEN-E3 bridge acceptance rule (2026-11-25, append-only)
+
+`evidence-bridge.yml`'s acceptance gate is sharpened to the condition the registered
+SCREEN-E3 B-suite collection actually needs: the run must be completed and **every shard job
+successful**; the run-level conclusion is no longer required to be `success`. Reason: the in-run
+aggregate job of a B-suite run fails on the overwrite refusal (its label's evidence directory
+already holds the A-suite run's committed evidence — the collision this bridge exists for), which
+would mark the whole run `failure` and lock its artifacts out of collection. The gate was a coarse
+pre-filter only: `scripts/aggregate_shards.py` inside the bridge re-verifies identity (engine /
+anchor SHA-256 against the frozen values), suite hash, time control, shard completeness and
+`merged_sha256` fail-closed on the raw shard artifacts, and refuses duplicate shard ids — those
+checks are the evidence guarantees and are unchanged. The B-suite evidence remains recorded only
+at `benches/evidence/screening-b/<label>/` via request revision 5, exactly as registered above.

@@ -70,13 +70,32 @@ jobs:
 
           for ent in req["runs"]:
               run_id = str(ent["run_id"])
-              # Fail closed: only completed, successful runs have usable shards.
+              # Fail closed on unusable shards: the run must be completed and EVERY
+              # shard job successful. The run-level conclusion is deliberately not
+              # required to be success: the in-run aggregate job fails on the
+              # registered overwrite refusal when the B-suite run shares its label
+              # with an already-committed A-suite evidence directory (the B-suite
+              # evidence lands through THIS bridge instead), and the strict
+              # aggregator below re-verifies identity and completeness fail-closed
+              # on the raw shard artifacts either way.
               r = subprocess.run(
+                  ["gh", "api", f"repos/{os.environ.get('GITHUB_REPOSITORY', 'coderunknow/FlawLessChess')}"
+                                f"/actions/runs/{run_id}/jobs?per_page=100"],
+                  capture_output=True, text=True)
+              jobs = (json.loads(r.stdout or "{}") or {}).get("jobs") or []
+              r2 = subprocess.run(
                   ["gh", "run", "view", run_id, "--json", "conclusion,status"],
                   capture_output=True, text=True)
-              info = json.loads(r.stdout or "{}")
-              if info.get("status") != "completed" or info.get("conclusion") != "success":
-                  sys.exit(f"run {run_id} not completed/successfully: {info}")
+              info = json.loads(r2.stdout or "{}")
+              if info.get("status") != "completed":
+                  sys.exit(f"run {run_id} not completed: {info}")
+              shard_jobs = [j for j in jobs if "-shard" in (j.get("name") or "")]
+              if not shard_jobs:
+                  sys.exit(f"run {run_id}: no shard jobs found — not a shard-dispatch run")
+              bad = [(j.get("name"), j.get("conclusion")) for j in shard_jobs
+                     if j.get("conclusion") != "success"]
+              if bad:
+                  sys.exit(f"run {run_id}: shard jobs not all successful: {bad[:5]}")
               dl = f"/tmp/bridge-{run_id}"
               subprocess.run(["gh", "run", "download", run_id, "-D", dl], check=True)
               out = f"benches/evidence/{ent['evidence_purpose']}/{ent['anchor_id']}"
