@@ -1393,3 +1393,23 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   PR head reports `binary_sha256=bbf9582d… bench_signature=849a85bf7e8e1eba` (ubuntu24
   20261116.133.1, rustc 1.99.0). The runner digest is the dispatch identity; the sandbox digest
   `b63f5ad1…` differs in linker only.
+
+
+## 2026-11-26 — campaign supervision notes (branch arena/247fe7df-flawlesschess, PR #6 draft)
+
+- All 7 ENGINE-4 dispatches landed (marker commits 2d09014/918e850/68563c7/681695c/1bad307/
+  aab79ac/32e8c3a, revisions 25-31, 95s+ spacing; runs 45744190565-45745410894). The B-suite
+  runs carry `-e4b` labels so their in-run evidence writes its own directory.
+- `evidence-bridge.yml` acceptance gate sharpened (`779f275`): run completed AND every shard
+  job successful (run-level conclusion not required), because the registered SCREEN-E3 B-suite
+  in-run aggregate fails on the overwrite refusal by design. Strict aggregation unchanged.
+- The environment reproduced the registered null-control numbers exactly on the committed
+  evidence (CTRL-2-R seat 0.4604 CI [0.4208, 0.5]; opp-vs-opp error -10.3 within +/-75), which
+  validates the toolchain restore (#5) end-to-end.
+- Queue housekeeping: cancelled 18 QUEUED duplicate quick-profile and no-op evidence-bridge
+  runs created by the dispatch pushes (all at engine-identical heads — identical work to the
+  already-published c59da29 profile; no campaign run (`rating-run`), in-flight job or evidence
+  path was touched). GitHub's runner scheduling is running ~8 shard jobs at a time and starves
+  the `aggregate-and-commit-evidence` tail jobs for hours; the campaign drains slowly (ETA
+  roughly two days for the remaining E3 + E4 shards) and every close-out step fires as its
+  data lands.
