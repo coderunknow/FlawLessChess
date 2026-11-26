@@ -1,15 +1,15 @@
 {
  "schema": 1,
- "revision": 29,
+ "revision": 30,
  "purpose": "screening",
- "description": "SCREEN-E4-B1 (PREREGISTRATION.md, 2026-11-25): ENGINE-4 (runner binary SHA-256 bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329, bench 849a85bf7e8e1eba) vs anchor topple-0.1.1 on suite B (60 openings x 2 paired games x AB/BA = 120 games, 60 shards x 2), TC 40/15, seed 20261221. Evidence label topple-0.1.1-e4b \u2014 the B-suite runs carry -e4b labels so in-run evidence writes its own directory (no overwrite collision). Screening evidence only: selection and power inputs, never an evidence gate. ENGINE-3's SCREEN-E3 evidence does not transfer (per-engine hash restriction).",
+ "description": "SCREEN-E4-B2 (PREREGISTRATION.md, 2026-11-25): ENGINE-4 (runner binary SHA-256 bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329, bench 849a85bf7e8e1eba) vs anchor topple-0.2.1 on suite B (60 openings x 2 paired games x AB/BA = 120 games, 60 shards x 2), TC 40/15, seed 20261222. Evidence label topple-0.2.1-e4b \u2014 the B-suite runs carry -e4b labels so in-run evidence writes its own directory (no overwrite collision). Screening evidence only: selection and power inputs, never an evidence gate. ENGINE-3's SCREEN-E3 evidence does not transfer (per-engine hash restriction).",
  "preregistration": "PREREGISTRATION.md#engine-4-freeze-and-campaign-registrations-2026-11-25-append-only",
  "target_commit": "auto",
  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
  "batch": "B",
- "anchor_id": "topple-0.1.1-e4b",
+ "anchor_id": "topple-0.2.1-e4b",
  "white_engine": "flawless",
- "black_engine": "topple-0.1.1",
+ "black_engine": "topple-0.2.1",
  "shard_count": 60,
  "shard_indices": [
   0,
@@ -76,7 +76,7 @@
  "opening_suite": "benches/rating-openings-batchB.txt",
  "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
  "repetitions": 1,
- "seed": 20261221,
+ "seed": 20261222,
  "tc": "40/15",
  "run_evidence": true
 }
