@@ -1413,3 +1413,18 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   the `aggregate-and-commit-evidence` tail jobs for hours; the campaign drains slowly (ETA
   roughly two days for the remaining E3 + E4 shards) and every close-out step fires as its
   data lands.
+
+
+### Deep-dive on the sharpest committed loss (same session)
+
+- Game: screening-2/topple-0.2.1, Sicilian O'Kelly, Flawless (black) lost in 47 moves. Root chain:
+  9...Qxc3?! (pawn grab with the queen), 11...Qh5 / 12...Qg4 (queen shuffle into the attack),
+  16...Qh4 / 17...Qg5?? walking into the two-move queen trap 18.Rg4!. The SEE-scanner could not
+  flag the trap class (rook lift, no immediate capture), which is a method gap, not an engine
+  finding: the registered scan's exchange model only covers capture-recapture sequences.
+- Current ENGINE-4 probe of every decision point: after 9.Rb1 it plays O-O at depth 12 (the game's
+  grab only at depth <= 10); after 11.Qf3 it plays O-O at depth 10-12 (never the shuffle); from
+  the trap position it finds Rb4 as white and Qf6/Qd8 escapes as black; the game's 17...Qg5 is
+  not chosen. The old loss is old-engine shallow-queen-play weakness, not an ENGINE-4 defect.
+- Phase-4 game review will extend the scanner to trap-class tactics (rook lifts, trapped queens)
+  in addition to the exchange model, and walk the worst ENGINE-4 losses manually like this.
