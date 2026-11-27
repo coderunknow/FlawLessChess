@@ -1,10 +1,10 @@
 {
- "label": "baseline-e4",
+ "label": "patched-queen-trap-v3",
  "depths": [
   8,
   10,
   12,
   14
  ],
- "patch": ""
+ "patch": "benches/diagnostics/queen-trap-fix.patch"
 }
