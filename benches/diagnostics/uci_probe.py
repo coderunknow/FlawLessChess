@@ -35,7 +35,7 @@ def main() -> int:
     payload = json.load(open(a.cases_json))
     cases = payload["cases"] if isinstance(payload, dict) else payload
 
-    cmd = a.engine if " " in a.engine else [a.engine]
+    cmd = a.engine.split() if " " in a.engine else [a.engine]
     engine = chess.engine.SimpleEngine.popen_uci(cmd, debug=False)
     try:
         results = []

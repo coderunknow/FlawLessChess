@@ -41,7 +41,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             LABEL=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json'))['label'])")
-            DEPTHS=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json')).get('depths','8,10,12'))")
+            DEPTHS=$(python3 -c "import json;d=json.load(open('benches/diagnostics/probe-request.json')).get('depths','8,10,12');print(','.join(str(x) for x in d) if isinstance(d,list) else d)")
             PATCH=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json')).get('patch',''))")
           else
             LABEL="${{ inputs.label }}"
