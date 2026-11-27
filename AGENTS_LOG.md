@@ -1566,3 +1566,23 @@ is applied in runner working copies by `engine-probe.yml` only. v2 patched
 probe dispatched as `patched-queen-trap-v2` (depths 8/10/12/14, same as
 baseline). ENGINE-5 identity and its own evidence chain follow after the
 original campaign closes.
+
+## 2026-11-27 (31) — Probe driver bugs found by a real failure and fixed
+
+The baseline probe run 46005134766 failed at step "Probe positions at fixed
+depths" (exit 1). Two runner-side bugs, both now fixed (842fae8):
+`probe-request.json`'s `depths` is a list, which the workflow printed as
+`[8, 10, 12, 14]` and the driver's `int()` parse crashed on; and the engine
+command string `"target/release/flawless uci"` was passed to `popen_uci`
+unsplit (treated as one filename). The driver now splits command strings and
+the workflow joins list-form depths as CSV. Honest failure record: the run's
+logs are blob-blocked locally, so the diagnosis came from the step name, the
+exit code, and code inspection of both paths — verified by reading
+`src/main.rs` (binary enters UCI mode with or without the `uci` subcommand).
+
+Three queued probe runs built on the buggy driver (46006089805,
+46014911177, 46016889554) could not be cancelled (integration token lacks
+`actions: write` for cancellation) — they are expected to fail the same way
+and never commit outputs; their labels are superseded. Re-dispatched
+`baseline-e4` (clean build, 46017481718) and `patched-queen-trap-v3`
+(full 14-test suite + v2 patch) on the fixed driver.
