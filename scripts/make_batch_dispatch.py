@@ -346,6 +346,7 @@ def main() -> int:
         "tc": "40/15",
         "recovery_dispatch": bool(args.recovery),
         "run_evidence": True,
+        "power_assessment": args.power_assessment,
         "power_assessment_sha256": sha256_file(args.power_assessment),
     }
     with open(args.out, "w", encoding="utf-8") as handle:

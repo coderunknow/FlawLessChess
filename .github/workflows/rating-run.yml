@@ -236,7 +236,10 @@ jobs:
                   fail("a new confirmatory dispatch must include every opening shard")
               if cfg.get("run_evidence") is not True:
                   fail("every confirmatory dispatch must preserve immutable per-run evidence")
-              power_path = "benches/rating-100-power-assessment.json"
+              power_path = cfg.get("power_assessment") or "benches/rating-100-power-assessment.json"
+              if power_path not in ("benches/rating-100-power-assessment.json",
+                                    "benches/rating-100-power-assessment-e4.json"):
+                  fail(f"power_assessment {power_path!r} is not a registered report path")
               with open(power_path) as power_file:
                   power = json.load(power_file)
               if power.get("status") != "PASS" or power.get("eligible_for_confirmatory_dispatch") is not True:
