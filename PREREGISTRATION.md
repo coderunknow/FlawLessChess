@@ -816,3 +816,16 @@ completeness, before any strength or variance number was computed):
   variance components are measured on 59 clusters.
 - The same rule governs SCREEN-E4 and any future campaign mechanically, whatever the outcome of
   the affected games.
+
+### SCREEN-E3 disposition addendum (2026-11-27, append-only, factual clarification)
+
+Empirical clarification of the scope sentence above, established while executing the
+ENGINE-3 assessment (the operative rule is unchanged): suite B (744a3981...) contains
+"Petrov Cozio" and no "Petroff Defence" cluster - only suite A (2c4a54d8...) schedules
+"Petroff Defence". The exclusion therefore matches exactly 6 records (the three A-batch
+inputs' Petroff pairs; the A2 file's unadjudicated AB leg is not a counted record), the
+phrase "the other five files lose their complete Petroff pair" applies to the two OTHER
+A-batch files, and no B-batch record is affected. Cross-cluster-set equality holds within
+each batch (A labels: 59 clusters each, equal sets; B labels: 60 clusters each, equal
+sets); variance components are measured on 59 clusters for batch A and 60 for batch B.
+The registered wording "measured on 59 clusters" described the A-batch measurement.
