@@ -202,6 +202,25 @@ def load_cluster_games(path: str, focus: str = "flawless",
     return dict(grouped)
 
 
+def restrict_clusters(batch_games: dict[str, dict[str, list[float]]], wanted: set[str],
+                      labels: list[str], batch: str) -> dict[str, dict[str, list[float]]]:
+    """Restrict every label's cluster map to the design's wanted clusters (fail-loud).
+
+    ``batch_games`` maps LABEL -> {cluster name -> per-game scores}, so the
+    restriction must iterate labels and filter each label's cluster keys. An
+    earlier cut filtered ``batch_games.items()`` by cluster names directly, which
+    matched nothing (its keys are labels) and failed every design with a
+    fabricated "missing clusters" error.
+    """
+    restricted: dict[str, dict[str, list[float]]] = {}
+    for lab in labels:
+        restricted[lab] = {k: v for k, v in batch_games[lab].items() if k in wanted}
+        missing = wanted - set(restricted[lab])
+        if missing:
+            raise ValueError(f"{batch}/{lab}: screening evidence missing clusters {sorted(missing)[:5]}")
+    return restricted
+
+
 def variance_components(cluster_games: dict[str, list[float]]) -> tuple[float, float]:
     """Return (between-opening variance, per-game match variance) of the score.
 
@@ -480,15 +499,15 @@ def main() -> int:
         # Covariance components are re-measured on the design's actual opening clusters:
         # the 50-opening registered subsets for rating-100-v1, the full 60-opening suites
         # otherwise. Repetitions enter through the measured variance components.
-        wanted = {"A": set(subset_a if clusters == 50 else names_a),
-                  "B": set(subset_b if clusters == 50 else names_b)}
+        # The registered design rule is unchanged (50/60 clusters); the exclusion
+        # removes clusters from the MEASUREMENT only ("variance components are
+        # measured on 59 clusters", PREREGISTRATION 2026-11-26).
+        wanted = {"A": set(subset_a if clusters == 50 else names_a) - exclude,
+                  "B": set(subset_b if clusters == 50 else names_b) - exclude}
         covs = {}
         design_components = {}
         for batch in ("A", "B"):
-            restricted = {k: v for k, v in games[batch].items() if k in wanted[batch]}
-            missing = wanted[batch] - set(restricted)
-            if missing:
-                raise ValueError(f"{batch}: screening evidence missing clusters {sorted(missing)[:5]}")
+            restricted = restrict_clusters(games[batch], wanted[batch], batch_labels[batch], batch)
             sigma_op, sigma_m = [], []
             for label in batch_labels[batch]:
                 op, m = variance_components(restricted[label])

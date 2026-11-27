@@ -208,5 +208,47 @@ class PowerAnalysisV2IdentityTests(unittest.TestCase):
                 v2.read_manifest(games, "akimbo-0.1.1-e4", "A", v2.SUITE_B_SHA256, "a" * 64)
 
 
+class RestrictClustersTests(unittest.TestCase):
+    """Regression tests for the design-loop cluster restriction.
+
+    The first cut filtered ``games[batch].items()`` by cluster names even though
+    its keys are LABELS, so ``restricted`` was always empty and every design
+    died with a fabricated "missing clusters" error. These tests pin the
+    label -> cluster -> scores structure and the fail-loud missing check.
+    """
+
+    def test_restricts_per_label_cluster_maps(self):
+        import power_analysis_v2 as v2
+        batch_games = {
+            "lab-a": {"Ruy Lopez Morphy": [1.0, 0.0], "Petroff Defence": [0.5, 0.5]},
+            "lab-b": {"Ruy Lopez Morphy": [0.0, 1.0], "Petroff Defence": [1.0, 1.0]},
+        }
+        restricted = v2.restrict_clusters(batch_games, {"Ruy Lopez Morphy"},
+                                          ["lab-a", "lab-b"], "A")
+        self.assertEqual(sorted(restricted), ["lab-a", "lab-b"])
+        self.assertEqual(restricted["lab-a"], {"Ruy Lopez Morphy": [1.0, 0.0]})
+        self.assertEqual(restricted["lab-b"], {"Ruy Lopez Morphy": [0.0, 1.0]})
+
+    def test_missing_cluster_fails_loud_with_the_name(self):
+        import power_analysis_v2 as v2
+        batch_games = {"lab-a": {"Ruy Lopez Morphy": [1.0, 0.0]}}
+        with self.assertRaisesRegex(ValueError, "lab-a.*Benoni Defence"):
+            v2.restrict_clusters(batch_games, {"Ruy Lopez Morphy", "Benoni Defence"},
+                                 ["lab-a"], "B")
+
+    def test_wanted_minus_exclude_matches_registered_disposition(self):
+        # The design rule is unchanged (60 clusters); the exclusion removes
+        # clusters from the measurement only.
+        names = {"Petroff Defence", "Ruy Lopez Morphy", "Italian Game"}
+        exclude = frozenset({"Petroff Defence"})
+        import power_analysis_v2 as v2
+        batch_games = {
+            "lab-a": {"Ruy Lopez Morphy": [1.0, 0.0], "Italian Game": [0.5, 0.5],
+                      "Petroff Defence": [0.5, 0.5]},
+        }
+        restricted = v2.restrict_clusters(batch_games, names - exclude, ["lab-a"], "A")
+        self.assertEqual(set(restricted["lab-a"]), {"Ruy Lopez Morphy", "Italian Game"})
+
+
 if __name__ == "__main__":
     unittest.main()

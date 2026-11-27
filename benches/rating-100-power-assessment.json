@@ -1,240 +1,1725 @@
 {
-  "design": "rating-100-v1",
-  "date": "2026-11-17",
-  "status": "BLOCKED",
-  "eligible_for_confirmatory_dispatch": false,
-  "proposed_sample": {
-    "counted_games_per_anchor_per_batch": 100,
-    "distinct_opening_clusters_per_batch": 50,
-    "counted_games_per_opening": 2,
-    "color_pairs": [
-      "AB",
-      "BA"
-    ],
-    "paired_repetitions_per_opening": 1,
-    "batches": 2,
-    "disjoint_opening_suites": true,
-    "same_anchor_set_in_both_batches": true,
-    "expected_total_if_three_anchors": 600,
-    "time_control": "40/15 repeating wall-clock",
-    "threshold": "all unrounded two-sided 95% calibrated CI lower bounds strictly > 2000 Elo",
-    "controls": "both registered null controls and thresholds unchanged"
-  },
-  "historical_vs_amended_arithmetic": {
-    "historical_games_per_anchor_per_batch": 2040,
-    "amended_games_per_anchor_per_batch": 100,
-    "historical_total_for_three_anchors": 12240,
-    "amended_total_for_three_anchors": 600,
-    "games_removed": 11640,
-    "percentage_reduction": 95.09803921568627,
-    "sharding": "50 shards × 2 games per anchor/batch; one matrix wave under 256"
-  },
-  "opening_suites": {
-    "original_a": "benches/rating-openings-batchA.txt",
-    "original_b": "benches/rating-openings-batchB.txt",
-    "amended_a": "benches/rating-openings-100-batchA.txt",
-    "amended_b": "benches/rating-openings-100-batchB.txt",
-    "selector": "Python hashlib SHA-256 over the domain-separated normalized original opening line; choose the 50 smallest hexadecimal digests lexicographically, then retain historical order.",
-    "batch_a_sha256": "5abdcdbddec0f22d7e6eff8974ee402363c8c3df318b8110d7204adf69f5c1df",
-    "batch_b_sha256": "ccb4901742eca25b0b10f1a3c9fdfc17b2967a1939c2d7e466c2c5495b6d4253",
-    "batch_a_openings": 50,
-    "batch_b_openings": 50,
-    "intersection_count": 0,
-    "automated_verifier": "scripts/verify_opening_subsets.py",
-    "selection_verified_by": "scripts/verify_opening_subsets.py"
-  },
-  "screening_inputs": {
-    "source": "benches/evidence/screening-2 raw per-game records",
-    "original_games_per_anchor": 120,
-    "selected_batch_a_subset_games_per_anchor": 100,
-    "selected_batch_a_clusters": 50,
-    "anchor_keys": [
-      "topple-0.1.1",
-      "topple-0.2.1"
-    ],
-    "cluster_score_means": [
-      0.295,
-      0.255
-    ],
-    "cluster_score_standard_deviations": [
-      0.2657776422162723,
-      0.2966221398978016
-    ],
-    "shared_opening_difficulty_correlation": 0.15888153136048594,
-    "note": "These are selection-only screening inputs, not confirmation evidence or a rating estimate.",
-    "screening_engine_sha256": "9663697da62e33229d516af3681c442e268287c59d6b97ff2cd13256b564d428",
-    "screening_engine_label": "ENGINE-1 (time-management remediation)"
-  },
-  "published_calibration": {
-    "source": "frozen benches/anchor-pool.json; published error convention is ci95",
-    "anchors": [
-      {
-        "key": "topple-0.1.1",
-        "published_elo": 2324,
-        "ci95_half_width": 17,
-        "calibration_sd": 8.673469387755102
-      },
-      {
-        "key": "topple-0.2.1",
-        "published_elo": 2439,
-        "ci95_half_width": 14,
-        "calibration_sd": 7.142857142857143
-      },
-      {
-        "key": "akimbo-0.1.1",
-        "published_elo": 2441,
-        "ci95_half_width": 19,
-        "calibration_sd": 9.693877551020408
-      }
-    ],
-    "conversion": "published 95% CI half-width divided by 1.96 to place calibration errors on the SD scale",
-    "cross_batch_treatment": "same calibration draw is shared across Batch A and Batch B; only match-noise is independently drawn between disjoint batches"
-  },
-  "prospective_sensitivity": {
-    "method": "delta-method multivariate-normal sensitivity simulation; 250000 Monte Carlo replicates per scenario",
-    "final_evidence_method": "actual gate remains the registered opening-cluster bootstrap with joint cluster resampling, GLS, calibration uncertainty propagation and shared cross-batch calibration",
-    "cluster_count": 50,
-    "covariance_model": {
-      "anchors_1_and_2": "empirical SD and paired-opening correlation from the deterministic Batch A 50-opening subset",
-      "anchor_3": "marginal opening-cluster SD assumed equal to the larger of the two measured SDs",
-      "correlation_of_anchor_3_with_each": "varied at 0, 0.25 and 0.5; not measured"
-    },
-    "batch_b_assumption": "match-noise distribution assumed exchangeable with Batch A, with independent match-noise because opening suites are disjoint; this cannot be empirically checked from current evidence",
-    "tested_true_rating_alternatives": [
-      2050,
-      2100,
-      2150,
-      2200
-    ],
-    "tested_cluster_sd_inflations": [
-      1,
-      1.5,
-      2
-    ],
-    "scenarios": [
-      {
-        "true_rating": 2050,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1,
-        "batch_ci_half_width": 83.12,
-        "combined_ci_half_width": 59.46,
-        "power_all_three": 0.04946
-      },
-      {
-        "true_rating": 2050,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1.5,
-        "batch_ci_half_width": 123.87,
-        "combined_ci_half_width": 88.05,
-        "power_all_three": 0.01483
-      },
-      {
-        "true_rating": 2050,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 2,
-        "batch_ci_half_width": 164.77,
-        "combined_ci_half_width": 116.86,
-        "power_all_three": 0.00728
-      },
-      {
-        "true_rating": 2100,
-        "third_anchor_correlation": 0,
-        "sd_inflation": 1,
-        "batch_ci_half_width": 62.66,
-        "combined_ci_half_width": 45.04,
-        "power_all_three": 0.77291
-      },
-      {
-        "true_rating": 2100,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1,
-        "batch_ci_half_width": 69.03,
-        "combined_ci_half_width": 49.58,
-        "power_all_three": 0.66019
-      },
-      {
-        "true_rating": 2100,
-        "third_anchor_correlation": 0.5,
-        "sd_inflation": 1,
-        "batch_ci_half_width": 70.56,
-        "combined_ci_half_width": 50.93,
-        "power_all_three": 0.63399
-      },
-      {
-        "true_rating": 2100,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1.5,
-        "batch_ci_half_width": 102.62,
-        "combined_ci_half_width": 73.09,
-        "power_all_three": 0.23297
-      },
-      {
-        "true_rating": 2100,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 2,
-        "batch_ci_half_width": 136.39,
-        "combined_ci_half_width": 96.84,
-        "power_all_three": 0.09195
-      },
-      {
-        "true_rating": 2150,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1,
-        "batch_ci_half_width": 58.7,
-        "combined_ci_half_width": 42.34,
-        "power_all_three": 0.99765
-      },
-      {
-        "true_rating": 2150,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1.5,
-        "batch_ci_half_width": 87.05,
-        "combined_ci_half_width": 62.13,
-        "power_all_three": 0.84925
-      },
-      {
-        "true_rating": 2150,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 2,
-        "batch_ci_half_width": 115.58,
-        "combined_ci_half_width": 82.17,
-        "power_all_three": 0.52042
-      },
-      {
-        "true_rating": 2200,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1,
-        "batch_ci_half_width": 51.25,
-        "combined_ci_half_width": 37.11,
-        "power_all_three": 1
-      },
-      {
-        "true_rating": 2200,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 1.5,
-        "batch_ci_half_width": 75.82,
-        "combined_ci_half_width": 54.21,
-        "power_all_three": 0.9987
-      },
-      {
-        "true_rating": 2200,
-        "third_anchor_correlation": 0.25,
-        "sd_inflation": 2,
-        "batch_ci_half_width": 100.59,
-        "combined_ci_half_width": 71.59,
-        "power_all_three": 0.9481
-      }
-    ],
-    "interpretation": "At a true rating only 100 Elo above the threshold, estimated probability of clearing all three independent lower-bound requirements ranges about 63–77% with no variance inflation and falls to about 9–23% under 1.5–2× cluster SD stress. The design is much better powered at larger margins, but the actual margin and key covariance inputs are unknown.",
-    "computed_at": "2026-11-17"
-  },
-  "blocking_reasons": [
-    "No complete cluster-level distribution for the third mechanically selected anchor is yet available.",
-    "The disjoint Batch B 50-opening suite has no screening distribution; its exchangeability with Batch A is assumed rather than measured.",
-    "The power result depends strongly on the unknown true margin above 2000 and the unmeasured third-anchor correlations; near-threshold alternatives fail the desired power levels.",
-    "The prospective simulation is a delta-method normal approximation, not the actual registered bootstrap on future data."
+ "design": "rating-240-v1",
+ "date": "2026-11-27",
+ "status": "PASS",
+ "eligible_for_confirmatory_dispatch": true,
+ "engine_sha256": "733de4e54f076fc4684ec0ad127975b526037fdedafa4fc15fc9bffccea1a407",
+ "sample_design": "rating-240-v1",
+ "decision_rule": "smallest of {rating-100-v1 (50 clusters x 1 rep), rating-120-v1 (60 x 1), rating-240-v1 (60 x 2), rating-360-v1 (60 x 3)} per anchor per batch whose simulated P(all three lower bounds > 2000) >= 0.80 at a true 2,100 Elo alternative under 1.5x cluster-SD inflation (250,000 deterministic replicates); fixed in PREREGISTRATION.md 2026-11-25 before the SCREEN-E3 evidence was played",
+ "power_bar": 0.8,
+ "screening_inputs": {
+  "kind": "screening",
+  "labels": [
+   "topple-0.1.1-e3",
+   "topple-0.2.1-e3",
+   "akimbo-0.1.1-e3"
   ],
-  "decision": "Keep 100-game design non-dispatchable. Do not claim PASS, do not run confirmatory games, and do not weaken sample size, the 40/15 time control, CI threshold, anchor rule or null controls. The 100-game design may only be run as explicitly exploratory if separately authorized; continue independent engineering work.",
-  "engine_sha256": "9663697da62e33229d516af3681c442e268287c59d6b97ff2cd13256b564d428",
-  "screening_engine_scope": "Derived exclusively from SCREEN-2 / ENGINE-1 (time-management remediation) evidence. This power assessment does not apply to ENGINE-2 (SEE ordering) or any other engine binary SHA-256."
+  "excluded_openings": {
+   "rule": "complete-case cluster exclusion: a cluster lacking its counted AB/BA pair in any input is dropped from all inputs (analysis-only; committed evidence untouched)",
+   "openings": [
+    "Petroff Defence"
+   ],
+   "records_skipped_per_input": {
+    "Petroff Defence": 6
+   }
+  },
+  "roots": {
+   "A": "benches/evidence/screening",
+   "B": "benches/evidence/screening-b"
+  },
+  "variance_components": {
+   "A": {
+    "between_opening_var": [
+     0.016364699006429007,
+     0.0,
+     0.010921975452951482
+    ],
+    "match_var_per_game": [
+     0.1440677966101695,
+     0.11440677966101695,
+     0.1504237288135593
+    ],
+    "between_opening_covariance": [
+     [
+      0.016364699006429007,
+      -0.0081823495032145,
+      0.0013150204558737568
+     ],
+     [
+      -0.0081823495032145,
+      0.0,
+      -0.01546975452951489
+     ],
+     [
+      0.0013150204558737568,
+      -0.01546975452951489,
+      0.010921975452951482
+     ]
+    ]
+   },
+   "B": {
+    "between_opening_var": [
+     0.0,
+     0.0,
+     0.011016949152542393
+    ],
+    "match_var_per_game": [
+     0.13541666666666666,
+     0.0875,
+     0.15208333333333332
+    ],
+    "between_opening_covariance": [
+     [
+      0.0,
+      -0.0021539548022598875,
+      0.007221045197740113
+     ],
+     [
+      -0.0021539548022598875,
+      0.0,
+      3.5310734463275414e-05
+     ],
+     [
+      0.007221045197740113,
+      3.5310734463275414e-05,
+      0.011016949152542393
+     ]
+    ]
+   }
+  },
+  "note": "Selection and power inputs only; never gate evidence."
+ },
+ "opening_suites": {
+  "amended_a": "benches/rating-openings-batchA.txt",
+  "amended_b": "benches/rating-openings-batchB.txt",
+  "batch_a_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+  "batch_b_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
+  "subset_a_sha256": "5abdcdbddec0f22d7e6eff8974ee402363c8c3df318b8110d7204adf69f5c1df",
+  "subset_b_sha256": "ccb4901742eca25b0b10f1a3c9fdfc17b2967a1939c2d7e466c2c5495b6d4253"
+ },
+ "candidate_designs": [
+  {
+   "design": "rating-100-v1",
+   "clusters_per_batch": 50,
+   "paired_repetitions_per_opening": 1,
+   "counted_games_per_anchor_per_batch": 100,
+   "variance_components": {
+    "A": {
+     "sigma_op": [
+      0.02609481292517006,
+      0.0,
+      0.005367772108843524
+     ],
+     "sigma_m": [
+      0.13010204081632654,
+      0.125,
+      0.15051020408163265
+     ],
+     "cov_op": [
+      [
+       0.02609481292517006,
+       -0.010416666666666671,
+       0.008370535714285718
+      ],
+      [
+       -0.010416666666666671,
+       0.0,
+       -0.014880952380952378
+      ],
+      [
+       0.008370535714285718,
+       -0.014880952380952378,
+       0.005367772108843524
+      ]
+     ]
+    },
+    "B": {
+     "sigma_op": [
+      0.0,
+      0.0,
+      0.017755102040816262
+     ],
+     "sigma_m": [
+      0.13,
+      0.09,
+      0.15
+     ],
+     "cov_op": [
+      [
+       0.0,
+       -0.0028061224489795925,
+       0.010561224489795924
+      ],
+      [
+       -0.0028061224489795925,
+       0.0,
+       -0.0022959183673469385
+      ],
+      [
+       0.010561224489795924,
+       -0.0022959183673469385,
+       0.017755102040816262
+      ]
+     ]
+    }
+   },
+   "grid": [
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 34.189202252931395,
+     "batch_b_match_se_elo": 33.061157076088136,
+     "shared_calibration_se_elo": 5.435234755031817,
+     "batch_a_95_half_width_elo": 67.73495975878222,
+     "batch_b_95_half_width_elo": 65.66850143290378,
+     "combined_95_half_width_elo": 47.14827251007069,
+     "power_batch_a": 0.304984,
+     "power_batch_b": 0.319564,
+     "power_combined": 0.546724,
+     "power_all_three_gates": 0.101104,
+     "gls_weights": {
+      "A": [
+       0.4546904662335487,
+       0.33362927482715427,
+       0.21168025893929715
+      ],
+      "B": [
+       0.546945284493355,
+       0.33513562839099875,
+       0.1179190871156462
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 51.28294687378524,
+     "batch_b_match_se_elo": 49.58861556016535,
+     "shared_calibration_se_elo": 5.452773096696998,
+     "batch_a_95_half_width_elo": 100.99878418460526,
+     "batch_b_95_half_width_elo": 97.77772039575144,
+     "combined_95_half_width_elo": 70.25043052540333,
+     "power_batch_a": 0.161636,
+     "power_batch_b": 0.170488,
+     "power_combined": 0.289292,
+     "power_all_three_gates": 0.02834,
+     "gls_weights": {
+      "A": [
+       0.45638276122425414,
+       0.33268488916304706,
+       0.2109323496126988
+      ],
+      "B": [
+       0.5504744095705134,
+       0.33325595198930513,
+       0.11626963844018141
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 68.37706544060804,
+     "batch_b_match_se_elo": 66.11743183704235,
+     "shared_calibration_se_elo": 5.459079401024123,
+     "batch_a_95_half_width_elo": 134.38179020908908,
+     "batch_b_95_half_width_elo": 130.0287486650102,
+     "combined_95_half_width_elo": 93.4452424508182,
+     "power_batch_a": 0.109304,
+     "power_batch_b": 0.11374,
+     "power_combined": 0.181348,
+     "power_all_three_gates": 0.01258,
+     "gls_weights": {
+      "A": [
+       0.45698460265010177,
+       0.33235009225578027,
+       0.2106653050941181
+      ],
+      "B": [
+       0.5517340239484414,
+       0.33258440417950735,
+       0.11568157187205122
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 27.897067318777378,
+     "batch_b_match_se_elo": 27.102095338234648,
+     "shared_calibration_se_elo": 5.31152861471082,
+     "batch_a_95_half_width_elo": 55.54002557949384,
+     "batch_b_95_half_width_elo": 54.129646049513845,
+     "combined_95_half_width_elo": 38.764466137922724,
+     "power_batch_a": 0.941452,
+     "power_batch_b": 0.951804,
+     "power_combined": 0.99882,
+     "power_all_three_gates": 0.896332,
+     "gls_weights": {
+      "A": [
+       0.4311142041316558,
+       0.346598298445854,
+       0.22228749742249015
+      ],
+      "B": [
+       0.5200084863246475,
+       0.35272505178504604,
+       0.1272664618903065
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 41.84450805921189,
+     "batch_b_match_se_elo": 40.648608414070836,
+     "shared_calibration_se_elo": 5.332930368702197,
+     "batch_a_95_half_width_elo": 82.59274608932427,
+     "batch_b_95_half_width_elo": 80.35253598655697,
+     "combined_95_half_width_elo": 57.59352515740773,
+     "power_batch_a": 0.660216,
+     "power_batch_b": 0.682024,
+     "power_combined": 0.923352,
+     "power_all_three_gates": 0.452884,
+     "gls_weights": {
+      "A": [
+       0.4332016814000538,
+       0.34538136448854506,
+       0.22141695411140114
+      ],
+      "B": [
+       0.524693522225398,
+       0.3503133280099187,
+       0.12499314976468323
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 55.79242307690029,
+     "batch_b_match_se_elo": 54.197078747017464,
+     "shared_calibration_se_elo": 5.34073169788122,
+     "batch_a_95_half_width_elo": 109.78643062165537,
+     "batch_b_95_half_width_elo": 106.73883171639442,
+     "combined_95_half_width_elo": 76.53049474864432,
+     "power_batch_a": 0.431956,
+     "power_batch_b": 0.450116,
+     "power_combined": 0.724688,
+     "power_all_three_gates": 0.195724,
+     "gls_weights": {
+      "A": [
+       0.43394965846005135,
+       0.3449475620869587,
+       0.22110277945298998
+      ],
+      "B": [
+       0.5263818246054269,
+       0.3494427725262666,
+       0.12417540286830644
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 23.246933143289223,
+     "batch_b_match_se_elo": 22.70843430334104,
+     "shared_calibration_se_elo": 5.180241718614099,
+     "batch_a_95_half_width_elo": 46.56820840301363,
+     "batch_b_95_half_width_elo": 45.651086843434726,
+     "combined_95_half_width_elo": 32.599607767211175,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.40357189795575066,
+       0.3617381756420787,
+       0.23468992640217048
+      ],
+      "B": [
+       0.4880013199041165,
+       0.3734542719923498,
+       0.13854440810353377
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 34.8692822061457,
+     "batch_b_match_se_elo": 34.05698382864385,
+     "shared_calibration_se_elo": 5.203256271706796,
+     "batch_a_95_half_width_elo": 69.0180026428222,
+     "batch_b_95_half_width_elo": 67.52501254924327,
+     "combined_95_half_width_elo": 48.26658912401748,
+     "power_batch_a": 0.989084,
+     "power_batch_b": 0.99186,
+     "power_combined": 0.999972,
+     "power_all_three_gates": 0.98106,
+     "gls_weights": {
+      "A": [
+       0.40582130782252296,
+       0.36031320944685424,
+       0.23386548273062274
+      ],
+      "B": [
+       0.4936724735219094,
+       0.37069007021731776,
+       0.13563745626077275
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 46.49211281451394,
+     "batch_b_match_se_elo": 45.40795382114594,
+     "shared_calibration_se_elo": 5.2117947244228775,
+     "batch_a_95_half_width_elo": 91.63092792219648,
+     "batch_b_95_half_width_elo": 89.58225621271951,
+     "combined_95_half_width_elo": 64.05625367833487,
+     "power_batch_a": 0.893352,
+     "power_batch_b": 0.907212,
+     "power_combined": 0.995412,
+     "power_all_three_gates": 0.81104,
+     "gls_weights": {
+      "A": [
+       0.4066346846873406,
+       0.35980208613171877,
+       0.23356322918094066
+      ],
+      "B": [
+       0.49574118071169654,
+       0.3696787853799409,
+       0.1345800339083625
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 19.852234939492966,
+     "batch_b_match_se_elo": 19.51280594079221,
+     "shared_calibration_se_elo": 5.053438498268874,
+     "batch_a_95_half_width_elo": 40.05650766652654,
+     "batch_b_95_half_width_elo": 39.50612802067041,
+     "combined_95_half_width_elo": 28.12762054949027,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.37273896352987756,
+       0.3786856458031567,
+       0.2485753906669657
+      ],
+      "B": [
+       0.45164882225456887,
+       0.3968024095289739,
+       0.15154876821645727
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 29.77751804516641,
+     "batch_b_match_se_elo": 29.263354625125366,
+     "shared_calibration_se_elo": 5.074420973536188,
+     "batch_a_95_half_width_elo": 59.13462266909478,
+     "batch_b_95_half_width_elo": 58.211051506495764,
+     "combined_95_half_width_elo": 41.48410615522838,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.3746979602399666,
+       0.37720283286596334,
+       0.24809920689407006
+      ],
+      "B": [
+       0.45774625485187853,
+       0.3941022450345536,
+       0.14815150011356804
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 50,
+     "batch_a_match_se_elo": 39.70315864089825,
+     "batch_b_match_se_elo": 39.01637285293533,
+     "shared_calibration_se_elo": 5.082365703547429,
+     "batch_a_95_half_width_elo": 78.3975244243077,
+     "batch_b_95_half_width_elo": 77.11674482224838,
+     "combined_95_half_width_elo": 54.97700336862622,
+     "power_batch_a": 0.998732,
+     "power_batch_b": 0.999152,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.997884,
+     "gls_weights": {
+      "A": [
+       0.3754128950889285,
+       0.3766678723360781,
+       0.24791923257499332
+      ],
+      "B": [
+       0.46000162863863747,
+       0.393098160520293,
+       0.1469002108410696
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    }
+   ],
+   "meets_design_rule": false
+  },
+  {
+   "design": "rating-120-v1",
+   "clusters_per_batch": 60,
+   "paired_repetitions_per_opening": 1,
+   "counted_games_per_anchor_per_batch": 120,
+   "variance_components": {
+    "A": {
+     "sigma_op": [
+      0.016364699006429007,
+      0.0,
+      0.010921975452951482
+     ],
+     "sigma_m": [
+      0.1440677966101695,
+      0.11440677966101695,
+      0.1504237288135593
+     ],
+     "cov_op": [
+      [
+       0.016364699006429007,
+       -0.0081823495032145,
+       0.0013150204558737568
+      ],
+      [
+       -0.0081823495032145,
+       0.0,
+       -0.01546975452951489
+      ],
+      [
+       0.0013150204558737568,
+       -0.01546975452951489,
+       0.010921975452951482
+      ]
+     ]
+    },
+    "B": {
+     "sigma_op": [
+      0.0,
+      0.0,
+      0.011016949152542393
+     ],
+     "sigma_m": [
+      0.13541666666666666,
+      0.0875,
+      0.15208333333333332
+     ],
+     "cov_op": [
+      [
+       0.0,
+       -0.0021539548022598875,
+       0.007221045197740113
+      ],
+      [
+       -0.0021539548022598875,
+       0.0,
+       3.5310734463275414e-05
+      ],
+      [
+       0.007221045197740113,
+       3.5310734463275414e-05,
+       0.011016949152542393
+      ]
+     ]
+    }
+   },
+   "grid": [
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 30.06098054516556,
+     "batch_b_match_se_elo": 30.334590039764407,
+     "shared_calibration_se_elo": 5.354123558730947,
+     "batch_a_95_half_width_elo": 59.73805459088254,
+     "batch_b_95_half_width_elo": 60.373699049967676,
+     "combined_95_half_width_elo": 42.46413380181447,
+     "power_batch_a": 0.376068,
+     "power_batch_b": 0.369168,
+     "power_combined": 0.63528,
+     "power_all_three_gates": 0.143836,
+     "gls_weights": {
+      "A": [
+       0.45095274706285854,
+       0.33728082053159053,
+       0.21176643240555101
+      ],
+      "B": [
+       0.5315113296302548,
+       0.33648673894838727,
+       0.13200193142135783
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 45.09035635481038,
+     "batch_b_match_se_elo": 45.498474608853435,
+     "shared_calibration_se_elo": 5.371986232964372,
+     "batch_a_95_half_width_elo": 88.92533603152471,
+     "batch_b_95_half_width_elo": 89.79479173574074,
+     "combined_95_half_width_elo": 63.18486397176797,
+     "power_batch_a": 0.195904,
+     "power_batch_b": 0.19168,
+     "power_combined": 0.3426,
+     "power_all_three_gates": 0.0383,
+     "gls_weights": {
+      "A": [
+       0.4529154455723876,
+       0.33606620611616134,
+       0.21101834831145108
+      ],
+      "B": [
+       0.5353157512209136,
+       0.334403210880564,
+       0.1302810378985224
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 60.12021767259817,
+     "batch_b_match_se_elo": 60.66383954621356,
+     "shared_calibration_se_elo": 5.378437504389374,
+     "batch_a_95_half_width_elo": 118.2467809187957,
+     "batch_b_95_half_width_elo": 119.3653309769648,
+     "combined_95_half_width_elo": 84.00577537271349,
+     "power_batch_a": 0.12932,
+     "power_batch_b": 0.126828,
+     "power_combined": 0.215304,
+     "power_all_three_gates": 0.016796,
+     "gls_weights": {
+      "A": [
+       0.45361520289698665,
+       0.3356341804127889,
+       0.21075061669022443
+      ],
+      "B": [
+       0.5366776747574405,
+       0.33365660459193125,
+       0.12966572065062826
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 24.52555469563405,
+     "batch_b_match_se_elo": 24.849403304210696,
+     "shared_calibration_se_elo": 5.23787503346128,
+     "batch_a_95_half_width_elo": 49.044822332285776,
+     "batch_b_95_half_width_elo": 49.77414031030225,
+     "combined_95_half_width_elo": 34.93492482370261,
+     "power_batch_a": 0.979504,
+     "power_batch_b": 0.975552,
+     "power_combined": 0.99984,
+     "power_all_three_gates": 0.955692,
+     "gls_weights": {
+      "A": [
+       0.4282398110572947,
+       0.3505713930094971,
+       0.2211887959332083
+      ],
+      "B": [
+       0.5047876475225935,
+       0.3538561703823721,
+       0.14135618209503434
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 36.78689302094646,
+     "batch_b_match_se_elo": 37.26923907172493,
+     "shared_calibration_se_elo": 5.259240103918615,
+     "batch_a_95_half_width_elo": 72.75678368492142,
+     "batch_b_95_half_width_elo": 73.77008113463373,
+     "combined_95_half_width_elo": 51.80135374086326,
+     "power_batch_a": 0.769936,
+     "power_batch_b": 0.757104,
+     "power_combined": 0.964276,
+     "power_all_three_gates": 0.585508,
+     "gls_weights": {
+      "A": [
+       0.4306767341683551,
+       0.3490109976017002,
+       0.22031226822994474
+      ],
+      "B": [
+       0.5097854746061685,
+       0.35120556647846213,
+       0.13900895891536938
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 49.048853725608836,
+     "batch_b_match_se_elo": 49.69116706065866,
+     "shared_calibration_se_elo": 5.267078771825168,
+     "batch_a_95_half_width_elo": 96.62728603081112,
+     "batch_b_95_half_width_elo": 97.9384845022449,
+     "combined_95_half_width_elo": 68.78470183399605,
+     "power_batch_a": 0.528164,
+     "power_batch_b": 0.516132,
+     "power_combined": 0.811652,
+     "power_all_three_gates": 0.27488,
+     "gls_weights": {
+      "A": [
+       0.4315531661940868,
+       0.3484519749973045,
+       0.21999485880860878
+      ],
+      "B": [
+       0.5115943197856158,
+       0.3502446467216613,
+       0.138161033492723
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 20.435637678785653,
+     "batch_b_match_se_elo": 20.803507182107015,
+     "shared_calibration_se_elo": 5.116631652465006,
+     "batch_a_95_half_width_elo": 41.19007666042521,
+     "batch_b_95_half_width_elo": 41.98926455817671,
+     "combined_95_half_width_elo": 29.40426613923351,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.40178524913589436,
+       0.36606700336894665,
+       0.232147747495159
+      ],
+      "B": [
+       0.473253476347607,
+       0.3742034250726257,
+       0.15254309857976725
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 30.651955116251735,
+     "batch_b_match_se_elo": 31.199336144555243,
+     "shared_calibration_se_elo": 5.13896532823383,
+     "batch_a_95_half_width_elo": 60.84243970118698,
+     "batch_b_95_half_width_elo": 61.97353867153526,
+     "combined_95_half_width_elo": 43.416481350739524,
+     "power_batch_a": 0.998036,
+     "power_batch_b": 0.997328,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.995364,
+     "gls_weights": {
+      "A": [
+       0.40444736617202687,
+       0.36425252109676715,
+       0.2313001127312059
+      ],
+      "B": [
+       0.47921666070625724,
+       0.3712016618463919,
+       0.14958167744735099
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 40.86891623778786,
+     "batch_b_match_se_elo": 41.59768156853839,
+     "shared_calibration_se_elo": 5.147326528126432,
+     "batch_a_95_half_width_elo": 80.67798358833299,
+     "batch_b_95_half_width_elo": 82.15177017361631,
+     "combined_95_half_width_elo": 57.56193759896531,
+     "power_batch_a": 0.954004,
+     "power_batch_b": 0.947548,
+     "power_combined": 0.999144,
+     "power_all_three_gates": 0.904156,
+     "gls_weights": {
+      "A": [
+       0.4054150804010681,
+       0.36359698446398486,
+       0.23098793513494692
+      ],
+      "B": [
+       0.48140490787535295,
+       0.370097046514003,
+       0.148498045610644
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 17.451136541302336,
+     "batch_b_match_se_elo": 17.858788518655565,
+     "shared_calibration_se_elo": 5.002246019662927,
+     "batch_a_95_half_width_elo": 35.50066293173402,
+     "batch_b_95_half_width_elo": 36.349739170598,
+     "combined_95_half_width_elo": 25.39763250171799,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.372285477609283,
+       0.3833713926342607,
+       0.24434312975645633
+      ],
+      "B": [
+       0.4377437803104762,
+       0.39694754515258424,
+       0.16530867453693956
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 26.17554953097802,
+     "batch_b_match_se_elo": 26.78229338811554,
+     "shared_calibration_se_elo": 5.021786571650679,
+     "batch_a_95_half_width_elo": 52.178217556462016,
+     "batch_b_95_half_width_elo": 53.407115383754466,
+     "combined_95_half_width_elo": 37.322467731719726,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.37468250352873794,
+       0.3815133643616822,
+       0.24380413210957982
+      ],
+      "B": [
+       0.4440255568336297,
+       0.3940682589616263,
+       0.16190618420474398
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 34.90045360353634,
+     "batch_b_match_se_elo": 35.708264461633505,
+     "shared_calibration_se_elo": 5.029273497101199,
+     "batch_a_95_half_width_elo": 69.06276604691536,
+     "batch_b_95_half_width_elo": 70.6776639707706,
+     "combined_95_half_width_elo": 49.395806361184114,
+     "power_batch_a": 0.999892,
+     "power_batch_b": 0.99984,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.999732,
+     "gls_weights": {
+      "A": [
+       0.3755638466465492,
+       0.380836492408029,
+       0.2435996609454219
+      ],
+      "B": [
+       0.44636704040527214,
+       0.3929898356154759,
+       0.16064312397925198
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    }
+   ],
+   "meets_design_rule": false
+  },
+  {
+   "design": "rating-240-v1",
+   "clusters_per_batch": 60,
+   "paired_repetitions_per_opening": 2,
+   "counted_games_per_anchor_per_batch": 240,
+   "variance_components": {
+    "A": {
+     "sigma_op": [
+      0.016364699006429007,
+      0.0,
+      0.010921975452951482
+     ],
+     "sigma_m": [
+      0.1440677966101695,
+      0.11440677966101695,
+      0.1504237288135593
+     ],
+     "cov_op": [
+      [
+       0.016364699006429007,
+       -0.0081823495032145,
+       0.0013150204558737568
+      ],
+      [
+       -0.0081823495032145,
+       0.0,
+       -0.01546975452951489
+      ],
+      [
+       0.0013150204558737568,
+       -0.01546975452951489,
+       0.010921975452951482
+      ]
+     ]
+    },
+    "B": {
+     "sigma_op": [
+      0.0,
+      0.0,
+      0.011016949152542393
+     ],
+     "sigma_m": [
+      0.13541666666666666,
+      0.0875,
+      0.15208333333333332
+     ],
+     "cov_op": [
+      [
+       0.0,
+       -0.0021539548022598875,
+       0.007221045197740113
+      ],
+      [
+       -0.0021539548022598875,
+       0.0,
+       3.5310734463275414e-05
+      ],
+      [
+       0.007221045197740113,
+       3.5310734463275414e-05,
+       0.011016949152542393
+      ]
+     ]
+    }
+   },
+   "grid": [
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 19.39867331406005,
+     "batch_b_match_se_elo": 21.5920747880166,
+     "shared_calibration_se_elo": 5.438188471155832,
+     "batch_a_95_half_width_elo": 39.19038879963742,
+     "batch_b_95_half_width_elo": 43.64129886958471,
+     "combined_95_half_width_elo": 29.158799755219697,
+     "power_batch_a": 0.70292,
+     "power_batch_b": 0.6124,
+     "power_combined": 0.91106,
+     "power_all_three_gates": 0.439608,
+     "gls_weights": {
+      "A": [
+       0.37436491120917575,
+       0.3927081560820593,
+       0.2329269327087649
+      ],
+      "B": [
+       0.541069143199277,
+       0.360993924713889,
+       0.09793693208683397
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 29.097305440451464,
+     "batch_b_match_se_elo": 32.37727246325143,
+     "shared_calibration_se_elo": 5.478011942129049,
+     "batch_a_95_half_width_elo": 57.81689706070092,
+     "batch_b_95_half_width_elo": 64.36016755070662,
+     "combined_95_half_width_elo": 43.01058263394275,
+     "power_batch_a": 0.394828,
+     "power_batch_b": 0.33074,
+     "power_combined": 0.622392,
+     "power_all_three_gates": 0.13544,
+     "gls_weights": {
+      "A": [
+       0.3760489938461773,
+       0.3916533387067079,
+       0.2322976674471149
+      ],
+      "B": [
+       0.5489705107752463,
+       0.3571907043283939,
+       0.09383878489635968
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 38.79624062170643,
+     "batch_b_match_se_elo": 43.16708719260694,
+     "shared_calibration_se_elo": 5.492821306205525,
+     "batch_a_95_half_width_elo": 76.63165931748217,
+     "batch_b_95_half_width_elo": 85.28813180558072,
+     "combined_95_half_width_elo": 57.00226909785723,
+     "power_batch_a": 0.249468,
+     "power_batch_b": 0.208832,
+     "power_combined": 0.40674,
+     "power_all_three_gates": 0.053916,
+     "gls_weights": {
+      "A": [
+       0.3766585974754843,
+       0.3912733989804572,
+       0.23206800354405846
+      ],
+      "B": [
+       0.5518620405023699,
+       0.3557924673407394,
+       0.09234549215689093
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 15.769091885220176,
+     "batch_b_match_se_elo": 17.70709238172916,
+     "shared_calibration_se_elo": 5.3074371762334875,
+     "batch_a_95_half_width_elo": 32.32062227412885,
+     "batch_b_95_half_width_elo": 36.230718072014994,
+     "combined_95_half_width_elo": 24.118504400251386,
+     "power_batch_a": 0.999972,
+     "power_batch_b": 0.999756,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.999728,
+     "gls_weights": {
+      "A": [
+       0.35541241716874766,
+       0.40395939395599034,
+       0.24062818887526197
+      ],
+      "B": [
+       0.5117880116625084,
+       0.3798170653861005,
+       0.10839492295139107
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 23.652968378914576,
+     "batch_b_match_se_elo": 26.545208793702695,
+     "shared_calibration_se_elo": 5.355163151802657,
+     "batch_a_95_half_width_elo": 47.314038274611114,
+     "batch_b_95_half_width_elo": 53.075805966014364,
+     "combined_95_half_width_elo": 35.31813081566325,
+     "power_batch_a": 0.98512,
+     "power_batch_b": 0.958484,
+     "power_combined": 0.99978,
+     "power_all_three_gates": 0.944416,
+     "gls_weights": {
+      "A": [
+       0.35717270208314195,
+       0.4027708011948634,
+       0.24005649672199456
+      ],
+      "B": [
+       0.5220681270882264,
+       0.3751760573454191,
+       0.10275581556635446
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 31.53712933265226,
+     "batch_b_match_se_elo": 35.38977236520916,
+     "shared_calibration_se_elo": 5.37344505670061,
+     "batch_a_95_half_width_elo": 62.531362601877,
+     "batch_b_95_half_width_elo": 70.15767396926789,
+     "combined_95_half_width_elo": 46.680649802705005,
+     "power_batch_a": 0.879416,
+     "power_batch_b": 0.797556,
+     "power_combined": 0.986604,
+     "power_all_three_gates": 0.70254,
+     "gls_weights": {
+      "A": [
+       0.3578195297007746,
+       0.4023378126922518,
+       0.23984265760697365
+      ],
+      "B": [
+       0.5259109815464721,
+       0.3734271001353424,
+       0.10066191831818548
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 13.08429455703061,
+     "batch_b_match_se_elo": 14.843233405218792,
+     "shared_calibration_se_elo": 5.173989200917154,
+     "batch_a_95_half_width_elo": 27.319591286525768,
+     "batch_b_95_half_width_elo": 30.80897194797628,
+     "combined_95_half_width_elo": 20.440698985730407,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.33406960981966477,
+       0.41668912884836923,
+       0.24924126133196606
+      ],
+      "B": [
+       0.47794990826584294,
+       0.4012210020755359,
+       0.1208290896586211
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 19.626047818837364,
+     "batch_b_match_se_elo": 22.245924785388503,
+     "shared_calibration_se_elo": 5.224478974435568,
+     "batch_a_95_half_width_elo": 39.60307780285566,
+     "batch_b_95_half_width_elo": 44.787486490018786,
+     "combined_95_half_width_elo": 29.668032660709226,
+     "power_batch_a": 1.0,
+     "power_batch_b": 0.999992,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.999992,
+     "gls_weights": {
+      "A": [
+       0.3354149431738425,
+       0.41558120361570605,
+       0.2490038532104515
+      ],
+      "B": [
+       0.4900951112522186,
+       0.39629605609526164,
+       0.11360883265251974
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 26.167966739570943,
+     "batch_b_match_se_elo": 29.65632917781094,
+     "shared_calibration_se_elo": 5.244552090433498,
+     "batch_a_95_half_width_elo": 52.146379401632785,
+     "batch_b_95_half_width_elo": 59.02724280226398,
+     "combined_95_half_width_elo": 39.08045890632156,
+     "power_batch_a": 0.999856,
+     "power_batch_b": 0.998836,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.998692,
+     "gls_weights": {
+      "A": [
+       0.3359177814002583,
+       0.4151733671323064,
+       0.24890885146743522
+      ],
+      "B": [
+       0.494757058431672,
+       0.39437799534296036,
+       0.11086494622536759
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 11.121766365501987,
+     "batch_b_match_se_elo": 12.759556215742023,
+     "shared_calibration_se_elo": 5.051849310632509,
+     "batch_a_95_half_width_elo": 23.73943332077429,
+     "batch_b_95_half_width_elo": 26.89706616167954,
+     "combined_95_half_width_elo": 17.798516904379184,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.31111548549194673,
+       0.43046670059806197,
+       0.2584178139099913
+      ],
+      "B": [
+       0.4410479721894002,
+       0.4242073945061039,
+       0.13474463330449582
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 16.682506383367684,
+     "batch_b_match_se_elo": 19.119830604577967,
+     "shared_calibration_se_elo": 5.097847169864189,
+     "batch_a_95_half_width_elo": 34.022183500610694,
+     "batch_b_95_half_width_elo": 38.78332280131475,
+     "combined_95_half_width_elo": 25.575922576441066,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.31133581196543525,
+       0.42975697766916415,
+       0.25890721036540065
+      ],
+      "B": [
+       0.4537843145301486,
+       0.41999270147424234,
+       0.12622298399560916
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 22.24330717765134,
+     "batch_b_match_se_elo": 25.48782730617224,
+     "shared_calibration_se_elo": 5.116906065582147,
+     "batch_a_95_half_width_elo": 44.59854713209216,
+     "batch_b_95_half_width_elo": 50.95197966289544,
+     "combined_95_half_width_elo": 33.55874624705664,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.31141716963021565,
+       0.42949627845653243,
+       0.259086551913252
+      ],
+      "B": [
+       0.45882071802780117,
+       0.4182784701156631,
+       0.12290081185653573
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    }
+   ],
+   "meets_design_rule": true
+  },
+  {
+   "design": "rating-360-v1",
+   "clusters_per_batch": 60,
+   "paired_repetitions_per_opening": 3,
+   "counted_games_per_anchor_per_batch": 360,
+   "variance_components": {
+    "A": {
+     "sigma_op": [
+      0.016364699006429007,
+      0.0,
+      0.010921975452951482
+     ],
+     "sigma_m": [
+      0.1440677966101695,
+      0.11440677966101695,
+      0.1504237288135593
+     ],
+     "cov_op": [
+      [
+       0.016364699006429007,
+       -0.0081823495032145,
+       0.0013150204558737568
+      ],
+      [
+       -0.0081823495032145,
+       0.0,
+       -0.01546975452951489
+      ],
+      [
+       0.0013150204558737568,
+       -0.01546975452951489,
+       0.010921975452951482
+      ]
+     ]
+    },
+    "B": {
+     "sigma_op": [
+      0.0,
+      0.0,
+      0.011016949152542393
+     ],
+     "sigma_m": [
+      0.13541666666666666,
+      0.0875,
+      0.15208333333333332
+     ],
+     "cov_op": [
+      [
+       0.0,
+       -0.0021539548022598875,
+       0.007221045197740113
+      ],
+      [
+       -0.0021539548022598875,
+       0.0,
+       3.5310734463275414e-05
+      ],
+      [
+       0.007221045197740113,
+       3.5310734463275414e-05,
+       0.011016949152542393
+      ]
+     ]
+    }
+   },
+   "grid": [
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 13.54842513522881,
+     "batch_b_match_se_elo": 17.571157744059686,
+     "shared_calibration_se_elo": 5.539982053979795,
+     "batch_a_95_half_width_elo": 28.1684724498196,
+     "batch_b_95_half_width_elo": 36.11001526583949,
+     "combined_95_half_width_elo": 22.210111874726426,
+     "power_batch_a": 0.932024,
+     "power_batch_b": 0.77508,
+     "power_combined": 0.989376,
+     "power_all_three_gates": 0.726928,
+     "gls_weights": {
+      "A": [
+       0.31166708006367255,
+       0.43500243593781235,
+       0.25333048399851504
+      ],
+      "B": [
+       0.55148518300616,
+       0.3801182666505442,
+       0.06839655034329581
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 20.32261133111166,
+     "batch_b_match_se_elo": 26.334035794025596,
+     "shared_calibration_se_elo": 5.606621199279928,
+     "batch_a_95_half_width_elo": 40.925336212479856,
+     "batch_b_95_half_width_elo": 52.77057503038945,
+     "combined_95_half_width_elo": 32.33964992654828,
+     "power_batch_a": 0.664432,
+     "power_batch_b": 0.46052,
+     "power_combined": 0.849616,
+     "power_all_three_gates": 0.31394,
+     "gls_weights": {
+      "A": [
+       0.31182810346729917,
+       0.4347629510161295,
+       0.25340894551657134
+      ],
+      "B": [
+       0.563834872260001,
+       0.37469457718780197,
+       0.06147055055219703
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2050.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 27.096808974861283,
+     "batch_b_match_se_elo": 35.106400999694536,
+     "shared_calibration_se_elo": 5.632083731845357,
+     "batch_a_95_half_width_elo": 53.93394308022927,
+     "batch_b_95_half_width_elo": 69.68711849056312,
+     "combined_95_half_width_elo": 42.651994430844724,
+     "power_batch_a": 0.443216,
+     "power_batch_b": 0.290016,
+     "power_combined": 0.62836,
+     "power_all_three_gates": 0.132648,
+     "gls_weights": {
+      "A": [
+       0.3118867897546009,
+       0.43467700153904804,
+       0.25343620870635114
+      ],
+      "B": [
+       0.5684526748439789,
+       0.37264564314304494,
+       0.05890168201297623
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 10.979766381757559,
+     "batch_b_match_se_elo": 14.430474464546998,
+     "shared_calibration_se_elo": 5.393227325578545,
+     "batch_a_95_half_width_elo": 23.482956216554058,
+     "batch_b_95_half_width_elo": 30.193974784554893,
+     "combined_95_half_width_elo": 18.53669437504845,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.2975571485296861,
+       0.4435762423365808,
+       0.2588666091337331
+      ],
+      "B": [
+       0.5196729851408259,
+       0.4000361098793913,
+       0.08029090497978277
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 16.469557159348913,
+     "batch_b_match_se_elo": 21.613431242436143,
+     "shared_calibration_se_elo": 5.473361147952494,
+     "batch_a_95_half_width_elo": 33.62037957797659,
+     "batch_b_95_half_width_elo": 43.698762585700656,
+     "combined_95_half_width_elo": 26.646566819505967,
+     "power_batch_a": 0.99996,
+     "power_batch_b": 0.994328,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.994288,
+     "gls_weights": {
+      "A": [
+       0.29707652230584924,
+       0.44358108262383145,
+       0.25934239507031936
+      ],
+      "B": [
+       0.5356123786001316,
+       0.3936338605069251,
+       0.07075376089294336
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2100.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 21.959386868239744,
+     "batch_b_match_se_elo": 28.809490479426966,
+     "shared_calibration_se_elo": 5.505287169182005,
+     "batch_a_95_half_width_elo": 44.05404573350558,
+     "batch_b_95_half_width_elo": 57.48728156281406,
+     "combined_95_half_width_elo": 34.96730813539917,
+     "power_batch_a": 0.993236,
+     "power_batch_b": 0.926736,
+     "power_combined": 0.999768,
+     "power_all_three_gates": 0.920688,
+     "gls_weights": {
+      "A": [
+       0.2968955619897584,
+       0.4435864145254469,
+       0.25951802348479464
+      ],
+      "B": [
+       0.5417600803574261,
+       0.39111878171348213,
+       0.06712113792909186
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 9.079354815752946,
+     "batch_b_match_se_elo": 12.117566352856578,
+     "shared_calibration_se_elo": 5.245735413880739,
+     "batch_a_95_half_width_elo": 20.12999793961649,
+     "batch_b_95_half_width_elo": 25.87992393124862,
+     "combined_95_half_width_elo": 15.889310917225886,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.28210901226460483,
+       0.45306717758486004,
+       0.26482381015053524
+      ],
+      "B": [
+       0.4835910174725305,
+       0.42204578489397543,
+       0.09436319763349406
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 13.618372973964723,
+     "batch_b_match_se_elo": 18.13646951142324,
+     "shared_calibration_se_elo": 5.331533574545371,
+     "batch_a_95_half_width_elo": 28.302431810445796,
+     "batch_b_95_half_width_elo": 37.050929024611435,
+     "combined_95_half_width_elo": 22.491227767426754,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.28038021744794445,
+       0.45358872362482,
+       0.2660310589272356
+      ],
+      "B": [
+       0.5022795248826998,
+       0.41559880890265655,
+       0.08212166621464355
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2150.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 18.157659330734923,
+     "batch_b_match_se_elo": 24.17095450831229,
+     "shared_calibration_se_elo": 5.36751967388005,
+     "batch_a_95_half_width_elo": 36.81221116893791,
+     "batch_b_95_half_width_elo": 48.52822179790246,
+     "combined_95_half_width_elo": 29.328637160450796,
+     "power_batch_a": 1.0,
+     "power_batch_b": 0.999976,
+     "power_combined": 1.0,
+     "power_all_three_gates": 0.999976,
+     "gls_weights": {
+      "A": [
+       0.27971442567123606,
+       0.45379409220911754,
+       0.26649148211964646
+      ],
+      "B": [
+       0.5097684552938415,
+       0.4129253282968243,
+       0.07730621640933412
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 7.690261032576125,
+     "batch_b_match_se_elo": 10.435640140664253,
+     "shared_calibration_se_elo": 5.113509701443283,
+     "batch_a_95_half_width_elo": 17.780916193045243,
+     "batch_b_95_half_width_elo": 22.776988175616328,
+     "combined_95_half_width_elo": 14.01585617173051,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.2658705227502919,
+       0.463177362655444,
+       0.2709521145942641
+      ],
+      "B": [
+       0.4453205177382929,
+       0.44481932863202744,
+       0.10986015362967962
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 1.5,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 11.532844484502393,
+     "batch_b_match_se_elo": 15.611176432846268,
+     "shared_calibration_se_elo": 5.194297505981658,
+     "batch_a_95_half_width_elo": 24.49605985666754,
+     "batch_b_95_half_width_elo": 32.24659336002762,
+     "combined_95_half_width_elo": 19.506144099074117,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.2621995473263852,
+       0.46452324967515063,
+       0.27327720299846425
+      ],
+      "B": [
+       0.46487860687498794,
+       0.4398148503958918,
+       0.09530654272912019
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    },
+    {
+     "assumed_true_rating": 2200.0,
+     "cluster_sd_inflation": 2.0,
+     "clusters_per_batch": 60,
+     "batch_a_match_se_elo": 15.376433212856584,
+     "batch_b_match_se_elo": 20.802518424380235,
+     "shared_calibration_se_elo": 5.23012410011547,
+     "batch_a_95_half_width_elo": 31.5821358253454,
+     "batch_b_95_half_width_elo": 42.0410662347348,
+     "combined_95_half_width_elo": 25.250900750627668,
+     "power_batch_a": 1.0,
+     "power_batch_b": 1.0,
+     "power_combined": 1.0,
+     "power_all_three_gates": 1.0,
+     "gls_weights": {
+      "A": [
+       0.2607489983938209,
+       0.46505812034613764,
+       0.27419288126004143
+      ],
+      "B": [
+       0.47305671569273483,
+       0.43756580369698056,
+       0.08937748061028483
+      ]
+     },
+     "monte_carlo_replicates": 250000
+    }
+   ],
+   "meets_design_rule": true
+  }
+ ],
+ "limitations": "Delta-method normal approximation over measured covariances; the registered opening-cluster bootstrap remains the final evidence method. Power at alternatives below 2,100 Elo is lower by construction: a true rating near the threshold can yield INCONCLUSIVE, which is fail-closed and never partial credit. Screening runs used one paired repetition per opening; the design's cluster-mean variances at higher repetitions derive from the measured variance components.",
+ "approval": null,
+ "_approval_note": "status PASS is prospective analysis only. eligible_for_confirmatory_dispatch turns usable only after a named reviewer records reviewer/reviewed_at/evidence_ref/decision_rule in approval (the rating-run dispatch gate enforces this)."
 }
