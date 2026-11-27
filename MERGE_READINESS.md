@@ -170,12 +170,16 @@ What this iteration added and verified:
       regression screen. The three runs below `98e5cd9` (40.0%, 42.5%, 36.2%) are on a different engine
       and are not part of that range.
 - [ ] **Absolute V1 rating gate: NOT MET.** Still UNKNOWN / NOT MEASURED. The relative screening result above
-      is not an absolute rating and cannot be used as one. **In flight (2026-11-25):** the ENGINE-3
+      is not an absolute rating and cannot be used as one. **Campaign state (2026-11-27):** the ENGINE-3
       (PR #6 candidate) hosted binary hash `733de4e5…` is frozen from the `verify-flawless` annotation;
-      CTRL-3 and six SCREEN-E3 runs (960 games at 40/15) are dispatched against the three frozen CCRL
-      anchors; the recovered CTRL-2-R (ENGINE-1) null control is PASS and SCREEN-3 is measured. The
-      pre-registered enlarged-design decision rule is fixed in PREREGISTRATION.md; the confirmatory
-      batches remain blocked until the ENGINE-3 power assessment is a reviewed, evidence-backed PASS.
+      its campaign evidence is COMPLETE and verified (CTRL-3 self-match 240/240 PASS, CI contains 0.5;
+      SCREEN-E3 batch A 360 games + batch B 360 games, one registered unadjudicated attempt disposed of
+      by complete-case cluster exclusion, PREREGISTRATION 2026-11-26/27). The ENGINE-3 prospective power
+      assessment is a computed PASS (`benches/rating-100-power-assessment.json`, design `rating-240-v1`,
+      power_all_three 0.944 at true 2,100 / 1.5x inflation) with `approval: null` - the confirmatory
+      batches remain blocked until that approval block is granted, and the ENGINE-4 (current head)
+      per-engine campaign evidence is closing out in parallel (its own controls/screening/reviewed power
+      must PASS independently; per-engine evidence never transfers).
 - [x] **Pooled extended benchmark.** Dispatched through `benches/benchmark-request.json`, executed and read
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
 - [x] **Pooled extended benchmark on the refined head.** The revision-2 extended run on the refined head
