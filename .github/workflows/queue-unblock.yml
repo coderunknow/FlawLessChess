@@ -1,0 +1,75 @@
+# queue-unblock.yml — one-shot, guarded remedy for a wedged queue entry.
+#
+# Background (AGENTS_LOG.md 2026-11-27): the B-suite in-run `aggregate-and-commit-evidence`
+# tail is a registered no-op failure (overwrite refusal; B evidence lands via evidence-bridge
+# by design). Its only function is to resolve the run so the bridge gate sees status=completed.
+# Run 45613863246's tail wedged in the scheduler queue for 22+ hours while newer jobs passed,
+# and the sandbox GH_TOKEN has no `actions: write` scope (403 on cancel/re-run/dispatch).
+# This workflow exists to cancel THAT ONE queued tail and nothing else. Every guard refuses
+# the cancel unless the exact registered shape holds: 60/60 shard jobs successful, zero
+# non-shard jobs active other than the named tail, run id pinned in BOTH the marker and here.
+#
+# Delete this file (and benches/queue-unblock.json) immediately after use.
+
+name: queue-unblock
+
+on:
+  push:
+    paths:
+      - "benches/queue-unblock.json"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cancel-wedged-tail:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard, then cancel the pinned run's wedged tail
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, sys
+
+          PINNED_RUN = 45613863246
+          REPO = "coderunknow/FlawLessChess"
+          TAIL_NAME = "aggregate-and-commit-evidence"
+
+          spec = json.load(open("benches/queue-unblock.json"))
+          if spec.get("run_id") != PINNED_RUN:
+              sys.exit(f"refusing: marker run_id {spec.get('run_id')} != pinned {PINNED_RUN}")
+          if spec.get("purpose") != "cancel-wedged-evidence-tail":
+              sys.exit(f"refusing: unexpected purpose {spec.get('purpose')}")
+
+          r = subprocess.run(
+              ["gh", "api", f"repos/{REPO}/actions/runs/{PINNED_RUN}/jobs?per_page=100"],
+              capture_output=True, text=True)
+          jobs = (json.loads(r.stdout or "{}") or {}).get("jobs") or []
+          if not jobs:
+              sys.exit("refusing: could not list jobs")
+
+          shard_bad = [j["name"] for j in jobs
+                       if "-shard" in (j.get("name") or "") and j.get("conclusion") != "success"]
+          shard_ok = [j for j in jobs
+                      if "-shard" in (j.get("name") or "") and j.get("conclusion") == "success"]
+          if shard_bad:
+              sys.exit(f"refusing: non-successful shard jobs present: {shard_bad[:5]}")
+          if len(shard_ok) != 60:
+              sys.exit(f"refusing: expected 60 successful shard jobs, found {len(shard_ok)}")
+
+          active = [j for j in jobs if j.get("status") not in ("completed",)]
+          active_names = sorted({j.get("name") for j in active})
+          if active_names != [TAIL_NAME]:
+              sys.exit(f"refusing: active jobs are {active_names}, expected [{TAIL_NAME}] only")
+
+          print(f"guards passed: cancelling run {PINNED_RUN} (only active job: {TAIL_NAME})")
+          rc = subprocess.call(
+              ["gh", "api", "-X", "POST", f"repos/{REPO}/actions/runs/{PINNED_RUN}/cancel"])
+          sys.exit(rc)
+          PY

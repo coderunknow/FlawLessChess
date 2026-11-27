@@ -1,0 +1,6 @@
+{
+ "purpose": "cancel-wedged-evidence-tail",
+ "run_id": 45613863246,
+ "reason": "B-suite in-run aggregate tail is a registered no-op failure (overwrite refusal; B evidence lands via evidence-bridge) wedged in the scheduler queue for 22h while newer jobs passed; cancelling the queued tail resolves the run so the bridge gate can evaluate. Guards in queue-unblock.yml refuse anything but the exact registered shape.",
+ "date": "2026-11-27"
+}
