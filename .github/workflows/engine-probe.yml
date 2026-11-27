@@ -64,6 +64,7 @@ jobs:
 
       - name: Build engine + release tests
         run: |
+          set -o pipefail
           cargo build --release --locked
           sha256sum target/release/flawless
           cargo test --release --locked 2>&1 | tail -20
