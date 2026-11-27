@@ -1,0 +1,148 @@
+{
+ "description": "ENGINE-4 quiet-reply queen-trap fall cases (E4 720-game adjudication, 2026-11-27).",
+ "cases": [
+  {
+   "id": "topple-0.1.1-e4-ply40",
+   "label": "Benoni Defence",
+   "fen": "3rr3/pb1Q1pk1/1p5p/2pPq1p1/1n6/2N1P2P/PP3PP1/1B1RR1K1 w - - 1 21",
+   "played_move": "d7b7",
+   "trap_reply": "Re7",
+   "queen_square": "b7",
+   "queen_escapes": 10,
+   "legal_moves": 42,
+   "trap_allowing": 1
+  },
+  {
+   "id": "topple-0.1.1-e4-ply34",
+   "label": "King's Gambit Declined",
+   "fen": "r3r1k1/pp3ppp/1qbb4/2nQP3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 18",
+   "played_move": "d5d6",
+   "trap_reply": "Rad8",
+   "queen_square": "d6",
+   "queen_escapes": 14,
+   "legal_moves": 44,
+   "trap_allowing": 1
+  },
+  {
+   "id": "topple-0.1.1-e4-ply40",
+   "label": "King's Gambit Accepted",
+   "fen": "2k1r3/p4ppp/q1p1b3/3r4/1QnP4/2P2N2/P1PB2PP/2R3KR w - - 13 21",
+   "played_move": "c1e1",
+   "trap_reply": "Rb5",
+   "queen_square": "b4",
+   "queen_escapes": 12,
+   "legal_moves": 37,
+   "trap_allowing": 22
+  },
+  {
+   "id": "topple-0.2.1-e4-ply81",
+   "label": "Modern Defence",
+   "fen": "k1r5/1p3Q2/8/2qpB3/2b2P2/1P5P/6P1/2R4K b - - 0 41",
+   "played_move": "c5a3",
+   "trap_reply": "Ra1",
+   "queen_square": "a3",
+   "queen_escapes": 6,
+   "legal_moves": 33,
+   "trap_allowing": 2
+  },
+  {
+   "id": "topple-0.2.1-e4-ply30",
+   "label": "Queen's Indian",
+   "fen": "r4rk1/1b3ppp/2nq1n2/p7/2p5/1QB1PN2/PP3PPP/R4RK1 w - - 0 16",
+   "played_move": "b3b7",
+   "trap_reply": "Rfb8",
+   "queen_square": "b7",
+   "queen_escapes": 14,
+   "legal_moves": 38,
+   "trap_allowing": 1
+  },
+  {
+   "id": "akimbo-0.1.1-e4-ply63",
+   "label": "Sicilian Najdorf",
+   "fen": "5qkr/1p3p2/1N1p1PBp/1P6/4Q2P/6P1/R4P2/6K1 b - - 0 32",
+   "played_move": "f8b8",
+   "trap_reply": "Ra8",
+   "queen_square": "b8",
+   "queen_escapes": 5,
+   "legal_moves": 11,
+   "trap_allowing": 6
+  },
+  {
+   "id": "topple-0.1.1-e4b-ply45",
+   "label": "Semi-Slav Meran",
+   "fen": "r4r2/pb2Nkp1/2p2pB1/1p2q1p1/8/5P2/PP1B1K2/2R3QR b - - 3 23",
+   "played_move": "f7e7",
+   "trap_reply": "Re1",
+   "queen_square": "e5",
+   "queen_escapes": 5,
+   "legal_moves": 2,
+   "trap_allowing": 2
+  },
+  {
+   "id": "topple-0.1.1-e4b-ply76",
+   "label": "English Main Line",
+   "fen": "6r1/1k5p/1pp4r/p2bp3/Q3p1p1/P2P3q/1P1RNP1P/6KR w - - 0 39",
+   "played_move": "d3e4",
+   "trap_reply": "Bb3",
+   "queen_square": "a4",
+   "queen_escapes": 7,
+   "legal_moves": 23,
+   "trap_allowing": 2
+  },
+  {
+   "id": "topple-0.2.1-e4b-ply29",
+   "label": "French Rubinstein",
+   "fen": "r1br2k1/ppp1bppp/4p3/P7/2BP4/5N2/1q1B1PPP/R2Q1RK1 b - - 0 15",
+   "played_move": "d8d4",
+   "trap_reply": "Ra2",
+   "queen_square": "b2",
+   "queen_escapes": 12,
+   "legal_moves": 43,
+   "trap_allowing": 30
+  },
+  {
+   "id": "topple-0.2.1-e4b-ply39",
+   "label": "Semi-Slav Meran",
+   "fen": "r3k2r/1b1n1pp1/p1p1p2p/1p6/3PP3/3BP3/1q1BQ1PP/R4RK1 b kq - 5 20",
+   "played_move": "d7e5",
+   "trap_reply": "Rfb1",
+   "queen_square": "b2",
+   "queen_escapes": 11,
+   "legal_moves": 39,
+   "trap_allowing": 29
+  },
+  {
+   "id": "topple-0.2.1-e4b-ply49",
+   "label": "Torre Attack",
+   "fen": "6rk/pp2rpp1/2n2n1p/1R1p2Bq/3Pp3/P1P2PR1/P3BPKP/2Q5 b - - 3 25",
+   "played_move": "h6g5",
+   "trap_reply": "Rh3",
+   "queen_square": "h5",
+   "queen_escapes": 4,
+   "legal_moves": 36,
+   "trap_allowing": 2
+  },
+  {
+   "id": "akimbo-0.1.1-e4b-ply43",
+   "label": "Modern Benoni",
+   "fen": "r3r1k1/1pbb1ppp/p2p1n2/1NpP4/P2qP3/1P1B3P/2QB1PP1/3RR1K1 b - - 10 22",
+   "played_move": "a6b5",
+   "trap_reply": "Bc3",
+   "queen_square": "d4",
+   "queen_escapes": 10,
+   "legal_moves": 49,
+   "trap_allowing": 1
+  },
+  {
+   "id": "akimbo-0.1.1-e4b-ply23",
+   "label": "Catalan Closed",
+   "fen": "r1b2rk1/pp1nbppp/2p1p3/8/1B1Pq3/5NP1/PP3PBP/R2Q1RK1 b - - 1 12",
+   "played_move": "e7b4",
+   "trap_reply": "Nh4",
+   "queen_square": "e4",
+   "queen_escapes": 16,
+   "legal_moves": 43,
+   "trap_allowing": 18
+  }
+ ]
+}

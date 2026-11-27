@@ -1,0 +1,528 @@
+{
+ "e3-480": {
+  "games": 480,
+  "queen_trap": {
+   "flags": 10,
+   "played": 6,
+   "fell": 5
+  },
+  "moved_piece": {
+   "flags": 1045,
+   "collected": 346
+  },
+  "details": [
+   {
+    "source": "topple-0.2.1",
+    "game": 2,
+    "ply": 149,
+    "opening": "Caro-Kann Advance",
+    "reply": "Rb4",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 4
+   },
+   {
+    "source": "topple-0.2.1",
+    "game": 2,
+    "ply": 43,
+    "opening": "Two Knights Fried Liver",
+    "reply": "Bg5",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 2
+   },
+   {
+    "source": "topple-0.2.1",
+    "game": 1,
+    "ply": 54,
+    "opening": "Caro-Kann Two Knights",
+    "reply": "Rh7",
+    "played": true,
+    "fell": true,
+    "fell_ply": 57,
+    "queen_escapes": 5
+   },
+   {
+    "source": "topple-0.2.1",
+    "game": 1,
+    "ply": 32,
+    "opening": "French Advance Milner-Barry",
+    "reply": "b5",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 6
+   },
+   {
+    "source": "topple-0.1.1-e3",
+    "game": 2,
+    "ply": 33,
+    "opening": "Catalan",
+    "reply": "Rfb1",
+    "played": true,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 11
+   },
+   {
+    "source": "topple-0.1.1-e3",
+    "game": 2,
+    "ply": 41,
+    "opening": "Queen's Indian",
+    "reply": "Rh3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 44,
+    "queen_escapes": 7
+   },
+   {
+    "source": "topple-0.2.1-e3",
+    "game": 1,
+    "ply": 72,
+    "opening": "Sicilian Najdorf",
+    "reply": "Ra8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 75,
+    "queen_escapes": 12
+   },
+   {
+    "source": "topple-0.2.1-e3",
+    "game": 2,
+    "ply": 77,
+    "opening": "Bird Opening",
+    "reply": "Rd8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 80,
+    "queen_escapes": 2
+   },
+   {
+    "source": "akimbo-0.1.1-e3",
+    "game": 1,
+    "ply": 86,
+    "opening": "Caro-Kann Advance",
+    "reply": "Rf3",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 1
+   },
+   {
+    "source": "akimbo-0.1.1-e3",
+    "game": 2,
+    "ply": 21,
+    "opening": "Benoni Defence",
+    "reply": "Bc3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 24,
+    "queen_escapes": 13
+   }
+  ]
+ },
+ "e3-own-360": {
+  "games": 360,
+  "queen_trap": {
+   "flags": 6,
+   "played": 5,
+   "fell": 4
+  },
+  "moved_piece": {
+   "flags": 743,
+   "collected": 253
+  },
+  "details": [
+   {
+    "source": "topple-0.1.1-e3",
+    "game": 2,
+    "ply": 33,
+    "opening": "Catalan",
+    "reply": "Rfb1",
+    "played": true,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 11
+   },
+   {
+    "source": "topple-0.1.1-e3",
+    "game": 2,
+    "ply": 41,
+    "opening": "Queen's Indian",
+    "reply": "Rh3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 44,
+    "queen_escapes": 7
+   },
+   {
+    "source": "topple-0.2.1-e3",
+    "game": 1,
+    "ply": 72,
+    "opening": "Sicilian Najdorf",
+    "reply": "Ra8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 75,
+    "queen_escapes": 12
+   },
+   {
+    "source": "topple-0.2.1-e3",
+    "game": 2,
+    "ply": 77,
+    "opening": "Bird Opening",
+    "reply": "Rd8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 80,
+    "queen_escapes": 2
+   },
+   {
+    "source": "akimbo-0.1.1-e3",
+    "game": 1,
+    "ply": 86,
+    "opening": "Caro-Kann Advance",
+    "reply": "Rf3",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 1
+   },
+   {
+    "source": "akimbo-0.1.1-e3",
+    "game": 2,
+    "ply": 21,
+    "opening": "Benoni Defence",
+    "reply": "Bc3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 24,
+    "queen_escapes": 13
+   }
+  ]
+ },
+ "e4-720": {
+  "games": 720,
+  "queen_trap": {
+   "flags": 28,
+   "played": 13,
+   "fell": 13
+  },
+  "moved_piece": {
+   "flags": 1612,
+   "collected": 534
+  },
+  "details": [
+   {
+    "source": "topple-0.1.1-e4",
+    "game": 2,
+    "ply": 61,
+    "opening": "Italian Game",
+    "reply": "Rh3",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 4
+   },
+   {
+    "source": "topple-0.1.1-e4",
+    "game": 1,
+    "ply": 40,
+    "opening": "Benoni Defence",
+    "reply": "Re7",
+    "played": true,
+    "fell": true,
+    "fell_ply": 43,
+    "queen_escapes": 10
+   },
+   {
+    "source": "topple-0.1.1-e4",
+    "game": 1,
+    "ply": 34,
+    "opening": "King's Gambit Declined",
+    "reply": "Rad8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 39,
+    "queen_escapes": 14
+   },
+   {
+    "source": "topple-0.1.1-e4",
+    "game": 1,
+    "ply": 40,
+    "opening": "King's Gambit Accepted",
+    "reply": "Rb5",
+    "played": true,
+    "fell": true,
+    "fell_ply": 43,
+    "queen_escapes": 12
+   },
+   {
+    "source": "topple-0.1.1-e4",
+    "game": 2,
+    "ply": 93,
+    "opening": "Philidor Defence",
+    "reply": "Rg1",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 3
+   },
+   {
+    "source": "topple-0.2.1-e4",
+    "game": 2,
+    "ply": 81,
+    "opening": "Modern Defence",
+    "reply": "Ra1",
+    "played": true,
+    "fell": true,
+    "fell_ply": 84,
+    "queen_escapes": 6
+   },
+   {
+    "source": "topple-0.2.1-e4",
+    "game": 2,
+    "ply": 39,
+    "opening": "Catalan",
+    "reply": "Ra2",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 11
+   },
+   {
+    "source": "topple-0.2.1-e4",
+    "game": 1,
+    "ply": 30,
+    "opening": "Queen's Indian",
+    "reply": "Rfb8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 35,
+    "queen_escapes": 14
+   },
+   {
+    "source": "topple-0.2.1-e4",
+    "game": 2,
+    "ply": 29,
+    "opening": "Scotch Game",
+    "reply": "Bg5",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 7
+   },
+   {
+    "source": "topple-0.2.1-e4",
+    "game": 1,
+    "ply": 40,
+    "opening": "King's Gambit Declined",
+    "reply": "Rfe8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 5
+   },
+   {
+    "source": "topple-0.2.1-e4",
+    "game": 1,
+    "ply": 40,
+    "opening": "King's Gambit Declined",
+    "reply": "Rbe8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 5
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 57,
+    "opening": "Sicilian Najdorf",
+    "reply": "Ra8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 5
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 59,
+    "opening": "Sicilian Najdorf",
+    "reply": "Ra8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 5
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 61,
+    "opening": "Sicilian Najdorf",
+    "reply": "Ra8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 5
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 63,
+    "opening": "Sicilian Najdorf",
+    "reply": "Ra8",
+    "played": true,
+    "fell": true,
+    "fell_ply": 66,
+    "queen_escapes": 5
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 17,
+    "opening": "Sicilian Alapin",
+    "reply": "Bd3",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 10
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 87,
+    "opening": "French Winawer",
+    "reply": "Rd8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 1
+   },
+   {
+    "source": "akimbo-0.1.1-e4",
+    "game": 2,
+    "ply": 89,
+    "opening": "Four Knights",
+    "reply": "Bc5",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 5
+   },
+   {
+    "source": "topple-0.1.1-e4b",
+    "game": 2,
+    "ply": 45,
+    "opening": "Semi-Slav Meran",
+    "reply": "Re1",
+    "played": true,
+    "fell": true,
+    "fell_ply": 50,
+    "queen_escapes": 5
+   },
+   {
+    "source": "topple-0.1.1-e4b",
+    "game": 1,
+    "ply": 76,
+    "opening": "English Main Line",
+    "reply": "Bb3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 79,
+    "queen_escapes": 7
+   },
+   {
+    "source": "topple-0.2.1-e4b",
+    "game": 2,
+    "ply": 27,
+    "opening": "French Rubinstein",
+    "reply": "Ra2",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 12
+   },
+   {
+    "source": "topple-0.2.1-e4b",
+    "game": 2,
+    "ply": 29,
+    "opening": "French Rubinstein",
+    "reply": "Ra2",
+    "played": true,
+    "fell": true,
+    "fell_ply": 34,
+    "queen_escapes": 12
+   },
+   {
+    "source": "topple-0.2.1-e4b",
+    "game": 2,
+    "ply": 39,
+    "opening": "Semi-Slav Meran",
+    "reply": "Rfb1",
+    "played": true,
+    "fell": true,
+    "fell_ply": 44,
+    "queen_escapes": 11
+   },
+   {
+    "source": "topple-0.2.1-e4b",
+    "game": 1,
+    "ply": 30,
+    "opening": "London Jobava",
+    "reply": "Rec8",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 13
+   },
+   {
+    "source": "topple-0.2.1-e4b",
+    "game": 1,
+    "ply": 30,
+    "opening": "London Jobava",
+    "reply": "Re7",
+    "played": false,
+    "fell": false,
+    "fell_ply": null,
+    "queen_escapes": 12
+   },
+   {
+    "source": "topple-0.2.1-e4b",
+    "game": 2,
+    "ply": 49,
+    "opening": "Torre Attack",
+    "reply": "Rh3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 52,
+    "queen_escapes": 4
+   },
+   {
+    "source": "akimbo-0.1.1-e4b",
+    "game": 2,
+    "ply": 43,
+    "opening": "Modern Benoni",
+    "reply": "Bc3",
+    "played": true,
+    "fell": true,
+    "fell_ply": 46,
+    "queen_escapes": 10
+   },
+   {
+    "source": "akimbo-0.1.1-e4b",
+    "game": 2,
+    "ply": 23,
+    "opening": "Catalan Closed",
+    "reply": "Nh4",
+    "played": true,
+    "fell": true,
+    "fell_ply": 26,
+    "queen_escapes": 16
+   }
+  ]
+ }
+}

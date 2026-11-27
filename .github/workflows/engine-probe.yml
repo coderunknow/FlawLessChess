@@ -1,0 +1,71 @@
+# engine-probe.yml — build the frozen engine (optionally with a candidate patch
+# applied) and probe curated diagnostic positions at fixed depths. Results are
+# committed to benches/diagnostics/ so they survive sandbox restores and are
+# readable without log access. Diagnostic only — never strength evidence.
+#
+# The workflow touches nothing in the drift-frozen measurement paths (src/ is
+# only modified in the runner's working copy, never committed).
+
+name: engine-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      patch:
+        description: "Optional patch path (e.g. benches/diagnostics/queen-trap-fix.patch); empty = clean build"
+        required: false
+        default: ""
+      label:
+        description: "Result label (result file becomes benches/diagnostics/probe-<label>.json)"
+        required: true
+        default: "baseline"
+      depths:
+        description: "Comma-separated fixed depths"
+        required: false
+        default: "8,10,12"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (pinned) + python-chess
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.99.0 --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --user chess==1.11.2
+
+      - name: Apply candidate patch (working copy only)
+        if: inputs.patch != ''
+        run: git apply --verbose "${{ inputs.patch }}"
+
+      - name: Build engine
+        run: |
+          cargo build --release --locked
+          sha256sum target/release/flawless
+          ./target/release/flawless bench | tail -2
+
+      - name: Probe positions at fixed depths
+        run: |
+          python3 benches/diagnostics/uci_probe.py "target/release/flawless uci" \
+            benches/diagnostics/trap_cases.json \
+            --depths "${{ inputs.depths }}" \
+            --out "benches/diagnostics/probe-${{ inputs.label }}.json"
+
+      - name: Commit probe results
+        run: |
+          git config user.name "flawless-evidence-bot"
+          git config user.email "191812142+flawless-evidence-bot@users.noreply.github.com"
+          git add benches/diagnostics/probe-${{ inputs.label }}.json
+          if git diff --cached --quiet; then
+            echo "no probe output to commit"
+            exit 0
+          fi
+          git commit -m "diagnostics: engine probe results (${{ inputs.label }}, depths ${{ inputs.depths }})"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
