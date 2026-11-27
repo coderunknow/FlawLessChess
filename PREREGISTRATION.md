@@ -829,3 +829,27 @@ A-batch files, and no B-batch record is affected. Cross-cluster-set equality hol
 each batch (A labels: 59 clusters each, equal sets; B labels: 60 clusters each, equal
 sets); variance components are measured on 59 clusters for batch A and 60 for batch B.
 The registered wording "measured on 59 clusters" described the A-batch measurement.
+
+## Confirmatory anchor selection — ENGINE-4 (recorded 2026-11-27)
+
+`benches/gate-plan.json` applies the frozen BATCH-A/B anchor set rule
+(frozen 2026-11-14, unchanged) to the ENGINE-4 screening evidence:
+
+- screening estimate (selection-only): **2188.2** (pooled across the three
+  screening anchors' 120-game sets, batch A/B pairing);
+- per-anchor screening deltas: topple-0.1.1 -133.6, topple-0.2.1 -307.1,
+  akimbo-0.1.1 -198.7 (relative Elo, selection-only);
+- rule outcome: topple-0.2.1 (2439) and akimbo-0.1.1 (2441) are saturating
+  (|published - estimate| > 400) and excluded; the nearest compliant set with
+  the widest non-saturating discriminators is
+  **wowl-1.3.7, topple-0.1.1, wyldchess-1.1**.
+
+The confirmatory batches (sample design `rating-240-v1`: 60 opening clusters ×
+2 paired repetitions × AB/BA = 240 counted games per anchor per batch, TC 40/15
+wall-clock, dispatch seeds Batch A 20261121 / Batch B 20261122) run against
+that set. The gate plan binds engine
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`, the
+registered suite hashes (A `2c4a54d8…`, B `744a3981…`), threshold 2,000 with
+the strict two-sided 95% CI rule, and the ENGINE-4 controls (self-match
+`benches/evidence/control/flawless-self-e4`, anchor-vs-anchor
+`benches/evidence/control/topple-0.1.1-vs-topple-0.2.1`).
