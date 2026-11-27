@@ -71,7 +71,7 @@ jobs:
           status=$?
           if [ $status -ne 0 ]; then
             echo "::error::pip install chess==1.11.2 failed"
-            tr '\n' '%0A' < pip-err.txt | head -c 3500 | sed 's/^/::error::pip: /'
+            sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' pip-err.txt | head -c 3500 | sed 's/^/::error::pip: /'
             exit $status
           fi
           "$PY" -c "import chess; print('::notice::chess', chess.__version__)"
@@ -80,7 +80,7 @@ jobs:
               echo "::error::$suite FAILED"
               # Surface the REAL diagnostic through annotations (logs are unreadable
               # from the dev sandbox; annotations API is the only reliable channel).
-              tail -c 3500 suite-out.txt | tr '\n' '%0A' | sed 's/^/::error::out: /'
+              tail -c 3500 suite-out.txt | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | sed 's/^/::error::out: /'
               exit 1
             fi
             tail -1 suite-out.txt | sed 's/^/::notice::ok: /'
