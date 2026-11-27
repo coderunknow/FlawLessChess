@@ -1529,3 +1529,40 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   confirmatory gate decision so the evidence chain stays attached to the shipping head; the fix
   is developed as a verified patch and applies after the gate (PASS -> ENGINE-5 next iteration;
   FAIL -> apply at once). See benches/diagnostics/README.md.
+
+## 2026-11-27 (30) — Queen-trap root cause: complete static analysis + full fix v2
+
+Defect (mission): quiet-reply queen traps are invisible to ENGINE-4's search —
+28 falls / 13 provable traps / 13 cases in the trap suite, 9 decisive losses in
+the E4 campaign (3 vs wowl-1.3.7 in both arms, 1 vs topple-0.1.1, 2 vs
+akimbo-0.1.1, 1 vs topple-0.2.1 in each arm). Static analysis of the entire
+search-path context (not just qsearch) with 13 real cases and mirrors:
+
+- Mechanism (needles 22/30/33-36/38/39): a single quiet reply attacks the
+  queen; all escapes lose material (detector-verified); the game's next move
+  was already committed; the queen fell in 5 plies every time. The prior 8
+  wins are all "queen falls but the engine mates first" — the mechanism
+  recurs 13/13 with no benign instance.
+- Three stacked blindness layers: (1) capture-only qsearch drops the queen's
+  flight moves (they are quiet), so no searched line contains the queen
+  actually being captured at a flight square; (2) stand pat at the
+  attacked-queen node returns static_eval, which counts the queen as alive;
+  (3) RFP at depth ≤ 3 can seal the node entirely before qsearch runs — the
+  only unguarded return found in the audit.
+- Pruning audit: futility (depth ≤ 2) only returns through
+  `quiesce_with_moves`, i.e. the fixed quiesce — safe without a separate
+  guard; NMP is direction-safe (the opponent's queen capture after the pass
+  is a capture and is searched); TT cutoffs are safe once all nodes store
+  fixed values; RFP gets the explicit guard.
+
+Fix (`benches/diagnostics/queen-trap-fix.patch`, v2 = qsearch fix + RFP guard
++ 9-test `queen_trap_tests` module): attacked-queen qsearch keeps the full
+legal move list and cannot stand pat or delta-prune; RFP is skipped when the
+mover's queen is attacked (one queen scan + ≤2 is_attacked probes at
+RFP-eligible nodes only). Deployability analysis with provisional limitation
+score 6/10 in `benches/diagnostics/dispatch-analysis-2026-11-27.md`. Freeze
+holds: `src/` stays byte-identical to `cb7242c`; the patch ships as a file and
+is applied in runner working copies by `engine-probe.yml` only. v2 patched
+probe dispatched as `patched-queen-trap-v2` (depths 8/10/12/14, same as
+baseline). ENGINE-5 identity and its own evidence chain follow after the
+original campaign closes.
