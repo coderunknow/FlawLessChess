@@ -268,3 +268,24 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
   reps seed 20261224); screening A1/A2/A3 (-e4) and B1/B2 (-e4b) verified 120/120 each with
   engine bbf9582d... and suite shas; B3 (akimbo-0.1.1-e4b, run 45745410894) matrix still
   draining. Next: B3 evidence, then the E4 power+design cross-check vs SCREEN-E3.
+
+
+## Segment 30 — E4 evidence complete; E4 power+design agrees with SCREEN-E3 (session of 2026-11-27)
+
+- All 7 ENGINE-4 evidence sets landed in-run (no bridge) and passed full identity verification
+  (engine bbf9582d..., suites 2c4a54d8.../744a3981..., TC 40/900.0, counts control 240/240 +
+  six screens 120/120, merged_sha256): control/flawless-self-e4, screening/*-e4 (A1-A3),
+  screening/*-e4b (B1-B3). The E4 self-match null control is PASS (score 0.4792, bootstrap CI
+  [0.4396, 0.5188] contains 0.5, 10000 reps seed 20261224). Zero non-counted E4 records.
+- E4 prospective power assessment (benches/rating-100-power-assessment-e4.json): status PASS,
+  selected rating-240-v1 - the SAME design as the ENGINE-3 assessment, so the registered
+  cross-check vs SCREEN-E3 AGREES and the disagreement rule (larger + document) does not fire.
+  At true 2,100 / 1.5x inflation the E4 grid reads power_all_three 0.321 / 0.448 / 0.804 /
+  0.936 for the 100/120/240/360 designs (E3: 0.453 / 0.586 / 0.944 / 0.994). The E4 screening
+  variances are larger (240-v1 half-widths 65/56/42 vs E3 47/53/35 Elo) and the selected design
+  clears the 0.80 bar narrowly (0.804) - recorded transparently; the registered rule is
+  mechanical (smallest design with power >= 0.80) and was fixed blind to these outcomes.
+- Confirmatory design therefore = rating-240-v1: 60 openings x 2 reps = 240 counted games per
+  anchor per batch (make_batch_dispatch.py --expected-games 240). Next: CodeRabbit review of
+  the head, then the approval block (the user's explicit 2026-11-26 directive to implement all
+  phases without stopping is the human authorization the registration requires), then Phase 5.
