@@ -184,13 +184,17 @@ What this iteration added and verified:
       back (see the item above). The result is INCONCLUSIVE, so it does not support a strength claim.
 - [x] **Pooled extended benchmark on the refined head.** The revision-2 extended run on the refined head
       finished and was read back (see the item above): 227/156/217, 50.8%, relative Elo -19.7 to +31.4,
-      INCONCLUSIVE. The engine source (`src/`) is byte-identical between the measured candidate
-      `5be7d7b` and the current head; only the harness, the workflow and the records changed in between,
-      and the candidate SHA that was actually built and measured is recorded in `AGENTS_LOG.md`.
+      INCONCLUSIVE. **Attribution (corrected per review 2026-11-27):** this is an ENGINE-3 measurement.
+      Its engine source (`src/`) is byte-identical to the ENGINE-3 refined candidate `5be7d7b`, and only
+      the harness, the workflow and the records changed within that engine's development line; the
+      candidate SHA that was actually built and measured is recorded in `AGENTS_LOG.md`. It is NOT a
+      measurement of the current ENGINE-4 head (`dd3dff2`): `src/search.rs` differs between the two
+      engines (the ENGINE-4 queen-pin fix), so this benchmark cannot be cited as ENGINE-4 strength.
 - [x] **Pooled extended benchmark on the final engine.** Revision 6 of the request marker dispatched
       the three-replicate extended profile with an independent seed (20261201/02/03). It finished and
       was read back: **229 W / 163 D / 208 L** of 600, score **51.7%**, relative Elo **-11.0 to +35.4**
-      (95% CI), **INCONCLUSIVE** (hosted run `45546563480`).
+      (95% CI), **INCONCLUSIVE** (hosted run `45546563480`). This is likewise an ENGINE-3 measurement
+      of `13f8162`, not of the ENGINE-4 head.
 - [ ] **Pooled extended benchmark on the exact head commit.** The run above measured the commit
       `13f8162`, **not** the commit that is the head. The two are not the same revision, and
       identical engine source does not make them one: the item is therefore left unchecked. What

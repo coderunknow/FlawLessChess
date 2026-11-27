@@ -206,8 +206,6 @@ def read_committed_runs(
                 die(f"duplicate counted schedule_index {index} across committed runs")
             if game.get("engine_error") or game.get("adjudicated") is False:
                 die(f"{run_name}: invalid counted record at schedule_index {index}")
-            if str(game.get("white", "")).casefold() != "flawless" or str(game.get("black", "")).casefold() != anchor.casefold():
-                die(f"{run_name}: counted slot {index} has wrong seated engine identities")
             if game.get("result") not in ("1-0", "0-1", "1/2-1/2"):
                 die(f"{run_name}: invalid counted result at schedule_index {index}")
             slots = 2 * repetitions
@@ -218,6 +216,19 @@ def read_committed_runs(
             if game.get("opening") != expected_opening or game.get("color_pair") != expected_pair:
                 die(f"{run_name}: schedule_index {index} does not match "
                     f"{expected_opening}/{expected_pair}")
+            # Seated engine identities follow the schedule's pair leg: AB seats
+            # Flawless white / anchor black, BA reverses them. An earlier cut
+            # hard-coded the AB seating for every slot and rejected valid BA
+            # records, making partial-run recovery impossible (CodeRabbit
+            # review 2026-11-27).
+            white = str(game.get("white", "")).casefold()
+            black = str(game.get("black", "")).casefold()
+            if expected_pair == "AB":
+                ok_seats = white == "flawless" and black == anchor.casefold()
+            else:
+                ok_seats = white == anchor.casefold() and black == "flawless"
+            if not ok_seats:
+                die(f"{run_name}: counted slot {index} has wrong seated engine identities")
             seen[index] = game
 
     missing_by_shard = {}

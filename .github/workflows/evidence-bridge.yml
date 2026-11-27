@@ -78,22 +78,50 @@ jobs:
               # evidence lands through THIS bridge instead), and the strict
               # aggregator below re-verifies identity and completeness fail-closed
               # on the raw shard artifacts either way.
-              r = subprocess.run(
-                  ["gh", "api", f"repos/{os.environ.get('GITHUB_REPOSITORY', 'coderunknow/FlawLessChess')}"
-                                f"/actions/runs/{run_id}/jobs?per_page=100"],
-                  capture_output=True, text=True)
-              jobs = (json.loads(r.stdout or "{}") or {}).get("jobs") or []
+              # Job listings are paginated: wedged runs accumulate 100+ retry
+              # entries and a single ?per_page=100 page can hide the shard jobs
+              # entirely (CodeRabbit review 2026-11-27). Fetch every page.
+              jobs = []
+              page = 1
+              while True:
+                  r = subprocess.run(
+                      ["gh", "api",
+                       f"repos/{os.environ.get('GITHUB_REPOSITORY', 'coderunknow/FlawLessChess')}"
+                       f"/actions/runs/{run_id}/jobs?per_page=100&page={page}"],
+                      capture_output=True, text=True)
+                  chunk = (json.loads(r.stdout or "{}") or {}).get("jobs") or []
+                  jobs.extend(chunk)
+                  if len(chunk) < 100:
+                      break
+                  page += 1
               r2 = subprocess.run(
                   ["gh", "run", "view", run_id, "--json", "conclusion,status"],
                   capture_output=True, text=True)
               info = json.loads(r2.stdout or "{}")
               if info.get("status") != "completed":
                   sys.exit(f"run {run_id} not completed: {info}")
-              shard_jobs = [j for j in jobs if "-shard" in (j.get("name") or "")]
-              if not shard_jobs:
-                  sys.exit(f"run {run_id}: no shard jobs found — not a shard-dispatch run")
-              bad = [(j.get("name"), j.get("conclusion")) for j in shard_jobs
-                     if j.get("conclusion") != "success"]
+              # Identify shard jobs by their exact registered names
+              # ({purpose}-{batch}-{anchor_id}-shard{index}). Substring matching
+              # mislabeled any job whose name merely contained "-shard", and a
+              # count-only check could pass while checking the wrong jobs
+              # (CodeRabbit review 2026-11-27).
+              wanted = {
+                  f"{ent['purpose']}-{ent['batch']}-{ent['anchor_id']}-shard{i}": i
+                  for i in ent["shard_indices"]
+              }
+              by_name = {}
+              for j in jobs:
+                  name = j.get("name") or ""
+                  if name in wanted:
+                      by_name.setdefault(name, []).append(j)
+              missing = [n for n in wanted if n not in by_name]
+              if missing:
+                  sys.exit(f"run {run_id}: shard jobs missing: {missing[:5]}")
+              bad = []
+              for name in wanted:
+                  attempts = sorted(by_name[name], key=lambda j: j.get("started_at") or "")
+                  if attempts[-1].get("conclusion") != "success":
+                      bad.append((name, attempts[-1].get("conclusion")))
               if bad:
                   sys.exit(f"run {run_id}: shard jobs not all successful: {bad[:5]}")
               dl = f"/tmp/bridge-{run_id}"
