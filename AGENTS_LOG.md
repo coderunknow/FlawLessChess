@@ -1510,3 +1510,22 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   transcribed wrong target SHA (the fail-closed ancestor check refused it). Confirmatory
   campaign dispatched: 6 runs x 60 shards x 4 games, 40/15 (A: 45998977117/45999016751/
   45999052791; B: 45999096409/45999142482/45999195004). Trap-number corrections applied.
+
+- 2026-11-27 (later 2) ENGINE-DEFECT DIAGNOSIS (diagnostics only, never strength evidence).
+  Built benches/diagnostics/adjudicate_traps.py - outcome adjudication of the scanner's
+  queen-trap flags (played -> fell within 5 plies, mover's queens counted anywhere; flags matched
+  to records by (fen, ply, move), replays from ply 0). It reproduces the frozen E3 canon EXACTLY
+  (480-game set 10/6/5, E3-own-360 6/5/4, Catalan ply-33 Rfb1 the survivor), which validates the
+  method. Applied to ENGINE-4's own 720 screening games: queen_trap 28 flags / 13 played / 13
+  fell - the quiet-reply class the E3 review named as the search target is STILL OPEN (E4's
+  search change 7ba0576 bounded check extensions; quiet-reply awareness was never implemented).
+  9/13 falls were decisive losses (~1.25% of games), 2 draws, 2 wins. 8/13 are NEEDLE cases
+  (1-2 trap-allowing moves among 33-49 legal): the quiet refutation hides beyond capture-only
+  quiescence - the queen's flight moves are quiet, so qsearch never sees the queen taken at a
+  flight square; RFP/futility can cut the quiet reply entirely at non-PV nodes. trap_cases.json
+  carries the 13 FENs; engine-probe.yml builds the frozen engine (candidate patches apply only
+  in the runner working copy) and probes fixed depths, committing results to benches/diagnostics/.
+  Baseline probe dispatched (run 46005134766). FIX DISCIPLINE: src/ stays drift-frozen until the
+  confirmatory gate decision so the evidence chain stays attached to the shipping head; the fix
+  is developed as a verified patch and applies after the gate (PASS -> ENGINE-5 next iteration;
+  FAIL -> apply at once). See benches/diagnostics/README.md.
