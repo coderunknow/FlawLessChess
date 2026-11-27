@@ -853,3 +853,18 @@ registered suite hashes (A `2c4a54d8…`, B `744a3981…`), threshold 2,000 with
 the strict two-sided 95% CI rule, and the ENGINE-4 controls (self-match
 `benches/evidence/control/flawless-self-e4`, anchor-vs-anchor
 `benches/evidence/control/topple-0.1.1-vs-topple-0.2.1`).
+
+### Campaign target re-freeze (recorded 2026-11-27)
+
+The confirmatory campaign target commit is **`cb7242c`** (refined-head
+precedent, PREREGISTRATION 2026-11-26): between the ENGINE-4 freeze
+`dd3dff2` and `cb7242c` the engine source (`src/`, `Cargo.toml`, `Cargo.lock`)
+and the in-game harness (`scripts/match.py`) are **byte-identical**, so the
+built binary is unchanged and hash-enforced as
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`; the
+differences are reviewed measurement-tooling fixes (power model hardening,
+merge/dispatch validation, evidence-bridge pagination — CodeRabbit review
+2026-11-27, commits `3b33f85`/`27080ce`/`cb7242c`) and recomputed power
+reports. The rating-run drift check pins `scripts/` and the registered reports
+between target and dispatch head, so no further tooling changes may land
+during the campaign without a new re-freeze record.
