@@ -1447,9 +1447,10 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   dropping within 5 plies):
   - capture-reply net (`moved_piece`): 485 collected / 556 missed across screening-2/topple-0.2.1
     and the three ENGINE-3 suites (1041 flags in 480 games) - the known one-ply-SEE noise level.
-  - queen-trap (new class): 10 candidates in 480 games; the flagged reply was played in 7; the
-    queen was captured within 5 plies in 6 of those 7. On ENGINE-3's own E3 suites (360 games):
-    6 candidates, reply played in 5, queen captured 5/5. Quiet-reply queen traps are a REAL,
+  - queen-trap (new class): 10 candidates in 480 games; the flagged reply was played in 6; the
+    queen was captured within 5 plies in 5 of those 6 (the Catalan ply-33 Rfb1 case survived).
+    On ENGINE-3's own E3 suites (360 games): 6 candidates, reply played in 5, queen captured
+    4/5 (the Queen's Indian ply-41 Rh3 case survived). Quiet-reply queen traps are a REAL,
     outcome-validated ENGINE-3 weakness class - a direct target for the ENGINE-4 search work
     (EXT_BUDGET=3 and the two-ply quiet-reply awareness), to be re-measured on the E4 games.
   - The studied old-engine loss remains classified as before: the game-losing blunder 18...bxc6
@@ -1463,7 +1464,7 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   3-5 in the probe PVs - the material drop is the collapse, not the cause); one is a queen
   sitting on a pre-existing hang (the capture reply existed before the flagged ply, the known
   wide-net attribution). No fresh one-move tactical blunder exists at any of the six flagged
-  plies. Combined with the trap-class result (5/5 collected quiet-reply queen traps on the E3
+  plies. Combined with the trap-class result (4/5 collected quiet-reply queen traps on the E3
   games), the Phase-4 defect taxonomy stands: (1) quiet-reply queen traps - real, precise,
   ENGINE-3 weakness; (2) one-ply capture-reply "collected losses" - mostly late collapses of
   positions lost earlier or pre-existing hangs; the causal losses sit at earlier plies than the
@@ -1492,3 +1493,20 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   class as the dispatch API), so this needs the Arena GitHub connection scope or the UI;
   (2) when a collection depends on a run being terminal, push its marker EARLY so the collector
   queues behind the run's own tail rather than after it.
+
+- 2026-11-27 (later) PHASE-4 CLOSE-OUT + PHASE-5 DISPATCH. CodeRabbit review of the head
+  (13 Major findings, all valid): all fixed - power model hardening (labels, AB/BA pairs, PSD
+  guard with a determinant-sign trap, shared-calibration combined bound, replicates/exclusion/
+  suite-digest/selected-suite binding) with 9 new tests and both reports recomputed
+  (selections unchanged: E3 0.945, E4 0.806 at rating-240-v1); bridge pagination + exact
+  shard-job identity; merge_batch_runs suite validation for all four designs + pair-leg
+  seating (9-case self-test); make_batch_dispatch recovery BA predicate; MERGE_READINESS
+  attribution. Approval block recorded on both reports (human principal 2026-11-26 + machine
+  review record). Gate plan preregistered: frozen anchor rule selects wowl-1.3.7,
+  topple-0.1.1, wyldchess-1.1 (topple-0.2.1/akimbo saturate at |d|>400). Dispatch blockers
+  root-caused and fixed: resolve hard-coded the E3 power report (per-dispatch report path now),
+  scripts-drift froze the campaign target at cb7242c (engine source byte-identical to
+  dd3dff2; binary hash unchanged), git-context self-heal for SHA-ref checkouts, and one
+  transcribed wrong target SHA (the fail-closed ancestor check refused it). Confirmatory
+  campaign dispatched: 6 runs x 60 shards x 4 games, 40/15 (A: 45998977117/45999016751/
+  45999052791; B: 45999096409/45999142482/45999195004). Trap-number corrections applied.

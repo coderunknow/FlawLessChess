@@ -229,8 +229,9 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
   at `779f275` accepts them on that condition). Pushes with the completed B2 run.
 - Phase-4 game review: the game-loss scanner now covers the queen-trap class (quiet-reply
   cornered queens, the rook-lift family the deep-dive identified). Outcome adjudication over
-  480 games: 10 trap candidates, 7 punished by the actual reply, 6 collected; on ENGINE-3's
-  own 360 E3 games 5/5 played traps captured the queen - a real ENGINE-3 weakness class for
+  480 games: 10 trap candidates, the reply was played in 6 and the queen fell in 5 of those 6
+  (the Catalan ply-33 Rfb1 case survived); on ENGINE-3's own 360 E3 games the class is
+  6 candidates / 5 played / 4 fell - a real ENGINE-3 weakness class for
   the ENGINE-4 search work to re-measure. capture-reply net collection ~48% (485/1041).
   See AGENTS_LOG.md 2026-11-26 for the full record.
 - E4 campaign (Phase 3 dispatches revs 25-31): all 7 runs resolved the dispatch markers and
@@ -289,3 +290,37 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
   anchor per batch (make_batch_dispatch.py --expected-games 240). Next: CodeRabbit review of
   the head, then the approval block (the user's explicit 2026-11-26 directive to implement all
   phases without stopping is the human authorization the registration requires), then Phase 5.
+
+## Segment 31 (2026-11-27) — CodeRabbit hardening, approval, gate plan, confirmatory dispatch
+
+- **Machine review + fixes (13 findings, all valid, all fixed).** CodeRabbit review of the
+  head returned 13 Major findings; every one was fixed and regression-tested (16 suites green):
+  label-duplication + AB/BA pair + PSD-guard + shared-calibration `combined_bound` + replicates
+  eligibility + exclusion-completeness + suite-digest verify + selected-design suite binding
+  (`3b33f85`, 9 new tests incl. one that caught a `_is_psd` determinant sign bug), evidence-
+  bridge jobs pagination + exact shard-job identity, `merge_batch_runs` suite validation for
+  ALL registered designs + pair-leg seating + 9-case self-test, `make_batch_dispatch` recovery
+  BA-color predicate, MERGE_READINESS benchmark attribution (ENGINE-3, not ENGINE-4) (`27080ce`).
+  Both power reports RECOMPUTED under the corrected model as the review required:
+  selections unchanged — E3 `rating-240-v1` at power_all_three 0.945, E4 `rating-240-v1` at
+  0.806 (combined half-widths 36/43 Elo).
+- **Approval block recorded** (`3cc8875`, `scripts/approve_power_assessment.py`): reviewer =
+  human principal (2026-11-26 chat authorization for all six phases), evidence_ref = the full
+  per-engine chain, decision_rule = the registered rule, machine_review = the CodeRabbit
+  record. Both reports dispatch-eligible.
+- **Gate plan preregistered** (`17cc697`): `benches/gate-plan.json` applies the frozen anchor-
+  set rule to the E4 screening (estimate 2188.2): topple-0.2.1/akimbo-0.1.1 saturate; selected
+  confirmatory set = **wowl-1.3.7, topple-0.1.1, wyldchess-1.1**; 240/60/4 exactness, threshold
+  2000, E4 controls bound.
+- **Two dispatch blockers found and fixed at the root**: (1) rating-run resolve hard-coded the
+  ENGINE-3 power report — dispatches now carry their report path (`cb7242c`); (2) the campaign
+  target re-frozen at `cb7242c` (engine source + match.py byte-identical to `dd3dff2`, binary
+  hash unchanged) because the drift check pins `scripts/` between target and head; plus a
+  resolve git-context self-heal and one transcribed wrong full SHA (caught by the fail-closed
+  ancestor check, which never let a bad dispatch run).
+- **Confirmatory campaign DISPATCHED** (design rating-240-v1, target cb7242c, seeds A 20261121
+  / B 20261122): 6 runs × 60 shards × 4 games at 40/15 —
+  A: wowl `45998977117`, topple-0.1.1 `45999016751`, wyldchess `45999052791`;
+  B: wowl `45999096409`, topple-0.1.1 `45999142482`, wyldchess `45999195004`
+  (revs 51-56). Resolve passed and shards are running.
+- Trap-number fixup applied (canon: 480-game set 10 flags/6 played/5 fell; E3 6/5/4).
