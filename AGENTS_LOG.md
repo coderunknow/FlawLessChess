@@ -1469,3 +1469,26 @@ ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for 
   positions lost earlier or pre-existing hangs; the causal losses sit at earlier plies than the
   flag, and the deep-dive method (walk the game backward with engine probes) is the tool for
   those, not the scanner.
+
+
+### Queue root-cause fix for the B-suite collection (2026-11-27)
+
+- Root cause of the 21h stall: the B-suite in-run `aggregate-and-commit-evidence` tail is
+  REGISTERED TO FAIL (B1's identical tail: 32 seconds, then the overwrite refusal, since the
+  in-run job targets the same-labelled committed A-suite directory and B evidence lands via the
+  evidence-bridge by design). Its only function is to resolve the run so the bridge gate sees
+  status=completed. It queued at 2026-11-26T13:00Z behind 480 long 40/15 E4 shard jobs and
+  starved. Process error: sequencing "wait for the tail, THEN push the request" put the bridge
+  behind the tail twice over.
+- Fix applied: the bridge gate is evaluated at COLLECTION time, not push time, and any newly
+  queued job sits behind the E3-B2 tail in the scheduler's FIFO - so revision 5 was pushed
+  immediately (c01878d): bridge run 45971846571 queues behind the tail, B2's run is terminal
+  before the gate is evaluated, and all three B-suite runs collect in one fail-closed pass. If
+  the race ever fires, the bridge fails closed with no partial commit (step-level success()
+  semantics) and the request is re-pushed unchanged.
+- Standing operational rules: (1) when an in-run aggregate is registered to fail, close the run
+  promptly (run-level cancel touches only non-terminal jobs) instead of letting the formality
+  queue behind a campaign - the sandbox GH_TOKEN lacks actions:write (403 on cancel, same scope
+  class as the dispatch API), so this needs the Arena GitHub connection scope or the UI;
+  (2) when a collection depends on a run being terminal, push its marker EARLY so the collector
+  queues behind the run's own tail rather than after it.
