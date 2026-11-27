@@ -1,0 +1,58 @@
+# queen-trap-fix.patch — quiet-reply queen-trap blindness, qsearch evasion v1
+#
+# Root cause (bench diagnostics 2026-11-27, benches/diagnostics/README.md):
+# an attacked queen's defences are its own flight moves, which are QUIET, so
+# capture-only quiescence never sees the queen captured at a flight square; the
+# entire quiet-reply trap sequence hides beyond the horizon (RFP/futility can
+# additionally cut the quiet reply at non-PV nodes). 8 of 13 adjudicated E4
+# falls are "needle" cases (1-2 trap-allowing moves among 33-49 legal).
+#
+# Fix: in quiesce_core, when the side to move has an ATTACKED queen, keep the
+# full legal move list (like check evasions) and skip stand-pat - "doing
+# nothing" there loses the queen on the opponent's next capture. Nodes without
+# an attacked queen are unchanged (capture-only, stand-pat, delta pruning).
+#
+# Apply on the frozen campaign target cb7242c (or any tree with the same
+# quiesce_core). DEVELOPED AFTER the ENGINE-4 gate decision per the fix
+# discipline in benches/diagnostics/README.md; verified by engine-probe.yml
+# (compile + release tests + bench + the 13-case fixed-depth probe).
+diff --git a/src/search.rs b/src/search.rs
+index 2ae01c6..19c8c80 100644
+--- a/src/search.rs
++++ b/src/search.rs
+@@ -999,7 +999,25 @@ impl<'a> Searcher<'a> {
+             return DRAW_SCORE;
+         }
+ 
+-        let stand_pat = if !in_chk {
++        // Quiet-reply queen-trap blindness (benches/diagnostics/ 2026-11-27): an
++        // attacked queen's defences are its own flight moves, which are quiet, so
++        // capture-only quiescence never sees the queen captured at a flight square
++        // and the whole quiet-reply trap hides beyond the horizon. Keep the attacked
++        // queen's moves in qsearch so the loss is visible at the leaf, and do not
++        // stand pat on a position whose queen is hanging: "doing nothing" there
++        // loses the queen on the opponent's next capture.
++        let us = pos.side;
++        let opp = us ^ 1;
++        let mut queen_evasion = 0u64;
++        let mut queens = pos.pieces[us * 6 + QUEEN];
++        while queens != 0 {
++            let sq = queens.trailing_zeros() as Square;
++            if pos.is_attacked(sq, opp) {
++                queen_evasion |= 1u64 << sq;
++            }
++            queens &= queens - 1;
++        }
++        let stand_pat = if !in_chk && queen_evasion == 0 {
+             let sp = self.static_eval(pos);
+             if sp >= beta {
+                 return beta;
+@@ -1011,7 +1029,7 @@ impl<'a> Searcher<'a> {
+         } else {
+             None
+         };
+-        if !in_chk {
++        if !in_chk && queen_evasion == 0 {
+             let mut j = 0;
+             for i in 0..moves.len {
+                 let m = moves.moves[i];
