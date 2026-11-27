@@ -250,5 +250,89 @@ class RestrictClustersTests(unittest.TestCase):
         self.assertEqual(set(restricted["lab-a"]), {"Ruy Lopez Morphy", "Italian Game"})
 
 
+class CodeRabbitHardeningTests(unittest.TestCase):
+    """Regression tests for the CodeRabbit review findings of 2026-11-27."""
+
+    def _game(self, opening="Ruy Lopez Morphy", white="flawless", black="topple-0.1.1",
+              result="1-0", counted=True):
+        return json.dumps({"opening": opening, "white": white, "black": black,
+                           "result": result, "counted": counted})
+
+    def test_duplicate_anchor_labels_rejected(self):
+        import power_analysis_v2 as v2
+        with self.assertRaisesRegex(ValueError, "exactly once"):
+            v2.validate_label_sets(["topple-0.1.1-e3", "topple-0.1.1-e4", "akimbo-0.1.1-e3"],
+                                   ["topple-0.1.1-e3", "topple-0.1.1-e4b", "akimbo-0.1.1-e3b"])
+
+    def test_missing_third_anchor_rejected(self):
+        import power_analysis_v2 as v2
+        with self.assertRaisesRegex(ValueError, "three registered anchors"):
+            v2.validate_label_sets(["topple-0.1.1-e3", "topple-0.2.1-e3"],
+                                   ["topple-0.1.1-e3", "topple-0.2.1-e3"])
+
+    def test_same_colour_pair_rejected(self):
+        import power_analysis_v2 as v2
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as fh:
+            fh.write(self._game(result="1-0") + "\n")
+            fh.write(self._game(result="1/2-1/2") + "\n")
+            path = fh.name
+        with self.assertRaisesRegex(ValueError, "focus-white and one focus-black"):
+            v2.load_cluster_games(path)
+
+    def test_valid_ab_ba_pair_loads(self):
+        import power_analysis_v2 as v2
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as fh:
+            fh.write(self._game(white="flawless", black="topple-0.1.1") + "\n")
+            fh.write(self._game(white="topple-0.1.1", black="flawless") + "\n")
+            path = fh.name
+        out = v2.load_cluster_games(path)
+        self.assertEqual(set(out), {"Ruy Lopez Morphy"})
+        self.assertEqual(len(out["Ruy Lopez Morphy"]), 2)
+
+    def test_non_psd_design_covariance_blocked(self):
+        import power_analysis_v2 as v2
+        with self.assertRaisesRegex(ValueError, "not positive-semidefinite"):
+            v2.cluster_covariance_at([0.01, 0.01], [0.0, 0.0],
+                                     [[0.01, 0.5], [0.5, 0.01]], repetitions=3)
+
+    def test_combined_bound_adds_shared_calibration_once(self):
+        # The registered combine_batches construction (RATING_PROTOCOL 9.8):
+        # match 100 per batch, one shared anchor calibration of variance 25 ->
+        # combined variance 75, not the independent-batch value 62.5.
+        import power_analysis_v2 as v2
+        wa = {"var_match": 100.0, "weights": [1.0]}
+        wb = {"var_match": 100.0, "weights": [1.0]}
+        cb = v2.combined_bound(wa, wb, [5.0])
+        self.assertAlmostEqual(cb["lam"], 0.5)
+        self.assertAlmostEqual(cb["pooled_match"], 50.0)
+        self.assertAlmostEqual(cb["shared_cal"], 25.0)
+        self.assertAlmostEqual(cb["var_total"], 75.0)
+
+    def test_replicates_override_marks_exploratory(self):
+        import power_analysis_v2 as v2
+        self.assertEqual(v2.report_eligibility({"design": "x"}, v2.REPLICATES), ("PASS", True))
+        self.assertEqual(v2.report_eligibility({"design": "x"}, 1), ("EXPLORATORY", False))
+        self.assertEqual(v2.report_eligibility(None, v2.REPLICATES), ("BLOCKED", False))
+
+    def test_exclusion_of_fully_counted_opening_rejected(self):
+        import power_analysis_v2 as v2
+        with self.assertRaisesRegex(ValueError, "fully counted"):
+            v2.validate_exclusion_completeness(
+                frozenset({"Petroff Defence"}), {"Petroff Defence": [True, True]})
+        # incomplete pair in at least one input -> permitted
+        v2.validate_exclusion_completeness(
+            frozenset({"Petroff Defence"}), {"Petroff Defence": [True, False]})
+
+    def test_suite_digest_mismatch_rejected(self):
+        import power_analysis_v2 as v2
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+            fh.write("Ruy Lopez Morphy|e2e4\n")
+            path = fh.name
+        good = hashlib.sha256(open(path, "rb").read()).hexdigest()
+        v2.verify_suite_digest(path, good)  # matching bytes pass
+        with self.assertRaisesRegex(ValueError, "registered digest"):
+            v2.verify_suite_digest(path, "0" * 64)
+
+
 if __name__ == "__main__":
     unittest.main()
