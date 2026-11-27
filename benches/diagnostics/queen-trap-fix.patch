@@ -25,7 +25,7 @@
 #      pass the opponent's queen capture is a capture and is searched); TT
 #      cutoffs are safe once all nodes store fixed values. RFP was the one
 #      unguarded return and is fixed here.
-#   4. Full regression module queen_trap_tests (14 tests): the 8 needle trap
+#   4. Full regression module queen_trap_tests (13 tests): the 7 avoidable needle trap
 #      FENs plus the 6 broad/lost cases from trap_cases.json, stand-pat blindness on a real post-reply
 #      fixture plus its color mirror, RFP sealing guard (and RFP preserved
 #      without an attacked queen), multi-queen and one-attacked-of-many scans,
@@ -35,7 +35,7 @@
 #
 # Apply on top of target cb7242cbb9a88a17e9c1a2b11437a507733e46eb (ENGINE-4).
 diff --git a/src/search.rs b/src/search.rs
-index 2ae01c6..b2f1950 100644
+index 2ae01c6..15ef94b 100644
 --- a/src/search.rs
 +++ b/src/search.rs
 @@ -755,10 +755,29 @@ impl<'a> Searcher<'a> {
@@ -107,7 +107,7 @@ index 2ae01c6..b2f1950 100644
              let mut j = 0;
              for i in 0..moves.len {
                  let m = moves.moves[i];
-@@ -1607,3 +1644,298 @@ mod draw_rule_tests {
+@@ -1607,3 +1644,300 @@ mod draw_rule_tests {
          );
      }
  }
@@ -159,13 +159,15 @@ index 2ae01c6..b2f1950 100644
 +        (sp, q)
 +    }
 +
-+    /// The 8 "needle" trap cases (1-2 trap-allowing moves among 33-49 legal ones)
-+    /// from `benches/diagnostics/trap_cases.json`. The played move in each row is
-+    /// the trap-allowing move the game actually chose; the search must not pick
-+    /// it once the blindness is fixed.
++    /// The 7 avoidable "needle" trap cases (1-2 trap-allowing moves among 23-49
++    /// legal ones) from `benches/diagnostics/trap_cases.json` (the 8th needle,
++    /// topple-0.1.1-e4b-ply45 with 2/2 allowing, is smoke-tested instead: every
++    /// legal move allows the trap, so no move-level assertion is possible). The
++    /// played move in each row is the trap-allowing move the game actually chose;
++    /// the search must not pick it once the blindness is fixed.
 +    #[test]
 +    fn needle_trap_moves_are_avoided() {
-+        let cases: [(&str, &str); 8] = [
++        let cases: [(&str, &str); 7] = [
 +            (
 +                "3rr3/pb1Q1pk1/1p5p/2pPq1p1/1n6/2N1P2P/PP3PP1/1B1RR1K1 w - - 1 21",
 +                "d7b7",
@@ -182,10 +184,6 @@ index 2ae01c6..b2f1950 100644
 +                "r4rk1/1b3ppp/2nq1n2/p7/2p5/1QB1PN2/PP3PPP/R4RK1 w - - 0 16",
 +                "b3b7",
 +            ), // topple-0.2.1-e4-ply30 allowing 1/38
-+            (
-+                "r4r2/pb2Nkp1/2p2pB1/1p2q1p1/8/5P2/PP1B1K2/2R3QR b - - 3 23",
-+                "f7e7",
-+            ), // topple-0.1.1-e4b-ply45 allowing 2/2
 +            (
 +                "6r1/1k5p/1pp4r/p2bp3/Q3p1p1/P2P3q/1P1RNP1P/6KR w - - 0 39",
 +                "d3e4",
@@ -216,8 +214,10 @@ index 2ae01c6..b2f1950 100644
 +    fn stand_pat_cannot_hide_a_lost_queen() {
 +        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 19";
 +        let (sp, q) = run_quiesce(fen);
++        // The queen always falls: the best recovery is the d6xd8 queen-for-rook
++        // trade (~400 material), so the visible drop is ~400, not ~900.
 +        assert!(
-+            q < sp - 700,
++            q < sp - 300,
 +            "quiesce must see the lost queen: static {sp} vs quiesce {q}"
 +        );
 +    }
@@ -229,15 +229,17 @@ index 2ae01c6..b2f1950 100644
 +        let fen = "1r1k1b1r/pppb2p1/3p1n1p/8/2N1p3/1QBq4/PP3PPP/3RR1K1 b - - 1 19";
 +        let (sp, q) = run_quiesce(fen);
 +        assert!(
-+            q < sp - 700,
++            q < sp - 300,
 +            "mirrored quiesce must see the lost queen: static {sp} vs quiesce {q}"
 +        );
 +    }
 +
-+    /// Reverse futility at depth <= 3 could return `beta` before any defence
-+    /// was searched. With beta shaped so the old condition `sp - 150*depth >=
-+    /// beta` fires, the guard must force the node to be searched and the queen
-+    /// loss must show instead of a blind fail-high.
++    /// Reverse futility could return `beta` before any defence was searched.
++    /// The fixture's best recovery is the queen-for-rook trade (~400 material),
++    /// so the window is shaped at depth 1: the old condition `sp - 150*1 >=
++    /// beta` fires for beta = sp - 200 while the true value (below sp - 300)
++    /// is under beta. The guard must force the node to be searched and the
++    /// queen loss must show instead of a blind fail-high.
 +    #[test]
 +    fn rfp_does_not_seal_an_attacked_queen() {
 +        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 19";
@@ -250,8 +252,8 @@ index 2ae01c6..b2f1950 100644
 +        }));
 +        let mut s = Searcher::new(&mut tt, &stop, limits);
 +        let sp = s.static_eval(&mut pos);
-+        let beta = sp - 500;
-+        let score = s.search(&mut pos, 3, beta - 1, beta, 0, None);
++        let beta = sp - 200;
++        let score = s.search(&mut pos, 1, beta - 1, beta, 0, None);
 +        assert!(
 +            score < beta,
 +            "RFP sealed an attacked-queen node: returned {score} with beta {beta} (static {sp})"
@@ -302,7 +304,7 @@ index 2ae01c6..b2f1950 100644
 +        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/QR1K1B1R w - - 1 19";
 +        let (sp, q) = run_quiesce(fen);
 +        assert!(
-+            q < sp - 700,
++            q < sp - 300,
 +            "the safe queen must not mask the hanging one: static {sp} vs quiesce {q}"
 +        );
 +    }
