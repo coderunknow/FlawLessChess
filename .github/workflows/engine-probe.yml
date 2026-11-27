@@ -23,6 +23,9 @@ on:
         description: "Comma-separated fixed depths"
         required: false
         default: "8,10,12"
+  push:
+    paths:
+      - "benches/diagnostics/probe-request.json"
 
 permissions:
   contents: write
@@ -34,6 +37,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve parameters (marker push or dispatch inputs)
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            LABEL=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json'))['label'])")
+            DEPTHS=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json')).get('depths','8,10,12'))")
+            PATCH=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json')).get('patch',''))")
+          else
+            LABEL="${{ inputs.label }}"
+            DEPTHS="${{ inputs.depths }}"
+            PATCH="${{ inputs.patch }}"
+          fi
+          echo "LABEL=$LABEL" >> "$GITHUB_ENV"
+          echo "DEPTHS=$DEPTHS" >> "$GITHUB_ENV"
+          echo "PATCH=$PATCH" >> "$GITHUB_ENV"
+
       - name: Install Rust (pinned) + python-chess
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.99.0 --profile minimal
@@ -41,8 +59,8 @@ jobs:
           python3 -m pip install --user chess==1.11.2
 
       - name: Apply candidate patch (working copy only)
-        if: inputs.patch != ''
-        run: git apply --verbose "${{ inputs.patch }}"
+        if: env.PATCH != ''
+        run: git apply --verbose "$PATCH"
 
       - name: Build engine
         run: |
@@ -54,18 +72,18 @@ jobs:
         run: |
           python3 benches/diagnostics/uci_probe.py "target/release/flawless uci" \
             benches/diagnostics/trap_cases.json \
-            --depths "${{ inputs.depths }}" \
-            --out "benches/diagnostics/probe-${{ inputs.label }}.json"
+            --depths "$DEPTHS" \
+            --out "benches/diagnostics/probe-$LABEL.json"
 
       - name: Commit probe results
         run: |
           git config user.name "flawless-evidence-bot"
           git config user.email "191812142+flawless-evidence-bot@users.noreply.github.com"
-          git add benches/diagnostics/probe-${{ inputs.label }}.json
+          git add benches/diagnostics/probe-$LABEL.json
           if git diff --cached --quiet; then
             echo "no probe output to commit"
             exit 0
           fi
-          git commit -m "diagnostics: engine probe results (${{ inputs.label }}, depths ${{ inputs.depths }})"
+          git commit -m "diagnostics: engine probe results ($LABEL, depths $DEPTHS)"
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push origin "HEAD:$GITHUB_REF_NAME"
