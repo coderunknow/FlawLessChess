@@ -324,3 +324,33 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
   B: wowl `45999096409`, topple-0.1.1 `45999142482`, wyldchess `45999195004`
   (revs 51-56). Resolve passed and shards are running.
 - Trap-number fixup applied (canon: 480-game set 10 flags/6 played/5 fell; E3 6/5/4).
+
+### 2026-11-27 16:05Z — queen-trap fix segment complete; campaign mid-flight with 1 aborted shard
+
+- ENGINE-5 fix complete in `benches/diagnostics/queen-trap-fix.patch` (v2:
+  quiesce attacked-queen flights + no stand-pat/delta + RFP guard + 13-test
+  `queen_trap_tests`; pruning audit: futility/NMP/TT audited safe and
+  documented). Freeze holds: `src/` byte-identical to `cb7242c`.
+- Dispatch analysis + provisional limitation score 6/10:
+  `benches/diagnostics/dispatch-analysis-2026-11-27.md`.
+- Probe driver bugs fixed by real failure (run 46005134766): depths-list
+  parsing + argv split; probe workflow now commits test/build logs and the
+  cargo-test gate is real (pipefail). Probe queue on the fixed driver:
+  baseline-e4 `46017481718`, patched-queen-trap-v3 `46017647404` (miscalibrated
+  margins — superseded), v4 `46019400813` (no tee — superseded), v5 (label
+  patched-queen-trap-v5 = final: corrected suite + committed logs).
+- CodeRabbit: 18/19 unresolved threads replied + resolved; 1 open by design
+  (relative_benchmark.py missing-digest strictness — post-campaign scripts/
+  batch).
+- Campaign rev 51-56 (A/B × wowl/topple-0.1.1/wyldchess, run ids as below)
+  mid-flight under heavy runner load (shards 90-105 min each). ONE failure:
+  `confirmatory-A-wowl-1.3.7-shard31` (run 45998977117) aborted with
+  `aborted_engine_errors` (protocol §3; match.py exit 2; 2 same-side errors;
+  slow move f1d3 36.2s; engine identity verified bbf9582d…/cb7242c). Recovery
+  template ready: `.arena-drafts/recovery-shard31-dispatch.json` (schedule
+  indices 124-127, same identities) — push AFTER run 45998977117 completes
+  and its evidence lands; never re-run counted slots.
+- Next: poll batches to completion → recovery dispatch(es) for aborted
+  shards → canonical merges + rating gate → land ENGINE-5 (patch to src/ + new
+  binary SHA + own chain) → close-out docs → strict gate + fresh CodeRabbit →
+  merge PR #6 with head-SHA precondition.
