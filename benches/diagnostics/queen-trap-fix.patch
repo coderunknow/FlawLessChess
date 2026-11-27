@@ -25,16 +25,17 @@
 #      pass the opponent's queen capture is a capture and is searched); TT
 #      cutoffs are safe once all nodes store fixed values. RFP was the one
 #      unguarded return and is fixed here.
-#   4. Full regression module queen_trap_tests (9 tests): the 8 needle trap
-#      FENs from trap_cases.json, stand-pat blindness on a real post-reply
+#   4. Full regression module queen_trap_tests (14 tests): the 8 needle trap
+#      FENs plus the 6 broad/lost cases from trap_cases.json, stand-pat blindness on a real post-reply
 #      fixture plus its color mirror, RFP sealing guard (and RFP preserved
-#      without an attacked queen), multi-queen scan, quiet stand-pat
-#      behaviour preserved, in-check legality, and strict searchmoves under
-#      the widened qsearch list.
+#      without an attacked queen), multi-queen and one-attacked-of-many scans,
+#      terminal states (mate, stalemate, insufficient, fifty-move), endgame
+#      queen-preservation, quiet stand-pat behaviour preserved, in-check
+#      legality, and strict searchmoves under the widened qsearch list.
 #
 # Apply on top of target cb7242cbb9a88a17e9c1a2b11437a507733e46eb (ENGINE-4).
 diff --git a/src/search.rs b/src/search.rs
-index 2ae01c6..cc929f0 100644
+index 2ae01c6..b2f1950 100644
 --- a/src/search.rs
 +++ b/src/search.rs
 @@ -755,10 +755,29 @@ impl<'a> Searcher<'a> {
@@ -106,7 +107,7 @@ index 2ae01c6..cc929f0 100644
              let mut j = 0;
              for i in 0..moves.len {
                  let m = moves.moves[i];
-@@ -1607,3 +1644,226 @@ mod draw_rule_tests {
+@@ -1607,3 +1644,298 @@ mod draw_rule_tests {
          );
      }
  }
@@ -280,14 +281,29 @@ index 2ae01c6..cc929f0 100644
 +    }
 +
 +    /// Multi-queen node: the scan must cover every queen of the mover and see
-+    /// the hanging one even with a second queen on the board.
++    /// the hanging one even with two safe queens on the board. Fixture is the
++    /// stand-pat case with extra queens on h4 and a1; the extra queen on h4 can
++    /// only mitigate the loss to a queen-for-rook trade, so the loss margin is
++    /// asserted at 300.
 +    #[test]
 +    fn multiple_queens_scanned() {
-+        let fen = "3r2k1/8/3Q4/8/8/8/8/Q4K2 w - - 0 1";
++        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/7Q/3P1N1P/PPPB2P1/QR1K1B1R w - - 1 19";
++        let (sp, q) = run_quiesce(fen);
++        assert!(
++            q < sp - 300,
++            "quiesce must see the hanging queen among three: static {sp} vs quiesce {q}"
++        );
++    }
++
++    /// One queen attacked and another not: the safe queen must not mask the
++    /// hanging one (two-white-queen fixture derived from the stand-pat case).
++    #[test]
++    fn one_attacked_queen_among_safe_ones() {
++        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/QR1K1B1R w - - 1 19";
 +        let (sp, q) = run_quiesce(fen);
 +        assert!(
 +            q < sp - 700,
-+            "quiesce must see the hanging queen among two: static {sp} vs quiesce {q}"
++            "the safe queen must not mask the hanging one: static {sp} vs quiesce {q}"
 +        );
 +    }
 +
@@ -312,6 +328,63 @@ index 2ae01c6..cc929f0 100644
 +            legal.iter().any(|m| *m == r.best_move),
 +            "best move {} must be legal in check fixture",
 +            r.best_move
++        );
++    }
++
++    /// The 5 broad trap cases (22-30 allowing moves among 34-49) and the one
++    /// fully-lost case (2/2 allowing) from trap_cases.json. The trap is not
++    /// avoidable there, so the best move is not asserted; the contract is that
++    /// the fix changes nothing structurally on these real positions (legal
++    /// answer, no panic). The 8 needle cases carry the behavioural assertion.
++    #[test]
++    fn broad_and_lost_trap_cases_smoke() {
++        let cases: [&str; 6] = [
++            "r3r1k1/pb3p2/1p3p1p/2pP4/3qP3/2N4Q/PP2B1PP/R4R1K w - - 0 25",
++            "2k1r3/p2n1ppp/q1p1b3/2r5/3P4/2P1PN2/P1PB1PPP/2RQ1RK1 b - - 0 21",
++            "r4r2/pb3p1p/1np1pkp1/2p5/3P4/2P1PN2/PP2BPPP/2R2RK1 w - - 0 21",
++            "r2q1rk1/pb1nbppp/1pp1p3/2P5/3P4/2N1PN2/PP2BPPP/R2Q1RK1 b - - 0 16",
++            "1r4k1/5ppp/1p2p3/1P2P3/3P1p2/2Q4P/5PP1/2R3K1 b - - 0 36",
++            "r4r2/pb2Nkp1/2p2pB1/1p2q1p1/8/5P2/PP1B1K2/2R3QR b - - 3 23",
++        ];
++        for fen in cases {
++            let r = run_root(fen, 6);
++            assert_ne!(r.best_move, Move::NULL, "no legal best move in {fen}");
++        }
++    }
++
++    /// Terminal states keep their semantics (the terminal branch runs before any
++    /// stand-pat logic, so the fix cannot mask mate or stalemate).
++    #[test]
++    fn terminal_states_scoring_unchanged() {
++        // Back-rank mate: black to move is mated.
++        let mate = "R6k/6pp/8/8/8/8/8/K7 b - - 0 1";
++        let (_, q) = run_quiesce(mate);
++        assert_eq!(q, -MATE_SCORE, "mate must score mate, got {q}");
++        // Classic stalemate: black to move has no legal move and is not in check.
++        let stale = "7k/5P2/6K1/8/8/8/8/8 b - - 0 1";
++        let (_, q) = run_quiesce(stale);
++        assert_eq!(q, DRAW_SCORE, "stalemate must score draw, got {q}");
++        // Insufficient material is a draw regardless of attacked queens.
++        let insufficient = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
++        let (_, q) = run_quiesce(insufficient);
++        assert_eq!(q, DRAW_SCORE, "insufficient material must draw, got {q}");
++        // Fifty-move claim at the boundary: the claim wrapper guarantees at
++        // least a draw (it does not cap winning scores).
++        let fifty = "4k3/8/8/8/8/8/4P3/4K3 w - - 100 100";
++        let (_, q) = run_quiesce(fifty);
++        assert!(q >= DRAW_SCORE, "fifty-move claim must hold the draw, got {q}");
++    }
++
++    /// Endgame behaviour preservation: an attacked queen with a safe flight and
++    /// no free capture of the attacker must simply flee — the fix must not make
++    /// the search give the queen away in endgames.
++    #[test]
++    fn endgame_attacked_queen_saves_itself() {
++        let fen = "3r4/7k/5b2/8/8/8/3Q4/3K4 w - - 0 1";
++        let (sp, q) = run_quiesce(fen);
++        assert!(
++            q >= sp - 300,
++            "the queen must save itself in the endgame: static {sp} vs quiesce {q}"
 +        );
 +    }
 +
