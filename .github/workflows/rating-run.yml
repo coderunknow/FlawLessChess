@@ -334,9 +334,24 @@ jobs:
           else:
               if not re.fullmatch(r"[0-9a-f]{7,40}", tc_target or ""):
                   fail(f"bad target_commit {tc_target!r}")
+              # A SHA-ref checkout can leave the clone shallow or without the
+              # target object, which makes merge-base fail spuriously. Heal the
+              # git context explicitly before trusting either check.
+              subprocess.run(["git", "fetch", "--unshallow"], capture_output=True)
+              subprocess.run(["git", "fetch", "origin", tc_target, head], capture_output=True)
+              have = subprocess.run(["git", "cat-file", "-t", tc_target],
+                                    capture_output=True, text=True)
+              have_head = subprocess.run(["git", "cat-file", "-t", head],
+                                         capture_output=True, text=True)
+              if have.stdout.strip() != "commit" or have_head.stdout.strip() != "commit":
+                  fail(f"git context unusable: target {have.stdout.strip()!r} "
+                       f"head {have_head.stdout.strip()!r} (fetch failed)")
               rc = subprocess.run(["git", "merge-base", "--is-ancestor", tc_target, head]).returncode
               if rc != 0:
-                  fail(f"target_commit {tc_target} is not an ancestor of head {head}")
+                  depth = subprocess.run(["git", "rev-list", "--count", head],
+                                         capture_output=True, text=True)
+                  fail(f"target_commit {tc_target} is not an ancestor of head {head} "
+                       f"(merge-base rc={rc}, head history length={depth.stdout.strip()})")
               # engine/harness must be identical between frozen target and head
               rc = subprocess.run(
                   ["git", "diff", "--quiet", tc_target, head, "--",
