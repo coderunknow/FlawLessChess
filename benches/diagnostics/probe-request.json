@@ -1,5 +1,5 @@
 {
- "label": "baseline-e4",
+ "label": "patched-qsearch-evasion",
  "depths": "8,10,12,14",
- "patch": ""
+ "patch": "benches/diagnostics/queen-trap-fix.patch"
 }
