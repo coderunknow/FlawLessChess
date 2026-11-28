@@ -868,3 +868,92 @@ merge/dispatch validation, evidence-bridge pagination — CodeRabbit review
 reports. The rating-run drift check pins `scripts/` and the registered reports
 between target and dispatch head, so no further tooling changes may land
 during the campaign without a new re-freeze record.
+
+## Rating-100 amendment 2026-11-28 (evening): §8.3 replacement anchors for the boundary/saturated exclusion
+
+Date registered: **2026-11-28, before any replacement dispatch** (append-only;
+supersedes nothing above — the frozen selection text governs the original
+confirmatory selection and remains valid history).
+
+**Registered gate outcome on the completed six-set evidence.** The ENGINE-4
+confirmatory gate was run under the registered §8.2/§8.3/§9.4 exclusion
+semantics (estimator conformance fix `59850b2`, regression suite
+`test_rating_estimator.py` 95 checks including reproductions of the prior
+die-on-boundary crash). Result: `benches/evidence/rating-gate/gate-2026-11-28-exclusion-semantics.json`
+— **FAIL, exactly one check: ">= 3 gate-eligible anchors"**:
+
+| batch/anchor | counted | score | d (flawless − anchor) | status |
+|---|---|---|---|---|
+| A / wowl-1.3.7 | 240 | 240/240 | boundary s=1.000 | **excluded** §8.3/§9.4 |
+| B / wowl-1.3.7 | 240 | 238.5/240 | +880.6 | **excluded** §8.2 saturated |
+| A / topple-0.1.1 | 240 | 74.5/240 | −139.2 | eligible |
+| B / topple-0.1.1 | 240 | 66/240 | −167.2 | eligible |
+| A / wyldchess-1.1 | 240 | 197.5/240 | +267.4 | eligible |
+| B / wyldchess-1.1 | 240 | 187/240 | +218.2 | eligible |
+
+All unrounded calibrated CI lower bounds cleared 2000 (A 2359.49, B 2261.16,
+combined 2325.83) and both registered null controls passed (anchor-vs-anchor
+err −10.32 within ±75; self-match CI [0.4375, 0.51875] ∋ 0.5). Jointly
+gate-eligible anchors: topple-0.1.1, wyldchess-1.1 — **2 < 3**.
+
+**Root-cause record (defect-scan category (d): time-flag patterns).** The
+boundary anomaly is driven by opponent time-forfeits: 224/240 (A) and 220/240
+(B) wowl games and 192/240 (A) and 185/240 (B) wyldchess games ended by flag
+at plies 79–95 (median 84–87, the second 40-move period boundary), with zero
+Flawless-side flags anywhere, zero flags in all 480 topple-0.1.1 games, and
+zero flags in the self-match controls. Flawless ends games at a median 0.3–3 s
+reserve by its registered clock budgeting (CLOCK-1, reserve floor 300 ms);
+wowl/wyldchess exhaust the full 40/15 repeating clock. Non-flag (on-board)
+scores: A/wowl 16/16, B/wowl 18.5/20, A/wyld 5.5/48, B/wyld 2/55. Time-forfeits
+are counted results under the registered adjudication rules; no post-hoc
+exclusion mechanism is invented. The pattern is recorded as a validity
+finding, reported here and in the PR discussion.
+
+**Registered recovery (RATING_PROTOCOL §8.3/§9.4: exclude and replace with a
+nearer calibrated anchor; never clamp; fresh pre-registered evidence).**
+wowl-1.3.7 is replaced in the ENGINE-4 rating gate by the two nearest
+calibrated pool anchors that have no flag pathology (2026-11-25 screening:
+zero flag ends in 120-game screenings each):
+
+- **topple-0.2.1** (published 2439 ± 14, ci95; §2 verified: MIT,
+  `binary_sha256_verified`, exact id mapping);
+- **akimbo-0.1.1** (published 2441 ± 19, ci95; §2 verified: MIT,
+  `binary_sha256_verified`, exact id mapping).
+
+The 2026-11-14 selection rule excluded them as saturating *relative to the
+pre-campaign screening estimate*; §8.3's registered replacement mechanism is
+defined against the **current** estimate (combined θ̂ ≈ 2326, all eligible
+per-anchor absolutes 2098–2692), where 2439/2441 are the nearest calibrated
+anchors in the pool. Both are added; either alone would restore the ≥3 design
+requirement, both are registered for robustness against a further exclusion.
+
+**Design (unchanged parameters):** sample design `rating-240-v1` (60 opening
+clusters × 2 paired repetitions × AB/BA = 240 counted games per anchor per
+batch), TC 40/15 wall-clock, engine
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`
+(ENGINE-4, source `src/` byte-identical since `cb7242c` — no engine change),
+batch seeds A 20261121 / B 20261122 on the registered suites (A `2c4a54d8…`,
+B `744a3981…`). Total: 4 sets × 240 = 960 counted games. Repetition of any
+counted slot is forbidden; recovery only for genuinely missing indices.
+
+**Validity reporting (registered before dispatch; NOT an outcome filter):**
+each replacement set will report its flag-end rate and clock-at-end
+distributions alongside the gate (screening expectation ≤ 10 flag ends per 120
+games, the ENGINE-1 SCREEN-2 acceptance line); deviations are documented in
+the PR discussion without altering counted results.
+
+**Re-freeze note.** The replacement campaign's measurement identity is the
+same engine and the same in-game harness (`scripts/match.py` byte-identical to
+`cb7242c`); the scripts tree at dispatch-target additionally carries the
+reviewed Phase E/F measurement-tooling fixes (`dd16276`) and the estimator's
+§8.2/§8.3/§9.4 conformance fix (`59850b2`), both with regression suites. The
+dispatch target commit is the commit registering this amendment; the
+rating-run drift check covers `src`, `Cargo.*`, `scripts/`, the pool and the
+registered opening suites.
+
+**Gate re-run.** After all four sets are committed, the gate re-runs over
+wowl-1.3.7 (reported, excluded), topple-0.1.1, wyldchess-1.1, topple-0.2.1,
+akimbo-0.1.1 with the unchanged rule: unrounded `ci95_calibrated[0] > 2000`
+for batch A, batch B, combined, and both registered controls, with ≥3 jointly
+gate-eligible anchors. Thresholds, suites, schedules, seeds and sample sizes
+are unchanged.

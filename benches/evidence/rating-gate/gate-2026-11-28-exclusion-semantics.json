@@ -1,0 +1,477 @@
+{
+  "pass": false,
+  "threshold": 2000.0,
+  "checks": [
+    {
+      "pass": false,
+      "check": ">= 3 gate-eligible anchors with evidence in both batches (boundary/saturated excluded per \u00a78.2/\u00a78.3): jointly eligible ['topple-0.1.1', 'wyldchess-1.1']; excluded {'wowl-1.3.7': {'batch_a': 'boundary score s=1.000 (non-finite Elo) \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.3/\u00a79.4; replace with a nearer calibrated anchor and collect fresh pre-registered evidence; never clamp', 'batch_b': 'saturated: |d|=880.6 > 400 \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.2; report and replace per \u00a78.3'}}"
+    },
+    {
+      "pass": true,
+      "check": "batch_a: calibrated 95% CI lower bound 2359.494246218332 > 2000.0 (strict, unrounded)"
+    },
+    {
+      "pass": true,
+      "check": "batch_b: calibrated 95% CI lower bound 2261.1572646984587 > 2000.0 (strict, unrounded)"
+    },
+    {
+      "pass": true,
+      "check": "combined: calibrated 95% CI lower bound 2325.830945066319 > 2000.0 (strict, unrounded)"
+    },
+    {
+      "pass": true,
+      "check": "batch_a/topple-0.1.1: counted games 240 >= 240"
+    },
+    {
+      "pass": true,
+      "check": "batch_a/wyldchess-1.1: counted games 240 >= 240"
+    },
+    {
+      "pass": true,
+      "check": "batch_a: GLS used (fallback would need explicit preregistered handling)"
+    },
+    {
+      "pass": true,
+      "check": "batch_b/topple-0.1.1: counted games 240 >= 240"
+    },
+    {
+      "pass": true,
+      "check": "batch_b/wyldchess-1.1: counted games 240 >= 240"
+    },
+    {
+      "pass": true,
+      "check": "batch_b: GLS used (fallback would need explicit preregistered handling)"
+    },
+    {
+      "pass": true,
+      "check": "null control anchor-vs-anchor within +/-75 (err=-10.321147968747653)"
+    },
+    {
+      "pass": true,
+      "check": "null control self-match consistent with 0.5 (CI=[0.4375, 0.51875])"
+    }
+  ],
+  "results": {
+    "batch_a": {
+      "focus": "flawless",
+      "seed": 20261114,
+      "n_boot": 10000,
+      "openings": [
+        "Alekhine Defence",
+        "Benoni Defence",
+        "Bird Opening",
+        "Caro-Kann Advance",
+        "Caro-Kann Classical",
+        "Caro-Kann Panov",
+        "Caro-Kann Two Knights",
+        "Catalan",
+        "Colle System",
+        "Dutch Defence",
+        "English Opening",
+        "English Symmetrical Setup",
+        "Four Knights",
+        "Four Knights Scotch",
+        "French Advance Milner-Barry",
+        "French Classical",
+        "French Tarrasch",
+        "French Winawer",
+        "Grunfeld Defence",
+        "Italian Game",
+        "Italian Two Knights",
+        "King's Gambit Accepted",
+        "King's Gambit Declined",
+        "King's Indian Defence",
+        "London System",
+        "Modern Defence",
+        "Nimzo-Indian",
+        "Nimzo-Indian Classical",
+        "Petroff Defence",
+        "Petrov Steinitz",
+        "Philidor Defence",
+        "Philidor Hanham",
+        "Pirc Defence",
+        "QGD Exchange",
+        "Queen's Gambit Accepted",
+        "Queen's Gambit Declined",
+        "Queen's Gambit Tartakower",
+        "Queen's Indian",
+        "Reti Opening",
+        "Ruy Lopez Berlin",
+        "Ruy Lopez Closed",
+        "Ruy Lopez Morphy",
+        "Scandinavian Nf6",
+        "Scandinavian Qxd5",
+        "Scotch Gambit",
+        "Scotch Game",
+        "Semi-Slav",
+        "Sicilian Alapin",
+        "Sicilian Classical",
+        "Sicilian Dragon",
+        "Sicilian Kan",
+        "Sicilian Moscow",
+        "Sicilian Najdorf",
+        "Sicilian O'Kelly",
+        "Sicilian Sveshnikov",
+        "Slav Defence",
+        "Two Knights Fried Liver",
+        "Vienna Gambit",
+        "Vienna Game",
+        "Zukertort"
+      ],
+      "n_openings": 60,
+      "per_anchor": [
+        {
+          "name": "wowl-1.3.7",
+          "published_elo": 1849.0,
+          "published_error_as_published": 22.0,
+          "error_convention": "ci95",
+          "eps_sd": 11.224489795918368,
+          "score": 1.0,
+          "d_flawless_minus_anchor": null,
+          "sigma_matched": null,
+          "sigma_total": null,
+          "abs_estimate_from_anchor": null,
+          "gate_eligible": false,
+          "n_counted_games": 240,
+          "saturated": false,
+          "boundary": true,
+          "excluded_reason": "boundary score s=1.000 (non-finite Elo) \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.3/\u00a79.4; replace with a nearer calibrated anchor and collect fresh pre-registered evidence; never clamp"
+        },
+        {
+          "name": "topple-0.1.1",
+          "published_elo": 2324.0,
+          "published_error_as_published": 17.0,
+          "error_convention": "ci95",
+          "eps_sd": 8.673469387755102,
+          "score": 0.3104166666666667,
+          "d_flawless_minus_anchor": -138.65669014537787,
+          "sigma_matched": 22.09100368026006,
+          "sigma_total": 23.732709807807204,
+          "abs_estimate_from_anchor": 2185.343309854622,
+          "gate_eligible": true,
+          "n_counted_games": 240,
+          "saturated": false,
+          "boundary": false,
+          "excluded_reason": null
+        },
+        {
+          "name": "wyldchess-1.1",
+          "published_elo": 2474.0,
+          "published_error_as_published": 21.0,
+          "error_convention": "ci95",
+          "eps_sd": 10.714285714285715,
+          "score": 0.8229166666666666,
+          "d_flawless_minus_anchor": 266.87126796486695,
+          "sigma_matched": 30.279894721384522,
+          "sigma_total": 32.119588146573065,
+          "abs_estimate_from_anchor": 2740.871267964867,
+          "gate_eligible": true,
+          "n_counted_games": 240,
+          "saturated": false,
+          "boundary": false,
+          "excluded_reason": null
+        }
+      ],
+      "eligible_anchors": [
+        "topple-0.1.1",
+        "wyldchess-1.1"
+      ],
+      "excluded_anchors": [
+        {
+          "name": "wowl-1.3.7",
+          "published_elo": 1849.0,
+          "published_error_as_published": 22.0,
+          "error_convention": "ci95",
+          "eps_sd": 11.224489795918368,
+          "score": 1.0,
+          "n_counted_games": 240,
+          "d_flawless_minus_anchor": null,
+          "boundary": true,
+          "saturated": false,
+          "gate_eligible": false,
+          "abs_estimate_from_anchor": null,
+          "excluded_reason": "boundary score s=1.000 (non-finite Elo) \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.3/\u00a79.4; replace with a nearer calibrated anchor and collect fresh pre-registered evidence; never clamp"
+        }
+      ],
+      "bootstrap_boundary_exclusions": [],
+      "theta": 2393.4904731446504,
+      "weights": [
+        0.6253164935243075,
+        0.3746835064756925
+      ],
+      "weights_match_only": [
+        0.6277167110515964,
+        0.37228328894840373
+      ],
+      "mode_total": "gls",
+      "mode_match": "gls",
+      "var_match": 255.32849446461168,
+      "var_cal": 45.532063769065374,
+      "var_total": 300.86055823367707,
+      "ci95_match_only": [
+        2362.172205356734,
+        2424.8087409325667
+      ],
+      "ci95_calibrated": [
+        2359.494246218332,
+        2427.4867000709687
+      ],
+      "sigma_m": [
+        [
+          488.0124436012635,
+          -137.03205487965283
+        ],
+        [
+          -137.03205487965283,
+          916.8720243381302
+        ]
+      ],
+      "sigma_c": [
+        [
+          75.22907122032485,
+          0.0
+        ],
+        [
+          0.0,
+          114.79591836734696
+        ]
+      ]
+    },
+    "batch_b": {
+      "focus": "flawless",
+      "seed": 20261115,
+      "n_boot": 10000,
+      "openings": [
+        "Alekhine Exchange",
+        "Alekhine Four Pawns",
+        "Benko Gambit",
+        "Bird Main Line",
+        "Caro-Kann Advance Short",
+        "Caro-Kann Bronstein-Larsen",
+        "Caro-Kann Exchange",
+        "Caro-Kann Modern",
+        "Catalan Closed",
+        "Catalan Open",
+        "Dutch Leningrad",
+        "English Main Line",
+        "English Symmetrical",
+        "Four Knights Italian",
+        "Four Knights Rubinstein",
+        "French Rubinstein",
+        "French Steinitz",
+        "French Tarrasch Main",
+        "French Winawer Advance",
+        "Grunfeld Exchange",
+        "Italian Anti-Fried Liver Setup",
+        "Italian Giuoco Piano",
+        "Italian Max Lange",
+        "King's Gambit Accepted Main",
+        "King's Indian Classical",
+        "King's Indian Samisch",
+        "London Jobava",
+        "London System Classical",
+        "Modern Benoni",
+        "Nimzo Rubinstein",
+        "Nimzo-Indian Samisch",
+        "Petrov Cozio",
+        "Petrov Main Line",
+        "Pirc Classical",
+        "QGD Lasker",
+        "QGD Orthodox",
+        "Queen's Gambit Chigorin",
+        "Queen's Indian Main",
+        "Reti Main Line",
+        "Ruy Lopez Archangel",
+        "Ruy Lopez Closed Main",
+        "Ruy Lopez Marshall",
+        "Ruy Lopez Schliemann",
+        "Ruy Lopez Steinitz",
+        "Scandinavian Main",
+        "Scotch Four Knights",
+        "Scotch Main Line",
+        "Semi-Slav Meran",
+        "Sicilian Dragon Yugoslav",
+        "Sicilian Kan Main",
+        "Sicilian Loewenthal",
+        "Sicilian Najdorf English Attack",
+        "Sicilian Rauzer",
+        "Sicilian Rossolimo",
+        "Sicilian Taimanov",
+        "Slav Exchange",
+        "Slav Main Line",
+        "Torre Attack",
+        "Trompowsky",
+        "Vienna Frankenstein-Dracula"
+      ],
+      "n_openings": 60,
+      "per_anchor": [
+        {
+          "name": "wowl-1.3.7",
+          "published_elo": 1849.0,
+          "published_error_as_published": 22.0,
+          "error_convention": "ci95",
+          "eps_sd": 11.224489795918368,
+          "score": 0.99375,
+          "d_flawless_minus_anchor": 880.5588497281807,
+          "sigma_matched": null,
+          "sigma_total": null,
+          "abs_estimate_from_anchor": 2729.5588497281806,
+          "gate_eligible": false,
+          "n_counted_games": 240,
+          "saturated": true,
+          "boundary": false,
+          "excluded_reason": "saturated: |d|=880.6 > 400 \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.2; report and replace per \u00a78.3"
+        },
+        {
+          "name": "topple-0.1.1",
+          "published_elo": 2324.0,
+          "published_error_as_published": 17.0,
+          "error_convention": "ci95",
+          "eps_sd": 8.673469387755102,
+          "score": 0.275,
+          "d_flawless_minus_anchor": -168.40212509629242,
+          "sigma_matched": 20.783226861685623,
+          "sigma_total": 22.520470465880937,
+          "abs_estimate_from_anchor": 2155.5978749037076,
+          "gate_eligible": true,
+          "n_counted_games": 240,
+          "saturated": false,
+          "boundary": false,
+          "excluded_reason": null
+        },
+        {
+          "name": "wyldchess-1.1",
+          "published_elo": 2474.0,
+          "published_error_as_published": 21.0,
+          "error_convention": "ci95",
+          "eps_sd": 10.714285714285715,
+          "score": 0.7791666666666667,
+          "d_flawless_minus_anchor": 219.02629477428394,
+          "sigma_matched": 34.426581583266156,
+          "sigma_total": 36.055310813757075,
+          "abs_estimate_from_anchor": 2693.026294774284,
+          "gate_eligible": true,
+          "n_counted_games": 240,
+          "saturated": false,
+          "boundary": false,
+          "excluded_reason": null
+        }
+      ],
+      "eligible_anchors": [
+        "topple-0.1.1",
+        "wyldchess-1.1"
+      ],
+      "excluded_anchors": [
+        {
+          "name": "wowl-1.3.7",
+          "published_elo": 1849.0,
+          "published_error_as_published": 22.0,
+          "error_convention": "ci95",
+          "eps_sd": 11.224489795918368,
+          "score": 0.99375,
+          "n_counted_games": 240,
+          "d_flawless_minus_anchor": 880.5588497281807,
+          "boundary": false,
+          "saturated": true,
+          "gate_eligible": false,
+          "abs_estimate_from_anchor": 2729.5588497281806,
+          "excluded_reason": "saturated: |d|=880.6 > 400 \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.2; report and replace per \u00a78.3"
+        }
+      ],
+      "bootstrap_boundary_exclusions": [],
+      "theta": 2299.5919624573075,
+      "weights": [
+        0.7320683420719053,
+        0.2679316579280947
+      ],
+      "weights_match_only": [
+        0.7480850751879616,
+        0.2519149248120384
+      ],
+      "mode_total": "gls",
+      "mode_match": "gls",
+      "var_match": 335.9902118434358,
+      "var_cal": 48.557966535098,
+      "var_total": 384.5481783785338,
+      "ci95_match_only": [
+        2263.665752485299,
+        2335.518172429316
+      ],
+      "ci95_calibrated": [
+        2261.1572646984587,
+        2338.0266602161564
+      ],
+      "sigma_m": [
+        [
+          431.94251878429077,
+          49.5048380637515
+        ],
+        [
+          49.5048380637515,
+          1185.1895195092807
+        ]
+      ],
+      "sigma_c": [
+        [
+          75.22907122032485,
+          0.0
+        ],
+        [
+          0.0,
+          114.79591836734696
+        ]
+      ]
+    },
+    "combined": {
+      "theta": 2352.945560375091,
+      "weight_batch_a": 0.5682049430521512,
+      "var_match_pooled": 145.07891265685618,
+      "var_cal_shared": 46.30732826342108,
+      "var_total": 191.38624092027726,
+      "ci95_match_only": [
+        2329.3380474031073,
+        2376.553073347075
+      ],
+      "ci95_calibrated": [
+        2325.830945066319,
+        2380.0601756838632
+      ],
+      "note": "match-noise pooled inverse-variance; shared anchor calibration added once (\u00a79.8)"
+    },
+    "control_anchor_vs_anchor": {
+      "mode": "anchor-vs-anchor",
+      "a": "topple-0.1.1",
+      "b": "topple-0.2.1",
+      "score_a": 0.32708333333333334,
+      "d_measured": -125.32114796874765,
+      "d_published": -115.0,
+      "error": -10.321147968747653,
+      "tolerance": 75.0,
+      "pass": true
+    },
+    "control_self_match": {
+      "mode": "self-match",
+      "focus": "flawless",
+      "score": 0.4791666666666667,
+      "seat_perspective": true,
+      "white_perspective_score": 0.5333333333333333,
+      "ci95_score": [
+        0.4375,
+        0.51875
+      ],
+      "pass": true
+    }
+  },
+  "gate_eligible_anchors": [
+    "topple-0.1.1",
+    "wyldchess-1.1"
+  ],
+  "excluded_anchors": {
+    "wowl-1.3.7": {
+      "batch_a": "boundary score s=1.000 (non-finite Elo) \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.3/\u00a79.4; replace with a nearer calibrated anchor and collect fresh pre-registered evidence; never clamp",
+      "batch_b": "saturated: |d|=880.6 > 400 \u2014 excluded from WLS and gate per RATING_PROTOCOL \u00a78.2; report and replace per \u00a78.3"
+    }
+  },
+  "verdict": "FAIL",
+  "disclaimer": "private, CCRL/CEGT-anchored estimate \u2014 not an official rating"
+}
