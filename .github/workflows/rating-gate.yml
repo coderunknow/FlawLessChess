@@ -10,7 +10,8 @@
 #     control evidence directory: frozen binary hashes, opening-suite hash,
 #     merged_sha256 vs the committed bytes, game-record integrity, counted
 #     totals >= the plan minimum (fail closed on ANY mismatch)
-#   * >= 3 eligible anchors; exactly 100 counted games per anchor per batch, from 50 opening clusters
+#   * >= 3 eligible anchors; the registered counted games per anchor per batch
+#     (benches/gate-plan.json: currently 240 = 60 opening clusters x 4)
 #   * Batch A, Batch B and the combined estimate all have two-sided 95%
 #     calibrated CI lower bounds STRICTLY > 2,000 (unrounded)
 #   * both null controls pass their registered thresholds
@@ -48,6 +49,9 @@ on:
       - "benches/rating-openings-100-batchA.txt"
       - "benches/rating-openings-100-batchB.txt"
       - "benches/rating-100-power-assessment.json"
+      - "benches/rating-openings-batchA.txt"
+      - "benches/rating-openings-batchB.txt"
+      - "benches/rating-100-power-assessment-e4.json"
 
 permissions:
   contents: read
@@ -75,7 +79,8 @@ jobs:
 
       # Independent recomputation from raw evidence. Exits non-zero unless all
       # three lower CI bounds (A, B, combined) are strictly > 2000, every anchor
-      # is within the saturation limit with exactly 100 counted games per anchor/batch and 50 opening clusters, and
+      # is within the saturation limit with the registered per-anchor counted
+      # games and opening clusters (240/60x4 per benches/gate-plan.json), and
       # both null controls pass.
       - name: rating estimator gate (independent recomputation, fail closed)
         run: |
