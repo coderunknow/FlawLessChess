@@ -240,3 +240,94 @@ The first CI run after adding engine-SHA isolation (44067364552) failed the new 
 ## 2026-11-17 — Windows newline portability issue
 
 The c564c5c exact-head CI was not green: Ubuntu and MSRV passed, but Windows failed the power-report smoke because of CRLF checkout conversion of committed raw evidence. A targeted cross-platform JSONL hash normalization and tamper test are prepared. Keep full CI unchecked until the follow-up commit is green on Linux and Windows.
+
+## 2026-11-28 — mission Phases A–K checkpoint (branch `arena/247fe7df-flawlesschess`)
+
+**Verdict for this head: NOT MERGE-READY.** The ENGINE-4 confirmatory campaign and its
+registered recovery protocol are still executing on hosted runners; the absolute rating gate
+cannot be recomputed until that evidence is committed. Nothing below claims an unverified
+pass. Engine identities in use: **E4** = the frozen confirmatory candidate
+(`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329` at freeze target
+`cb7242c`), **E3** = the previous engine generation (bench `141943aa23b3fc68`), **E5** = the
+queen-trap successor that does not exist in `src/` yet and must complete its own
+preregistered chain (dispatch-analysis-2026-11-27.md) before it can become a merge
+candidate. Evidence produced under one identity is never reused for another.
+
+### ENGINE-4 campaign + recovery (Phase B) — IN FLIGHT
+
+- A / wowl-1.3.7: run 45998977117 = FAILURE with 236/240 counted games committed under
+  `benches/evidence/confirmatory/batchA/wowl-1.3.7/run-45998977117/`; missing slots 124–127
+  (shard 31, diagnosed `aborted_engine_errors`). Recovery dispatch rev 57 (pushed as
+  `f4a0ba4`, rating-run 46111280732) will replay exactly those four slots.
+- A / topple-0.1.1: run 45999016751 = CANCELLED with 58 complete shards and partial 31/37;
+  evidence not yet committed — evidence-bridge request rev 7 (run-45999016751, `evidence_out`)
+  is queued (46111148534 / 46111280738). Recovery of slots 124–127 + 148–151 must be
+  dispatched (rev 58) only after that bridge commit exists, because the resolve gate requires
+  prior committed run evidence for a recovery dispatch.
+- A / wyldchess-1.1: run 45999052791 completed 60 shard jobs with shard 17 failed and the
+  aggregate job queued; recovery of slots 68–71 only after the run resolves (aggregate
+  commits 236 games; else bridge first).
+- B / wowl-1.3.7: 60/60 shards succeeded, aggregate job queued (45999096409).
+- B / topple-0.1.1: running (45999142482; ~3.2 h per 4-game shard on hosted runners).
+- B / wyldchess-1.1: 60 shards queued (45999195004).
+- `gh run rerun` is not a permitted recovery path (artifact-name collisions; replays counted
+  slots). Only genuinely missing schedule indices are ever dispatched.
+
+### What was completed and verified in this checkpoint
+
+- [x] Phase E — all five registered findings fixed with regression suites, plus the review
+      corrections: refresh_run_table paginated `--slurp` parse (`3e7a7d0`); en-passant captured
+      square in adjudicate_traps (`a9a276c`); pinned pseudo-attacker exclusion via
+      `legal_attackers()` (`a9a276c`); exact source-record flag identity `(rec, fen, ply, move)`
+      with a duplicate-key 2-not-4 regression (`a9a276c`); engine failures abort with exit
+      code 3 distinct from ply-cap truncation, child reaped (`ada9fc2`); batch A/B color-pair
+      seating fixture (`c0c6306`); reversed `check()` arguments in test_run_table fixed — the
+      real conditions pass (`851bfc2`). Full harness battery: **18/18 suites green** at
+      `851bfc2` (each output inspected).
+- [x] CI suite list complete: `.github/workflows/ci.yml` now runs all 18 Python suites at the
+      exact head (`c0c6306`) — historical green on other SHAs is not claimed as current.
+- [x] Phase G review debt: all 51 PR review threads re-fetched from GitHub; 5 fixed threads
+      replied with fix evidence and resolved; the remaining open thread
+      (relative_benchmark saved opening-order digest) is deliberately scheduled for Phase F
+      after the campaign closes. The 10 named review items verified against source:
+      evidence-bridge latest-attempt + completed-only artifact collection ✓;
+      power_analysis_v2 skipped/excluded-row accounting + exclusion completeness + one-AB/one-BA
+      colour reversal ✓; PREREGISTRATION wording "strictly > 2,000" ✓ (append-only, unchanged);
+      candidate/player-color consistency ✓; recovery schedule validation ✓ (7/7 tests);
+      manifest provenance checks ✓; focus-player handling ✓; queen-defence legality ✓.
+- [x] Phase H adversarial audit — partial: search.rs diff coherent (EXT_BUDGET-bounded check
+      extensions with per-line accounting through null-move; counter-move behind the ablation
+      mask; soft-budget stop), eval.rs outpost advancing-enemy-pawn rule present, ablation
+      switch defaults off, make/unmake restores the full state (castling, ep, clocks, hash,
+      ep-inclusion). Workflow-injection scan clean: no `${{ }}` reaches any `run:` body in any
+      workflow (env-var indirection only).
+
+### Open gates (each must be verified before any merge)
+
+- [ ] Phase B: recovery dispatches run and their evidence is committed; every shard verified
+      by job conclusion AND committed evidence; aggregates independently recomputed.
+- [ ] Phase C: absolute V1 gate recomputed from the committed raw records —
+      unrounded `ci95_calibrated[0] > 2000` strictly, for Batch A, Batch B and combined,
+      plus both null controls (CTRL-3 ±75, CTRL-4 self-match 0.5∈CI), 240 counted games per
+      anchor/batch, every counted game reproducible, identities matching the freeze.
+      Tooling ready: `scripts/rating_estimator.py gate` with `--exact-games 240
+      --required-openings 60 --games-per-opening 4 --suite-a --suite-b`.
+- [ ] Phase D: probe v6 (46110985046, `710100e`) read back and adjudicated; then ENGINE-5
+      implemented with its FULL own chain (binary hash, anchor verification, controls,
+      screening, own power assessment + independent review + approval, own confirmatory +
+      rating). The queen-trap fix is NOT applied to `src/` in this checkpoint.
+- [ ] Phase F: relative_benchmark missing-digest strictness + its regression (after the
+      campaign closes, per plan).
+- [ ] Phase G: fresh independent full-diff review of the final head.
+- [ ] Phase H: remaining audit areas (pruning legality proof, TT, qsearch, manifests,
+      estimator, silent-failure sweep) documented to completion.
+- [ ] Phase I: full hosted CI matrix green on the exact final head (Ubuntu/Windows/MSRV,
+      all 18 suites, perft/differential, UCI/clock/perf).
+- [ ] Phase J: final docs reconciliation including PR description; no checklist item checked
+      without evidence at that head.
+- [ ] Phase K: gate checklist and final report with the verdict for the final head.
+
+### Authorization record (unchanged)
+
+- No merge, tag, or release has been performed. Per the 2026-11-28 mission instruction, PR #6
+  must be left OPEN and merge-ready for an explicitly authorized merge; nothing here merges it.

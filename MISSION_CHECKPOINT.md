@@ -354,3 +354,35 @@ Both runs have shard artifacts, but neither produced a canonical committed aggre
   shards → canonical merges + rating gate → land ENGINE-5 (patch to src/ + new
   binary SHA + own chain) → close-out docs → strict gate + fresh CodeRabbit →
   merge PR #6 with head-SHA precondition.
+
+## 2026-11-28 06:40Z — mission Phases A–K progress (branch head `851bfc2`+docs)
+
+Phase A/E/G executed; B in flight; C tooling ready; D/F/H/I/J/K open. Verdict for
+this head: **NOT MERGE-READY** (campaign evidence not yet complete; no gate
+claimed without evidence). Full state, per-gate detail and open items: see the
+"2026-11-28 — mission Phases A–K checkpoint" section of MERGE_READINESS.md.
+
+- Phase E COMPLETE: 5 findings fixed + regression suites (refresh_run_table
+  pagination `3e7a7d0`; en-passant captured square + pinned-attacker
+  `legal_attackers()` + record-ordinal flag identity `a9a276c`; engine-failure
+  abort rc 3 `ada9fc2`; batch A/B seating fixture + 18-suite CI list `c0c6306`;
+  test_run_table reversed check() args `851bfc2`). Battery 18/18 green at
+  `851bfc2`, outputs inspected.
+- Phase G threads: 51 re-fetched, 5 fixed threads replied+resolved, 1 open
+  (relative_benchmark digest — Phase F after campaign close). The 10 named
+  review items verified against source (details in MERGE_READINESS.md).
+- Phase H partial: search.rs/eval.rs diff coherent, make/unmake full-state
+  restore, ablation default-off, workflow-injection scan clean. Remaining
+  areas documented as open in MERGE_READINESS.md.
+- Campaign: A/wowl recovery rev 57 (run 46111280732) queued; A/topple bridge
+  rev 7 queued then recovery rev 58; A/wyld shard17 recovery after resolve;
+  B/topple running (~1.5–3 h/shard), B/wyld queued. Runner pool fully
+  saturated; queued fan-outs (bridge/recovery/CI) drain behind the campaign.
+- Next actions, in order, as runners free: (1) verify 46111280732 resolve →
+  shard31 recovery evidence; (2) verify bridge commits run-45999016751 →
+  dispatch A/topple recovery rev 58 (slots 124–127 + 148–151); (3) A/wyld
+  shard17 (68–71) after 45999052791 resolves; (4) read back probe v6
+  (46110985046) → Phase D; (5) Phase C via `scripts/rating_estimator.py gate`
+  (strict, unrounded, >2000, both controls, --exact-games 240); (6) Phase F;
+  (7) fresh full-diff review + Phase I hosted CI at final head; (8) Phase J/K
+  final report.

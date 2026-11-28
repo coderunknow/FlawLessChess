@@ -26,6 +26,28 @@ commit; verified 2026-11-24).
 > - The V1 release gate (absolute rating > 2,000, two-sided 95% CI lower bound strictly > 2,000)
 >   remains NOT MEASURED and NOT MET; no absolute Elo claim is made.
 
+> ### Current session (2026-11-28, branch arena/247fe7df-flawlesschess — PR #6 open, mission Phases A–K)
+>
+> **PR #6 is OPEN and NOT MERGE-READY at this checkpoint.** The absolute V1 rating gate remains
+> **UNKNOWN / NOT MEASURED / NOT MET** — the ENGINE-4 confirmatory campaign (240 counted games ×
+> 3 anchors × 2 batches, `rating-240-v1`) is still executing on hosted runners and its registered
+> recovery protocol (rev 57 A/wowl shard 31; bridge rev 7 → rev 58 A/topple; A/wyld shard 17) is
+> queued behind it. Nothing here is a strength claim; no checklist item is checked without
+> evidence at the cited head. Per the 2026-11-28 mission instruction the PR must be left open,
+> merge-ready, for an explicitly authorized merge — no merge, tag or release is performed.
+>
+> What this session verified (details and commit SHAs in `MERGE_READINESS.md`
+> "2026-11-28 — mission Phases A–K checkpoint"): all five registered Phase-E findings fixed with
+> regression suites (comments pagination, en-passant captured square, pinned pseudo-attacker
+> exclusion, exact source-record flag identity, engine-failure abort rc 3); batch A/B colour-pair
+> seating fixture and a silent false-green (reversed `check()` args) fixed; the CI suite list now
+> runs all 18 Python suites at the exact head; 51 review threads re-fetched with the five fixed
+> findings replied and resolved; the ten named review items verified against source; the
+> search/eval diff reviewed coherent and the workflow-injection surface scanned clean. Harness
+> battery **18/18 green** at `851bfc2`, outputs inspected. Hosted CI at the exact head and the
+> full-depth adversarial audit remain in progress; ENGINE-5 (queen-trap) is NOT in `src/` and
+> must complete its own preregistered chain before it can be a merge candidate.
+>
 > ### Current session (2026-11-25, branch arena/247fe7df-flawlesschess — PR #6 draft)
 >
 > **PR #6 is a draft and is NOT MERGE-READY.** The absolute V1 rating gate remains

@@ -1586,3 +1586,67 @@ Three queued probe runs built on the buggy driver (46006089805,
 and never commit outputs; their labels are superseded. Re-dispatched
 `baseline-e4` (clean build, 46017481718) and `patched-queen-trap-v3`
 (full 14-test suite + v2 patch) on the fixed driver.
+
+## 2026-11-28 — mission Phases A–K session (branch `arena/247fe7df-flawlesschess`, PR #6 open)
+
+Scope: take PR #6 to a genuinely verified merge-ready state (execution). The PR is left OPEN and
+unmerged by explicit instruction; no tag or release. No checklist item is claimed without
+evidence; the full per-gate state is in `MERGE_READINESS.md` ("2026-11-28 — mission Phases A–K
+checkpoint") and `MISSION_CHECKPOINT.md`.
+
+Engine attribution for the record: **E4** = frozen confirmatory candidate
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329` at `cb7242c` (the ENGINE-4
+campaign runs this and only this); **E3** = previous generation (bench `141943aa23b3fc68`); **E5**
+= the planned queen-trap successor, absent from `src/`, which must complete its own preregistered
+chain (dispatch-analysis-2026-11-27.md) before it can be a merge candidate. Evidence is never
+reused across identities.
+
+Work completed this session (all committed, pushed):
+
+1. Phase E — five registered findings fixed with regression suites:
+   - `3e7a7d0` refresh_run_table: `gh api --paginate --slurp`, pure page parser
+     (empty → [], malformed → RuntimeError), fixture-dest-only writes; 17-check suite.
+   - `a9a276c` adjudicate_traps: `captured_square()` en-passant-correct (victim on the
+     to-file at the capturer's rank) at both adjudication sites, moved-piece check on the
+     post-move board; analyze_game_losses: `legal_attackers()` turn-flipped probe validation
+     so pinned pieces never count as threats (three detector sites); flags carry the exact
+     record ordinal — `(rec, fen, ply, move)` identity — with a duplicate-keys 2-not-4
+     regression. Suites: test_adjudicate_traps 16/16, test_analyze_game_losses 12/12
+     (pinned/unpinned twin fixtures; Na4/Nc4/Nd1/Nd3 pin-preserving releases).
+   - `ada9fc2` diagnose_weaknesses: `EngineFailure` for missing bestmove / 0000 / unparsable
+     / illegal moves; main aborts rc 3 (stderr "not a ply-cap truncation"), no summary
+     claiming results; child reaped (pid-liveness regression). Suite 44/44.
+   - `c0c6306` ci.yml runs all 18 Python suites at the exact head; test_make_batch_dispatch
+     BA-seat fixture fixed (valid BA records were rejected — the "batch A/B color-pair
+     fixtures" review item).
+   - `851bfc2` test_run_table: three reversed `check()` arguments were silently passing a
+     truthy message string as the condition (false-green); swapped to the signature and the
+     real conditions pass (121/121).
+2. Phase G — all 51 PR review threads re-fetched from GitHub. The five threads matching the
+   fixed findings were replied with fix evidence (commits + suite results) and resolved; the
+   sixth open thread (relative_benchmark saved opening-order digest) is deliberately scheduled
+   for Phase F after the campaign closes. The ten named review items verified against source:
+   evidence-bridge latest-attempt + completed-only artifact collection; power_analysis_v2
+   skipped/excluded-row accounting + exclusion-completeness + one-AB/one-BA colour reversal;
+   PREREGISTRATION "strictly > 2,000" wording (append-only, unchanged); candidate/player-color
+   consistency; recovery schedule validation (make_batch_dispatch 7/7); manifest provenance;
+   focus-player handling; queen-defence legality.
+3. Phase H (partial) — the PR's engine diff reviewed coherent: EXT_BUDGET-bounded check
+   extensions with per-line accounting through null-move; counter-move heuristic behind the
+   FLAWLESS_ABLATE mask (default off); outpost advancing-enemy-pawn rule present;
+   make/unmake restores the complete state (castling, ep, clocks, hash, ep-inclusion).
+   Workflow-injection scan clean: no `${{ }}` reaches any `run:` body in any workflow.
+4. Phase J (partial) — MERGE_READINESS.md / MISSION_CHECKPOINT.md / STATUS.md / PR body
+   reconciled to actual state with a NOT MERGE-READY verdict and explicit open gates.
+
+Campaign state at this entry (hosted runners, ~1.5–3 h per 4-game shard): A/wowl recovery
+rev 57 (rating-run 46111280732) queued; A/topple bridge rev 7 queued (run-45999016751), then
+recovery rev 58 (slots 124–127 + 148–151); A/wyld shard 17 failed (slots 68–71 to recover
+after 45999052791 resolves); B/wowl 60/60 shards done, aggregate queued; B/topple running;
+B/wyld queued. The runner pool is saturated by the campaign; all later fan-outs drain behind
+it. Next actions in order as runners free: verify the rev-57 recovery resolve + evidence →
+verify the bridge commit → dispatch rev 58 → A/wyld recovery → read back probe v6
+(46110985046) → Phase C strict recompute (`scripts/rating_estimator.py gate`, unrounded
+`ci95_calibrated[0] > 2000` strictly for A/B/combined + both controls, `--exact-games 240
+--required-openings 60 --games-per-opening 4 --suite-a --suite-b`) → Phase F → fresh
+full-diff review + hosted CI at the final head → Phase K report.
