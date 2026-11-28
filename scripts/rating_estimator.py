@@ -213,16 +213,19 @@ def joint_bootstrap(anchors: list[dict], n_boot: int, seed: int) -> dict:
         idxs = [rng.randrange(n) for _ in range(n)]
         row = [d_of(i, idxs) for i in range(len(anchors))]
         D.append(row)
-    # Boundary replicates (score 0/1 in a resample) are non-finite; a replicates
-    # set with non-finite entries cannot support the gate -> fail closed.
-    for b, row in enumerate(D):
-        for v in row:
+    # Boundary replicates (score 0/1 in a resample) are non-finite Elo draws.
+    # Registered treatment (RATING_PROTOCOL §8.3/§9.4): such an anchor is
+    # uninformative — exclude it from the WLS with a reported reason and replace
+    # it with a nearer calibrated anchor via registered recovery. Never clamp
+    # and never crash the estimator here; count the non-finite replicates per
+    # anchor so `batch_estimate` can apply the exclusion.
+    nonfinite_reps = [0] * len(anchors)
+    for row in D:
+        for i, v in enumerate(row):
             if not math.isfinite(v):
-                raise EvidenceError(
-                    f"bootstrap replicate {b} hit a boundary score (non-finite Elo); "
-                    f"more games or nearer anchors required (protocol §9.4)"
-                )
-    return {"names": names, "D": D, "observed": observed, "openings": openings}
+                nonfinite_reps[i] += 1
+    return {"names": names, "D": D, "observed": observed, "openings": openings,
+            "nonfinite_reps": nonfinite_reps}
 
 
 def col_means_cov(D: list[list[float]]) -> tuple[list[float], list[list[float]]]:
@@ -299,16 +302,159 @@ def batch_estimate(games_by_anchor: dict[str, list[dict]], anchor_entries: list[
             "name": name,
             "published_elo": float(entry["published_elo"]),
             "eps_sd": eps_sd_from_entry(entry),
+            "published_error_as_published": float(entry["published_error"]),
+            "error_convention": entry["error_convention"],
             "clusters": clusters,
+            "n_counted_games": sum(len(v) for v in clusters.values()),
         })
-    boot = joint_bootstrap(anchors, n_boot, seed)
+
+    def obs_score(a: dict) -> float:
+        tot = math.fsum(sum(sc) for sc in a["clusters"].values())
+        n = sum(len(sc) for sc in a["clusters"].values())
+        return tot / n if n else math.nan
+
+    # ------------------------------------------------------------------
+    # Registered exclusion semantics (RATING_PROTOCOL §8.2/§8.3/§9.4):
+    #   * observed s == 0/1 (boundary) -> non-finite Elo: excluded from the
+    #     WLS and the gate set, reported with its raw score, NEVER clamped;
+    #     registered recovery = replace with a nearer calibrated anchor and
+    #     collect fresh pre-registered evidence (§9.4).
+    #   * observed |d| > 400 (saturated) -> excluded from the gate and WLS,
+    #     reported with its finite d (§8.2).
+    #   * an eligible anchor whose bootstrap replicates hit a boundary score
+    #     is uninformative (§9.4): excluded the same way and reported.
+    # Nothing is silently dropped: every input anchor appears in per_anchor.
+    # ------------------------------------------------------------------
+    eligible = []
+    excluded = []
+    for a in anchors:
+        s = obs_score(a)
+        d = elo_from_score(s)
+        base = {
+            "name": a["name"],
+            "published_elo": a["published_elo"],
+            "published_error_as_published": a["published_error_as_published"],
+            "error_convention": a["error_convention"],
+            "eps_sd": a["eps_sd"],
+            "score": s,
+            "n_counted_games": a["n_counted_games"],
+        }
+        if not math.isfinite(d):
+            excluded.append({
+                **base,
+                "d_flawless_minus_anchor": None,
+                "boundary": True,
+                "saturated": False,
+                "gate_eligible": False,
+                "abs_estimate_from_anchor": None,
+                "excluded_reason": (
+                    f"boundary score s={s:.3f} (non-finite Elo) — excluded from WLS and gate "
+                    f"per RATING_PROTOCOL §8.3/§9.4; replace with a nearer calibrated anchor "
+                    f"and collect fresh pre-registered evidence; never clamp"
+                ),
+            })
+        elif abs(d) > 400.0:
+            excluded.append({
+                **base,
+                "d_flawless_minus_anchor": d,
+                "boundary": False,
+                "saturated": True,
+                "gate_eligible": False,
+                "abs_estimate_from_anchor": a["published_elo"] + d,
+                "excluded_reason": (
+                    f"saturated: |d|={abs(d):.1f} > 400 — excluded from WLS and gate "
+                    f"per RATING_PROTOCOL §8.2; report and replace per §8.3"
+                ),
+            })
+        else:
+            eligible.append(a)
+
+    bootstrap_excluded = []
+    boot = None
+    while True:
+        if not eligible:
+            break
+        boot = joint_bootstrap(eligible, n_boot, seed)
+        bad = [i for i, n_ in enumerate(boot["nonfinite_reps"]) if n_ > 0]
+        if not bad:
+            break
+        for i in reversed(bad):
+            a = eligible.pop(i)
+            n_ = boot["nonfinite_reps"][i]
+            bootstrap_excluded.append(a["name"])
+            excluded.append({
+                "name": a["name"],
+                "published_elo": a["published_elo"],
+                "published_error_as_published": a["published_error_as_published"],
+                "error_convention": a["error_convention"],
+                "eps_sd": a["eps_sd"],
+                "score": obs_score(a),
+                "n_counted_games": a["n_counted_games"],
+                "d_flawless_minus_anchor": None,
+                "boundary": True,
+                "saturated": False,
+                "gate_eligible": False,
+                "abs_estimate_from_anchor": None,
+                "excluded_reason": (
+                    f"bootstrap boundary: {n_}/{n_boot} replicates hit s=0/1 (non-finite Elo) — "
+                    f"uninformative per RATING_PROTOCOL §9.4; excluded from WLS and gate; "
+                    f"replace with a nearer calibrated anchor and collect fresh pre-registered evidence"
+                ),
+            })
+    A = len(eligible)
+    if A == 0 or boot is None:
+        # No WLS exists, but the per-anchor report is still produced so the
+        # gate can surface the registered exclusions instead of losing them.
+        per_anchor = []
+        order = {a["name"]: i for i, a in enumerate(anchors)}
+        for e in sorted(excluded, key=lambda r: order[r["name"]]):
+            per_anchor.append({
+                "name": e["name"],
+                "published_elo": e["published_elo"],
+                "published_error_as_published": e["published_error_as_published"],
+                "error_convention": e["error_convention"],
+                "eps_sd": e["eps_sd"],
+                "score": e["score"],
+                "d_flawless_minus_anchor": e["d_flawless_minus_anchor"],
+                "sigma_matched": None,
+                "sigma_total": None,
+                "abs_estimate_from_anchor": e["abs_estimate_from_anchor"],
+                "gate_eligible": False,
+                "n_counted_games": e["n_counted_games"],
+                "saturated": e["saturated"],
+                "boundary": e["boundary"],
+                "excluded_reason": e["excluded_reason"],
+            })
+        return {
+            "focus": focus,
+            "seed": seed,
+            "n_boot": n_boot,
+            "openings": [],
+            "n_openings": 0,
+            "per_anchor": per_anchor,
+            "eligible_anchors": [],
+            "excluded_anchors": excluded,
+            "bootstrap_boundary_exclusions": bootstrap_excluded,
+            "theta": None,
+            "weights": [],
+            "weights_match_only": None,
+            "mode_total": "no gate-eligible anchors after registered exclusions",
+            "mode_match": "no gate-eligible anchors after registered exclusions",
+            "var_match": None,
+            "var_cal": None,
+            "var_total": None,
+            "ci95_match_only": None,
+            "ci95_calibrated": None,
+            "sigma_m": [],
+            "sigma_c": [],
+        }
+
     means, sigma_m = col_means_cov(boot["D"])
-    A = len(anchors)
     sigma_c = [[0.0] * A for _ in range(A)]
     for i in range(A):
-        sigma_c[i][i] = anchors[i]["eps_sd"] ** 2
+        sigma_c[i][i] = eligible[i]["eps_sd"] ** 2
     sigma_total = [[sigma_m[i][j] + sigma_c[i][j] for j in range(A)] for i in range(A)]
-    y = [anchors[i]["published_elo"] + boot["observed"][i] for i in range(A)]
+    y = [eligible[i]["published_elo"] + boot["observed"][i] for i in range(A)]
 
     w_total, _, mode_total = gls(sigma_total, y)
     # Match-only weights are REPORTING-ONLY. When the match covariance is
@@ -330,23 +476,48 @@ def batch_estimate(games_by_anchor: dict[str, list[dict]], anchor_entries: list[
     var_total = var_match + var_cal
 
     per_anchor = []
-    for i, a in enumerate(anchors):
-        d = boot["observed"][i]
-        per_anchor.append({
-            "name": a["name"],  # label recorded in games (pool key)
-            "published_elo": a["published_elo"],
-            "published_error_as_published": float(anchor_entries[i]["published_error"]),
-            "error_convention": anchor_entries[i]["error_convention"],
-            "eps_sd": a["eps_sd"],
-            "score": elo_to_score(d),
-            "d_flawless_minus_anchor": d,
-            "sigma_matched": math.sqrt(sigma_m[i][i]),
-            "sigma_total": math.sqrt(sigma_m[i][i] + sigma_c[i][i]),
-            "abs_estimate_from_anchor": a["published_elo"] + d,
-            "gate_eligible": abs(d) <= 400.0,
-            "n_counted_games": sum(len(v) for v in a["clusters"].values()),
-            "saturated": abs(d) > 400.0,
-        })
+    excluded_by_name = {e["name"]: e for e in excluded}
+    elig_pos = {a["name"]: i for i, a in enumerate(eligible)}
+    for a in anchors:
+        if a["name"] in elig_pos:
+            i = elig_pos[a["name"]]
+            d = boot["observed"][i]
+            per_anchor.append({
+                "name": a["name"],  # label recorded in games (pool key)
+                "published_elo": a["published_elo"],
+                "published_error_as_published": a["published_error_as_published"],
+                "error_convention": a["error_convention"],
+                "eps_sd": a["eps_sd"],
+                "score": elo_to_score(d),
+                "d_flawless_minus_anchor": d,
+                "sigma_matched": math.sqrt(sigma_m[i][i]),
+                "sigma_total": math.sqrt(sigma_m[i][i] + sigma_c[i][i]),
+                "abs_estimate_from_anchor": a["published_elo"] + d,
+                "gate_eligible": abs(d) <= 400.0,
+                "n_counted_games": a["n_counted_games"],
+                "saturated": abs(d) > 400.0,
+                "boundary": False,
+                "excluded_reason": None,
+            })
+        else:
+            e = excluded_by_name[a["name"]]
+            per_anchor.append({
+                "name": a["name"],
+                "published_elo": a["published_elo"],
+                "published_error_as_published": a["published_error_as_published"],
+                "error_convention": a["error_convention"],
+                "eps_sd": a["eps_sd"],
+                "score": e["score"],
+                "d_flawless_minus_anchor": e["d_flawless_minus_anchor"],
+                "sigma_matched": None,
+                "sigma_total": None,
+                "abs_estimate_from_anchor": e["abs_estimate_from_anchor"],
+                "gate_eligible": False,
+                "n_counted_games": e["n_counted_games"],
+                "saturated": e["saturated"],
+                "boundary": e["boundary"],
+                "excluded_reason": e["excluded_reason"],
+            })
 
     return {
         "focus": focus,
@@ -355,6 +526,9 @@ def batch_estimate(games_by_anchor: dict[str, list[dict]], anchor_entries: list[
         "openings": boot["openings"],
         "n_openings": len(boot["openings"]),
         "per_anchor": per_anchor,
+        "eligible_anchors": [a["name"] for a in eligible],
+        "excluded_anchors": excluded,
+        "bootstrap_boundary_exclusions": bootstrap_excluded,
         "theta": theta,
         "weights": w_total,
         "weights_match_only": w_match,
@@ -390,14 +564,25 @@ def combine_batches(ba: dict, bb: dict) -> dict:
     v = 1.0 / (1.0 / v_a + 1.0 / v_b)
     # Shared calibration: identical anchors -> the SAME published errors appear in
     # both batch estimates. Effective per-anchor weight of the combined estimate.
+    # Weights index each batch's gate-eligible WLS set (§8.2/§8.3 exclusions may
+    # differ per batch; an anchor excluded from one batch contributes weight 0
+    # there). Legacy result JSONs without eligible_anchors fall back to per_anchor
+    # order (pre-exclusion semantics).
     names_a = [p["name"] for p in ba["per_anchor"]]
     names_b = [p["name"] for p in bb["per_anchor"]]
     if names_a != names_b:
         raise EvidenceError("batches must use identical anchors")
+    elig_a = ba.get("eligible_anchors") or names_a
+    elig_b = bb.get("eligible_anchors") or names_b
+    pos_a = {n: i for i, n in enumerate(elig_a)}
+    pos_b = {n: i for i, n in enumerate(elig_b)}
+    eps_by_name = {p["name"]: p["eps_sd"] for p in ba["per_anchor"]}
     c = 0.0
-    for i, p in enumerate(ba["per_anchor"]):
-        w_bar = lam * ba["weights"][i] + (1.0 - lam) * bb["weights"][i]
-        c += (w_bar ** 2) * (p["eps_sd"] ** 2)
+    for n in names_a:
+        w_a = ba["weights"][pos_a[n]] if n in pos_a else 0.0
+        w_b = bb["weights"][pos_b[n]] if n in pos_b else 0.0
+        w_bar = lam * w_a + (1.0 - lam) * w_b
+        c += (w_bar ** 2) * (eps_by_name[n] ** 2)
     var_total = v + c
     return {
         "theta": theta,
@@ -569,7 +754,25 @@ def run_gate(args) -> int:
                                         args.bootstrap, args.seed)
     results["batch_b"] = batch_estimate(games_b, used, focus,
                                         args.bootstrap, args.seed + 1)
-    results["combined"] = combine_batches(results["batch_a"], results["batch_b"])
+    # Registered gate eligibility (RATING_PROTOCOL §8.2/§8.3): an anchor
+    # contributes to the gate only when it has evidence in BOTH batches and is
+    # not excluded (boundary s=0/1 or saturated |d|>400) in EITHER batch.
+    # Exclusions are reported with their registered reasons — never silent.
+    per_a = {r["name"]: r for r in results["batch_a"]["per_anchor"]}
+    per_b = {r["name"]: r for r in results["batch_b"]["per_anchor"]}
+    joint_eligible = sorted(
+        n for n in per_a if per_a[n]["gate_eligible"] and per_b[n]["gate_eligible"])
+    exclusion_report = {
+        n: {
+            "batch_a": per_a[n].get("excluded_reason"),
+            "batch_b": per_b[n].get("excluded_reason"),
+        }
+        for n in per_a if n not in joint_eligible
+    }
+    if results["batch_a"]["theta"] is not None and results["batch_b"]["theta"] is not None:
+        results["combined"] = combine_batches(results["batch_a"], results["batch_b"])
+    else:
+        results["combined"] = None
 
     results["control_anchor_vs_anchor"] = control_anchor_vs_anchor(
         load_games(args.control_anchor, None),  # anchor-vs-anchor: neither side is focus
@@ -587,22 +790,29 @@ def run_gate(args) -> int:
         checks.append({"pass": bool(cond), "check": msg})
 
     thr = args.threshold
-    for batch in ("batch_a", "batch_b", "combined"):
-        lo = results[batch]["ci95_calibrated"][0]
-        need(lo > thr, f"{batch}: calibrated 95% CI lower bound {lo!r} > {thr} (strict, unrounded)")
+    need(len(joint_eligible) >= 3,
+         f">= 3 gate-eligible anchors with evidence in both batches "
+         f"(boundary/saturated excluded per §8.2/§8.3): jointly eligible {joint_eligible}; "
+         f"excluded {exclusion_report or '{}'}")
+    if results["combined"] is not None:
+        for batch in ("batch_a", "batch_b", "combined"):
+            lo = results[batch]["ci95_calibrated"][0]
+            need(lo > thr, f"{batch}: calibrated 95% CI lower bound {lo!r} > {thr} (strict, unrounded)")
+    else:
+        need(False, "combined estimate unavailable (batch WLS empty after registered exclusions)")
     for batch in ("batch_a", "batch_b"):
         for p in results[batch]["per_anchor"]:
-            need(p["gate_eligible"],
-                 f"{batch}/{p['name']}: |d| <= 400 (no saturation; d={p['d_flawless_minus_anchor']})")
+            if not p["gate_eligible"]:
+                continue  # registered §8.2/§8.3 exclusion — reported, not a gate failure
             need(p["n_counted_games"] >= args.min_games,
                  f"{batch}/{p['name']}: counted games {p['n_counted_games']} >= {args.min_games}")
-        need(results[batch]["mode_total"] == "gls",
-             f"{batch}: GLS used (fallback would need explicit preregistered handling)")
+        if results[batch]["theta"] is not None:
+            need(results[batch]["mode_total"] == "gls",
+                 f"{batch}: GLS used (fallback would need explicit preregistered handling)")
     need(results["control_anchor_vs_anchor"]["pass"],
          f"null control anchor-vs-anchor within +/-75 (err={results['control_anchor_vs_anchor']['error']})")
     need(results["control_self_match"]["pass"],
          f"null control self-match consistent with 0.5 (CI={results['control_self_match']['ci95_score']})")
-    need(len(used) >= 3, ">= 3 eligible anchors with evidence in both batches")
 
     ok = all(c["pass"] for c in checks)
     out = {
@@ -610,6 +820,8 @@ def run_gate(args) -> int:
         "threshold": thr,
         "checks": checks,
         "results": results,
+        "gate_eligible_anchors": joint_eligible,
+        "excluded_anchors": exclusion_report,
         "verdict": "PASS" if ok else "FAIL",
         "disclaimer": "private, CCRL/CEGT-anchored estimate — not an official rating",
     }

@@ -1,0 +1,25 @@
+{
+  "anchor": "wyldchess-1.1",
+  "anchor_sha256": "d52285f96539d6a5c11c875dc611600a34a20acdc2684e02deaca4c19724fbcc",
+  "batch": "B",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "merge_rule": "counted games only; schedule_index must cover 0..n-1 exactly once; 60 registered openings x 4 slots (AB/BA pairs)",
+  "merged_sha256": "5a681134491d2d1f829ae7e5c2f856b65c1001858b6d589d6e35ad049ce75dcc",
+  "n_counted": 240,
+  "n_runs": 1,
+  "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
+  "provenance": [
+    {
+      "manifest": "07cdf9e07c5128979303d9a28a83f1d3b2b391d956c3deb6fe1f9c075354f2c3",
+      "n_counted": 240,
+      "n_replay": 0,
+      "run": "run-45999195004",
+      "run_games_sha256": "07cdf9e07c5128979303d9a28a83f1d3b2b391d956c3deb6fe1f9c075354f2c3"
+    }
+  ],
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  }
+}

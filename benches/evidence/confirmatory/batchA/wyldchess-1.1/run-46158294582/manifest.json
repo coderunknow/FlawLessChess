@@ -1,0 +1,24 @@
+{
+  "batch": "A",
+  "anchor": "wyldchess-1.1",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "anchor_sha256": "d52285f96539d6a5c11c875dc611600a34a20acdc2684e02deaca4c19724fbcc",
+  "opening_suite_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  },
+  "shard_ids": [
+    "confirmatory-A-wyldchess-1.1-17"
+  ],
+  "n_shards": 1,
+  "n_attempts": 4,
+  "n_counted": 4,
+  "n_engine_errors": 0,
+  "n_unadjudicated": 0,
+  "hardware_cpu_model": [
+    "AMD EPYC 9V74 80-Core Processor"
+  ],
+  "merged_sha256": "0a53383f07dd38287b234f2d3042075e077e53536c593b5ddfeccaf106e03604"
+}

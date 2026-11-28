@@ -1,0 +1,107 @@
+ok   the fixture holds published summaries
+ok   504924b: the counts add up to the number of games
+ok   504924b: the score matches (wins + draws / 2) / games
+ok   504924b: the points match (wins + draws / 2)
+ok   78f42ca: the counts add up to the number of games
+ok   78f42ca: the score matches (wins + draws / 2) / games
+ok   78f42ca: the points match (wins + draws / 2)
+ok   78f42ca: the counts add up to the number of games
+ok   78f42ca: the score matches (wins + draws / 2) / games
+ok   78f42ca: the points match (wins + draws / 2)
+ok   dcdc4b4: the counts add up to the number of games
+ok   dcdc4b4: the score matches (wins + draws / 2) / games
+ok   dcdc4b4: the points match (wins + draws / 2)
+ok   98e5cd9: the counts add up to the number of games
+ok   98e5cd9: the score matches (wins + draws / 2) / games
+ok   98e5cd9: the points match (wins + draws / 2)
+ok   5be7d7b: the counts add up to the number of games
+ok   5be7d7b: the score matches (wins + draws / 2) / games
+ok   5be7d7b: the points match (wins + draws / 2)
+ok   6aae7f7: the counts add up to the number of games
+ok   6aae7f7: the score matches (wins + draws / 2) / games
+ok   6aae7f7: the points match (wins + draws / 2)
+ok   40b3556: the counts add up to the number of games
+ok   40b3556: the score matches (wins + draws / 2) / games
+ok   40b3556: the points match (wins + draws / 2)
+ok   90227a6: the counts add up to the number of games
+ok   90227a6: the score matches (wins + draws / 2) / games
+ok   90227a6: the points match (wins + draws / 2)
+ok   7510ded: the counts add up to the number of games
+ok   7510ded: the score matches (wins + draws / 2) / games
+ok   7510ded: the points match (wins + draws / 2)
+ok   d306cbc: the counts add up to the number of games
+ok   d306cbc: the score matches (wins + draws / 2) / games
+ok   d306cbc: the points match (wins + draws / 2)
+ok   794a465: the counts add up to the number of games
+ok   794a465: the score matches (wins + draws / 2) / games
+ok   794a465: the points match (wins + draws / 2)
+ok   c2cc288: the counts add up to the number of games
+ok   c2cc288: the score matches (wins + draws / 2) / games
+ok   c2cc288: the points match (wins + draws / 2)
+ok   3e0fe75: the counts add up to the number of games
+ok   3e0fe75: the score matches (wins + draws / 2) / games
+ok   3e0fe75: the points match (wins + draws / 2)
+ok   5be7d7b: the counts add up to the number of games
+ok   5be7d7b: the score matches (wins + draws / 2) / games
+ok   5be7d7b: the points match (wins + draws / 2)
+ok   d306cbc: the counts add up to the number of games
+ok   d306cbc: the score matches (wins + draws / 2) / games
+ok   d306cbc: the points match (wins + draws / 2)
+ok   d306cbc: the counts add up to the number of games
+ok   d306cbc: the score matches (wins + draws / 2) / games
+ok   d306cbc: the points match (wins + draws / 2)
+ok   d306cbc: the counts add up to the number of games
+ok   d306cbc: the score matches (wins + draws / 2) / games
+ok   d306cbc: the points match (wins + draws / 2)
+ok   d306cbc: the counts add up to the number of games
+ok   d306cbc: the score matches (wins + draws / 2) / games
+ok   d306cbc: the points match (wins + draws / 2)
+ok   f0316b0: the counts add up to the number of games
+ok   f0316b0: the score matches (wins + draws / 2) / games
+ok   f0316b0: the points match (wins + draws / 2)
+ok   13f8162: the counts add up to the number of games
+ok   13f8162: the score matches (wins + draws / 2) / games
+ok   13f8162: the points match (wins + draws / 2)
+ok   25d7d66: the counts add up to the number of games
+ok   25d7d66: the score matches (wins + draws / 2) / games
+ok   25d7d66: the points match (wins + draws / 2)
+ok   02b58bd: the counts add up to the number of games
+ok   02b58bd: the score matches (wins + draws / 2) / games
+ok   02b58bd: the points match (wins + draws / 2)
+ok   ad9915d: the counts add up to the number of games
+ok   ad9915d: the score matches (wins + draws / 2) / games
+ok   ad9915d: the points match (wins + draws / 2)
+ok   68f5111: the counts add up to the number of games
+ok   68f5111: the score matches (wins + draws / 2) / games
+ok   68f5111: the points match (wins + draws / 2)
+ok   13f8162: the counts add up to the number of games
+ok   13f8162: the score matches (wins + draws / 2) / games
+ok   13f8162: the points match (wins + draws / 2)
+ok   c428d66: the counts add up to the number of games
+ok   c428d66: the score matches (wins + draws / 2) / games
+ok   c428d66: the points match (wins + draws / 2)
+ok   ff10c55: the counts add up to the number of games
+ok   ff10c55: the score matches (wins + draws / 2) / games
+ok   ff10c55: the points match (wins + draws / 2)
+ok   97c8a81: the counts add up to the number of games
+ok   97c8a81: the score matches (wins + draws / 2) / games
+ok   97c8a81: the points match (wins + draws / 2)
+ok   e61d635: the counts add up to the number of games
+ok   e61d635: the score matches (wins + draws / 2) / games
+ok   e61d635: the points match (wins + draws / 2)
+ok   6fa1032: the counts add up to the number of games
+ok   6fa1032: the score matches (wins + draws / 2) / games
+ok   6fa1032: the points match (wins + draws / 2)
+ok   99bef01: the counts add up to the number of games
+ok   99bef01: the score matches (wins + draws / 2) / games
+ok   99bef01: the points match (wins + draws / 2)
+ok   bfc5ce4: the counts add up to the number of games
+ok   bfc5ce4: the score matches (wins + draws / 2) / games
+ok   bfc5ce4: the points match (wins + draws / 2)
+ok   fc7407c: the counts add up to the number of games
+ok   fc7407c: the score matches (wins + draws / 2) / games
+ok   fc7407c: the points match (wins + draws / 2)
+ok   the table in STATUS.md matches the published summaries (ok   the quick-run table in STATUS.md matches all 27 published summaries)
+ok   a drifted row is detected by the check
+
+105 checks passed, 0 failed

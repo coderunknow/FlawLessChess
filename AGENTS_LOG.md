@@ -719,3 +719,934 @@ pushing this documentation-only commit; hosted validation is re-required on the 
 CodeRabbit's incremental check on `33cbeb3` concluded `neutral` (no new findings on the fix
 commit). The exact-head local gate was restarted on `33cbeb3` (clean tree, dirty-at-start 0) and
 will be re-run on the final head.
+
+## 2026-11-24 — next-iteration session on `main` = `6ab5b33` (PR #5 merge)
+
+### Phase 0 — actual baseline (verified)
+- HEAD `6ab5b33` "Merge pull request #5 …" = origin/main; branch `arena/247fe7df-flawlesschess`;
+  working tree clean; shallow snapshot (1 commit).
+- `gh pr list` (state all): #1 MERGED, #2 OPEN/Draft/CONFLICTING (head `5f952b1`, 66 files,
+  ~12,971 additions / 365 deletions), #3 MERGED, #4 MERGED, #5 MERGED.
+- No Rust toolchain in this sandbox: `find / -name rustc` empty; `static.rust-lang.org` TLS
+  blocked (SSL_ERROR_SYSCALL); `deb.debian.org` unreachable. `github.com`/`api.github.com` and
+  `pypi.org`/`registry.npmjs.org` reachable.
+- `lichess.org` TLS blocked → Phase 1 live game export not possible from this sandbox.
+
+### Phase 0 — PR #2 audit reconciliation (NOT merged, NOT cherry-picked)
+PR #2 "Flawless: throughput, move ordering, and evaluation work (screening evidence)" contains
+experimental categories matching the mission's SPEED-1 / HIST-1 / EVAL-2 framing. Commits on its
+branch include, among others: analytic fast legality filter (+78% nps, identical bench signature
+`141943aa23b3fc68`, tree provably unchanged); static-evaluation reuse per node through quiescence;
+precomputed file/ahead-rank masks; continuation history + counter moves + capture history;
+evaluation upgrade behind per-feature ablation flags; EVAL-2 evaluation changes; Windows static-CRT
+artifact hardening; CodeRabbit review dispositions; control/seed-robustness registrations.
+
+Reconciliation against `main` (`6ab5b33`): none of these changes are present in `main`. Per the
+mission, PR #2 is NOT merged, NOT cherry-picked, and NOT silently closed. Its candidates remain
+unvalidated on `main` and cannot be ported in this session because no compiler is available to run
+the perft/difftest/UCI/gates required to accept or reject them. They are documented here as the
+input to a later, gated iteration.
+
+### Environment constraints (binding for this session)
+- No `cargo build / test / clippy` can run → no engine source was changed without compile-testing,
+  per the "correctness before complexity" principle. No benchmark, NPS, perft, or strength number
+  was measured here; no unmeasured Elo/strength claim is made.
+- No live Lichess API → Phase 1 real-game analysis could not be executed against actual
+  Flawless games; the limitation is recorded rather than fabricating observations.
+
+### Phase 5 — prioritized engineering plan (next gated iteration)
+When a Rust toolchain is available, execute in this order, each behind its own commit with
+`cargo test` + perft + a strength screening gate:
+1. Correctness first: re-run the full existing gate suite on `6ab5b33` (fmt, clippy -D warnings,
+   release tests, perft CPW matrix, diftest vs python-chess 1.11.2, UCI protocol regressions,
+   clock/movetime smoke) and confirm green on the exact final HEAD before any change.
+2. PR #2 candidates, audited individually against `main` (feature isolation + ablation; do not
+   combine unrelated changes): (a) fast legality filter — verify identical bench signature and
+   node count, then measure NPS; (b) continuation/counter/capture history — measure fixed-time
+   strength with opening-clustered CI; (c) evaluation upgrade — gate each ablation flag on its
+   own measured result, no silent defaults. Reject any change whose CI lower bound contains zero.
+3. Only after correctness + isolated, statistically supported candidates pass: port them, each
+   with a regression test, on separate commits (correctness / search / evaluation / performance /
+   tests / documentation).
+4. Documentation: keep STATUS.md / CHANGELOG.md / AGENTS_LOG.md synchronized; record exact SHAs
+   and benchmark identifiers; never claim an unmeasured Elo.
+5. Merge readiness: one clean dev branch from `main`, focused PR to `main`, CI green on final
+   HEAD, review findings dispositioned, PR not merged without authorization.
+
+### Changes made in this session (documentation / plan only)
+- `STATUS.md`: reconciled current-state claims (PRs #1/#3/#4/#5 merged; PR #2 open/draft/conflicting;
+  current branch `arena/247fe7df-flawlesschess` at `6ab5b33`; V1 rating gate still NOT MET).
+- `CHANGELOG.md`: added `[Unreleased]` entry for documentation reconciliation + environment
+  constraints + plan (2026-11-24).
+- `AGENTS_LOG.md`: this entry.
+- No `src/` or `tests/` changes (cannot compile-test).
+
+## 2026-11-24 — current session (branch arena/247fe7df-flawlesschess, PR #6 draft)
+
+Toolchain recovered from npm `@toolchain-bin/*` 1.99.0 pins into `/home/user/.toolchain/sysroot`
+(static.rust-lang.org unreachable; crates.io unreachable). Python venv with python-chess 1.11.2 at
+`/home/user/.venv`.
+
+### Changes implemented
+
+1. **Time management** (src/search.rs, commit d5305ee): removed the predictive-overrun early stop
+   that halted clock-based searches well before the soft budget. At 10 s the engine previously
+   stopped at 116 ms of a 234 ms soft budget (depth 9); it now runs to depth 10 at ~253 ms. At
+   1 min it reaches depth 12 at ~1.65 s. Hard budget still caps worst-case overspend; fixed-depth
+   / movetime searches unaffected (bench signature unchanged).
+
+2. **Counter move heuristic** (src/search.rs, commit a162baa, HIST-1 from PR #2 audit): when a
+   quiet move causes a fail-high cutoff in reply to the opponent's previous move, store it as a
+   counter move. Ordered just above killers (92,000) and below good captures. Counter table
+   cleared each root search like killers/history; not used in null-move search or quiescence.
+
+3. **Space evaluation** (src/eval.rs, src/main.rs, commit 4038b75, EVAL-2 from PR #2 audit):
+   reward control of important squares weighted by centrality (centre squares weighted most).
+   Colour-symmetric via square mirroring (sq ^ 56). Tapered: full weight in middlegame, half in
+   endgame. Added `space` field to `EvalBreakdown` and CLI `eval` output.
+
+### Validation (local, this sandbox)
+
+- `cargo fmt --all -- --check`: clean
+- `cargo clippy --release --all-targets -- -D warnings`: clean
+- `cargo test --release`: **172/172 passed** (49 lib + 3 cli_batch + 3 cli_divide + 3 clock_smoke +
+  43 correctness + 12 movetime_smoke + 51 protocol_regressions + 11 uci_smoke)
+- `scripts/diftest.py`: **2,321 positions d=2, 0 mismatches** (python-chess oracle)
+- `./target/release/flawless perft 6`: **119,060,324** (matches CPW reference)
+- `./target/release/flawless bench`: signature **141943aa23b3fc68** (unchanged from pre-change
+  baseline)
+- `scripts/test_match.py`: **111/111 passed**
+- `scripts/test_rating_estimator.py`: 65/65 checks pass; null control FAIL is pre-existing
+  (anchor/environment issue, not engine-related)
+
+### Not done
+
+- Absolute rating: UNKNOWN / NOT MET (V1 gate requires >2,000 with 95% CI lower bound strictly
+  >2,000)
+- Fresh CodeRabbit review at final SHA: not yet performed
+- MSRV 1.80 compile: not locally verifiable (no 1.80 toolchain obtainable; delegated to CI)
+- Windows execution: not locally verifiable (delegated to CI)
+- Continuation history (remaining HIST-1 element): not yet implemented
+- Outpost/other evaluation terms (remaining EVAL-2 elements): not yet implemented
+- PR #2 (open, draft, conflicting): NOT merged, NOT cherry-picked, NOT touched
+
+## 2026-11-24 — PR #6 iteration: outpost correction, tempo semantics, ablation switch, paired benchmark
+
+Branch `arena/247fe7df-flawlesschess`, PR #6 (draft, base `main` = `6ab5b33`). No merge, no tag, no
+release, PR #2 untouched.
+
+### Environment
+
+The Rust toolchain was recovered a third time from the npm `@toolchain-bin/*` 1.99.0 pins into
+`/home/user/.toolchain/sysroot` (rustc 1.99.0, cargo 1.99.0, rustfmt 1.10.0, clippy 0.1.99), because
+`static.rust-lang.org` and `crates.io` are blocked. The crate has zero dependencies, so cargo builds offline.
+Python venv with python-chess 1.11.2 at `/home/user/.venv`.
+
+Two sandbox limits shaped the tooling work:
+* The **Actions log host is unreachable**, so CI failures are surfaced through annotations (`::error::`)
+  instead of the log, and the benchmark summary is published to the job summary and a pull request comment.
+* The **workflow dispatch API is forbidden for this token** (HTTP 403), so the extended benchmark is started
+  by moving `benches/benchmark-request.json`, the deliberate-dispatch pattern of `evidence-bridge.yml`.
+
+### Engine changes
+
+1. **Outpost zone (src/eval.rs).** Corrected to the classical definition: White ranks 5-6, Black ranks 3-4,
+   files b-g. The old zone (ranks 5-8 / 1-4) included the opponent's back rank and the rank in front of it,
+   where no enemy pawn can exist, so the "safe from enemy pawns" test was vacuous there.
+2. **Tempo semantics (src/eval.rs).** `relative` and `total` are now separate statements. The old expression
+   `if side == WHITE { tapered } else { -tapered } + TEMPO` was checked against the rustc parser source
+   (`parse_expr_assoc_rest` only stops at a complete statement expression in statement position, so the `+`
+   binds to the whole `if` expression) and against the pre-existing 303-pair colour-symmetry test, which is
+   green on the PR head and would fail if the tempo were applied to one colour only. The behaviour is now
+   pinned by a dedicated test for both colours and the colour mirror, and `EvalBreakdown` exposes `mg`, `eg`
+   and `phase`.
+3. **Ablation switch (src/ablation.rs, docs/ABLATIONS.md).** `FLAWLESS_ABLATE` with the terms `space`,
+   `counter_move`, `outpost`. Off by default, read once per process, applied as a bit mask so the hot path
+   pays one atomic load and a bit test.
+4. **Benchmark tooling.** `scripts/match.py` (explicit thread count, schedule and replay metadata per game),
+   `scripts/relative_benchmark.py` (quick and extended profiles, opening-clustered bootstrap, fail-closed
+   validation), `scripts/publish_benchmark_summary.py`, `.github/workflows/relative-benchmark.yml`.
+
+### Validation
+
+Local (toolchain 1.99.0): fmt clean; clippy `-D warnings` clean; `cargo test --release --locked` 183/183
+(55 lib, 3 cli_batch, 3 cli_divide, 3 clock_smoke, 45 correctness, 12 movetime_smoke, 51 protocol_regressions,
+11 uci_smoke); difftest 2,321 positions d=2, 0 mismatches; perft(6) 119,060,324; bench signature
+`141943aa23b3fc68`, identical to the pinned baseline and stable over three runs — with the refined
+definition none of the twelve bench positions has a pawn-defended outpost square, so the term contributes
+nothing there; match harness
+112/112; benchmark suite 20/20.
+
+Hosted CI on the same head: fmt, clippy, tests, MSRV 1.80 and the Windows artifact job green; the quick
+paired benchmark job completes in about ten minutes and publishes its summary.
+
+One real defect was caught by the local toolchain run and not by review: the rank-6 outpost fixture used a
+black pawn on b5, which does not attack a knight on c6 (the pawn has to stand on b7), so the expectation was
+wrong, not the engine.
+
+### Relative evidence and its limits
+
+**The decisive measurement of this iteration is negative.** The hosted three-replicate extended profile —
+candidate against the pinned baseline `6ab5b33`, 100 paired openings per replicate, seeds 20261124/25/26,
+movetime 100 ms, hash 64 MB, one thread — finished **217 W / 164 D / 219 L of 600**, score **299.0/600 =
+49.8%**, relative Elo **-23.2 to +21.5** (95% CI, opening-clustered percentile bootstrap), classification
+**INCONCLUSIVE**, `valid: true`. No strength difference against the pinned baseline is measurable.
+
+The quick profile is far noisier than the profile size suggests. Seven hosted runs of the same 20-opening
+profile with the same seed, over heads whose engine code differs in at most one term, scored 40.0%, 42.5%,
+36.2%, 48.8%, 50.0%, 65.0% and 52.5%. **Three of those heads have no engine change at all** — `5be7d7b`,
+`6aae7f7` and `40b3556` differ from `98e5cd9` only in documentation and workflow files — and they scored
+50.0%, 65.0% and 52.5%. The same profile therefore swings from 36.2% to 65.0% on an unchanged engine, and
+it produced both a `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label and a
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` label for the same code.
+
+The reason is that a fixed 100 ms movetime makes the reached depth depend on the machine speed and the
+timing jitter, so the played games are **not** reproducible across runs even with the same opening seed.
+The seeded shuffle fixes the *opening order*, not the games. A 40-game profile at this time control carries
+roughly ±30 Elo of pure sampling noise, and its classification label must not be read as a strength
+signal. The 600-game profile is the only one of these worth reading.
+
+All of this is a fixed-movetime screening comparison against a single opponent. It is not an official
+rating, not an absolute rating, and not a strength claim.
+
+### PR #2 audit (read only)
+
+PR #2 (`arena/8259ce1c-flawlesschess`, head `5f952b1`) diverges from `main` at `5e36b06`: 49 commits,
+12,971 insertions, 66 files, draft and in conflict with `main`. It was **not** merged, cherry-picked,
+modified or closed. Findings:
+
+- **Overlap.** PR #2 also implements an outpost term, the counter-move heuristic, continuation and capture
+  history, a fast legality filter and a large rating-harness expansion. The space evaluation and the
+  counter-move heuristic in this PR are independent reimplementations of the same ideas.
+- **Acted upon.** PR #2's outpost term requires a pawn-defended square and a square that an enemy pawn
+  cannot even step forward to attack. This PR's term had neither condition and rewarded an undefended
+  piece. Both conditions were added to this PR's own implementation, with regression tests.
+- **Not acted upon.** PR #2's zone ("rank 4 or beyond for White") includes White's own fourth rank, and its
+  outpost value is a flat +16/+8 for knight and bishop. This PR keeps the explicit zone and the
+  differentiated values.
+- **Not comparable.** PR #2's own screening results are recorded as INCONCLUSIVE and its branch conflicts
+  with `main`; porting its fast legality filter or its history heuristics would need its own measurement.
+
+### Not done
+
+- Absolute V1 rating gate: UNKNOWN / NOT MEASURED / NOT MET.
+- Fresh independent review at the final head SHA: not performed here.
+- PR #2: NOT merged, NOT cherry-picked, NOT touched.
+
+---
+
+## 2026-11-25 — Addendum: provenance of the hosted relative benchmark runs
+
+The 2026-11-24 entry above records the 600-game result but not the identifiers needed to trace it.
+This addendum supplies them. **It does not change any result and does not weaken any conclusion.**
+
+### The revision-1 extended run that produced 217 W / 164 D / 219 L
+
+* **Candidate commit measured:** `78f42ca4c382dd40d425b13fc0e204fadc1e73fc` (`78f42ca`).
+* **Pinned baseline:** `6ab5b3349264c6c0a740c433ce454f8e1fed698a` (`6ab5b33`).
+* **Hosted workflow run:** `45426475825` ("ci: dispatch the extended benchmark through a request
+  marker"), workflow *Relative strength benchmark*, status completed/success.
+* **Result:** 217 W / 164 D / 219 L, score 49.8%, relative Elo **-23.2 to +21.5** (95% CI),
+  classification **INCONCLUSIVE**. Screening evidence only — not an absolute rating, not a strength
+  claim.
+
+The three replicates and their artifacts. The seed of a replicate is `20261124 + replicate - 1`:
+
+| Replicate | Seed | Hosted artifact name | Artifact id |
+| --------- | ---- | -------------------- | ----------- |
+| 1 | 20261124 | `relative-strength-extended-45426475825-1` | `14940617228` |
+| 2 | 20261125 | `relative-strength-extended-45426475825-2` | `14940712905` |
+| 3 | 20261126 | `relative-strength-extended-45426475825-3` | `14942235054` |
+| pooled | — | `relative-strength-extended-aggregate-45426475825` | `14942210869` |
+
+The pooled summary is the aggregate artifact; the three replicate artifacts hold the raw
+`games.jsonl`, the PGN, the seeded opening order and the per-replicate summary. Artifact download
+from this sandbox fails with an EOF from the GitHub blob host, so the numbers above were read from
+the published job summary and pull request comment, and the identifiers above come from the runs and
+artifacts API.
+
+### The revision-2 extended run on the refined head
+
+Dispatched against candidate `5be7d7bbcc03ccb63d12138bef6a390be90aa957`, a descendant of the
+refined-outpost commit `98e5cd9`. Hosted workflow run `45529006866`, completed/success.
+
+| Replicate | Seed | Hosted artifact name | Artifact id |
+| --------- | ---- | -------------------- | ----------- |
+| 1 | 20261124 | `relative-strength-extended-45529006866-1` | `14985947939` |
+| 2 | 20261125 | `relative-strength-extended-45529006866-2` | `14987270574` |
+| 3 | 20261126 | `relative-strength-extended-45529006866-3` | `14987315209` |
+| pooled | — | `relative-strength-extended-aggregate-45529006866` | `14986247256` |
+
+Result read back from the published summary: **227 W / 156 D / 217 L** of 600, score
+**305.0/600 = 50.8%**, relative Elo **-19.7 to +31.4** (95% CI, opening-clustered), classification
+**INCONCLUSIVE**, 100 opening clusters, elapsed 8547.3 s.
+
+**Still no measurable strength difference against the pinned baseline.** The point estimate moved
+from 49.8% to 50.8% between the two revisions, and the confidence interval still straddles 50%.
+Both revisions are inconclusive; neither is a strength claim, and neither is an absolute rating.
+
+The published title of that summary reads `seeds ..2` instead of `seeds 20261124..20261126`. That is
+the `SEED_BASE` defect that was found by review and fixed afterwards: the publishing step did not
+receive the seed base. The title is cosmetic — the seeds are in the manifests and in the artifact
+names above — but it is the reason the fix was made.
+
+### The ablation matrix
+
+Dispatched against candidate `d306cbcefc07e46c1c239eb3dfe3318f864d8286`, also a descendant of
+`98e5cd9`. Hosted workflow run `45529550258`, `screen` profile, seed `20261130`, 100 paired openings
+per variant (200 real UCI games per variant). All four variants completed/success.
+
+| Variant | `FLAWLESS_ABLATE` | W/D/L | Score | Relative Elo (95% CI) | Artifact id |
+| ------- | ----------------- | ----- | ----- | -------------------- | ----------- |
+| `full` | (unset) | 81 / 52 / 67 | 53.5% | -17.4 to +68.6 | `14986197901` |
+| `no-space` | `space` | 72 / 71 / 57 | 53.8% | -12.2 to +65.0 | `14986616605` |
+| `no-counter-move` | `counter_move` | 72 / 47 / 81 | 47.8% | -57.9 to +27.9 | `14987251123` |
+| `no-new-terms` | `space,counter_move,outpost` | 63 / 61 / 76 | 46.8% | -59.6 to +17.4 | `14986133518` |
+
+**Every variant is INCONCLUSIVE, and every confidence interval overlaps every other one.** The
+ablated variants score slightly below the full engine, which is the direction one would expect, but
+the differences are inside the noise of the profile: the `full` variant of the *same* profile scored
+between 36.2% and 65.0% across the hosted runs recorded above, a spread far wider than the spread
+between these four variants.
+
+So the honest reading is: **this ablation study does not measure the contribution of any of the
+three terms.** It cannot distinguish them from noise at this sample size and time control. The
+switch itself is verified — the terms are removed from the evaluation and the scores change
+accordingly, deterministically — but the *magnitude* of each term's contribution is not measured by
+this run. A study that could measure it needs either many more games or a time control that makes
+the played games reproducible; the quick/screen profiles have neither.
+
+All of this is a fixed-movetime screening comparison against a single opponent. It is not an
+official rating, not an absolute rating, and not a strength claim.
+
+### The runs that were dispatched against earlier heads
+
+Both runs above were dispatched against heads that precede the current head (`3e0fe75` at the time
+of writing). Neither result may be attributed to the current head. The engine source is the same
+for the extended revision-2 run and the ablation matrix as for the current head, because the commits
+in between changed only the workflow and the request marker; but the recorded candidate SHA is the
+one that was actually built and measured, and it is recorded above rather than the head.
+
+### Review disposition
+
+The 20 CodeRabbit findings raised on the previous head were read back and dispositioned in commit
+`67bee13`. Nineteen were fixed. The twentieth, a reported advancing-pawn defect in `src/eval.rs`,
+was reproduced and is a **false positive**: the cited position
+`4k3/1p6/8/2N5/8/8/8/4K3 w - - 0 1` scores outpost 0 because the knight is not pawn-defended, and
+the defended variant `4k3/1p6/8/2N5/3P4/8/8/4K3 w - - 0 1` also scores outpost 0, because the b7 pawn
+steps to b6 and attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the
+undefended case were added as regressions.
+
+---
+
+## 2026-11-25 — Addendum: the quick-profile variance, corrected
+
+The 2026-11-24 entry above claims that the 40-game quick profile "swings from 36.2% to 65.0% on an
+unchanged engine" and that it produced both a `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` and a
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` label "for the same code". **Both claims are wrong as
+written.** This addendum corrects them; the entry above is left untouched because the log is
+append-only.
+
+The error: the 36.2% run used `dcdc4b4`, which is **before** `98e5cd9` (the refined outpost term, the
+last change to `src/` on this branch). The 65.0% run used `6aae7f7`, which is **after** it. The two
+runs therefore used different engines, and they cannot be paired as "the same code".
+
+What the runs actually show. The last change to `src/` on this branch is `98e5cd9`; `Cargo.toml`,
+`Cargo.lock`, `rust-toolchain.toml` and `build.rs` are unchanged since then, so every head below
+`98e5cd9` in this list produced a **byte-identical release binary**:
+
+| Head | Engine change | W/D/L | Score | Classification |
+|---|---|---|---|---|
+| `504924b` | outpost fixture fix | 9/14/17 | 40.0% | INCONCLUSIVE |
+| `78f42ca` | benchmark dispatch | 11/12/17 | 42.5% | INCONCLUSIVE |
+| `dcdc4b4` | docs only | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE |
+| `98e5cd9` | refined outpost term (last `src/` change) | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `794a465` | **no engine change** | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `5be7d7b` | **no engine change** | 16/8/16 | 50.0% | INCONCLUSIVE |
+| `6aae7f7` | **no engine change** | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `40b3556` | **no engine change** | 17/8/15 | 52.5% | INCONCLUSIVE |
+| `90227a6` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
+| `7510ded` | **no engine change** | 23/9/8 | 58.8% | INCONCLUSIVE |
+| `d306cbc` | **no engine change** | 22/12/6 | 55.0% | INCONCLUSIVE |
+| `c2cc288` | **no engine change** | 16/9/15 | 51.2% | INCONCLUSIVE |
+| `3e0fe75` | **no engine change** | 15/13/12 | 53.8% | INCONCLUSIVE |
+| `f0316b0` | **no engine change** | 22/8/10 | 55.0% | INCONCLUSIVE |
+
+The corrected claims:
+
+* **On an unchanged engine the profile ranges from 48.8% to 65.0%** — eleven runs of a
+  byte-identical binary over the same 20 openings and the same seed.
+* **On that same unchanged engine the label is not stable**: one run produced
+  `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` (`6aae7f7`, 65.0%) and the other ten produced
+  `INCONCLUSIVE`.
+* The `NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE` label belongs to `dcdc4b4`, a **different** engine.
+* The overall range across all heads is 36.2%–65.0%, but that range spans two different engines and
+  must not be quoted as an unchanged-engine spread.
+
+The conclusion does not change: the 40-game quick profile is a regression screen, not a strength
+signal. The corrected numbers make the case stronger rather than weaker — the spread on *identical*
+code is 16.2 points, and the label flips on identical code.
+
+### Consequence for the ablation study
+
+The ablation entry above compares the spread between the four variants against "the 36.2%-65.0%
+spread that the same profile produced across repeated runs of an unchanged engine". That comparison
+is corrected to the unchanged-engine spread of **48.8%-65.0%**. Note that the ablation matrix uses the
+`screen` profile (200 games) and the variance figures come from the `quick` profile (40 games), so
+the two are not the same instrument; the conclusion rests on the overlapping confidence intervals,
+which stand on their own.
+
+The honest statement of what the ablation study establishes:
+
+* Each variant is **INCONCLUSIVE** against the baseline, and the four intervals overlap completely.
+* The point estimates differ (46.8% to 53.8%), which is the direction one would expect, but the
+  design cannot separate that difference from the profile's own noise.
+* The switch itself is verified deterministically: the named terms are removed from the evaluation
+  and the scores change accordingly.
+* The **magnitude** of each term's contribution is **not** measured. A sharper design would need a
+  paired difference over the shared openings and a time control that makes the played games
+  reproducible; the artifacts of this run cannot be downloaded from the development sandbox, so that
+  paired analysis was not performed here.
+
+### Addendum to the addendum: the unchanged-engine run set grew
+
+The quick profile now runs on every push to this branch, so every push adds one more run of the
+**same byte-identical release binary**. The corrected table above was written when eleven such runs
+had been observed; three more have since appeared, and they widen the range:
+
+| Head | W/D/L | Score | Classification |
+|---|---|---|---|
+| `13f8162` | 12/13/15 | 46.2% | INCONCLUSIVE |
+| `25d7d66` | 24/9/7 | 61.3% | INCONCLUSIVE |
+| `02b58bd` | 22/8/10 | 55.0% | INCONCLUSIVE |
+
+**On an unchanged engine the profile therefore ranges from 46.2% to 65.0% over fourteen runs**, and
+the same unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run
+(`6aae7f7`) and `INCONCLUSIVE` in the other thirteen. This is a lower bound: every further push adds
+another run, and the spread is not expected to narrow.
+
+The three runs above `98e5cd9` in the earlier table (`504924b` 40.0%, `78f42ca` 42.5%, `dcdc4b4`
+36.2%) remain on a *different* engine and are not part of this range.
+
+---
+
+## 2026-11-25 — Addendum: the extended profile on the final head
+
+A third extended run was dispatched against the exact head of the branch and read back.
+
+* **Candidate commit measured:** `13f8162ebe66af286447603e4026e2c990351538` (`13f8162`).
+* **Pinned baseline:** `6ab5b3349264c6c0a740c433ce454f8e1fed698a` (`6ab5b33`).
+* **Hosted workflow run:** `45546563480` (push dispatch of revision 6 of the request marker),
+  completed/success.
+* **Seeds:** 20261201, 20261202, 20261203 — independent of the seeds of the two earlier extended runs.
+
+| Replicate | Seed | Hosted artifact name | Artifact id |
+| --------- | ---- | -------------------- | ----------- |
+| 1 | 20261201 | `relative-strength-extended-45546563480-1` | `14994002536` |
+| 2 | 20261202 | `relative-strength-extended-45546563480-2` | `14993832110` |
+| 3 | 20261203 | `relative-strength-extended-45546563480-3` | `14994391549` |
+| pooled | — | `relative-strength-extended-aggregate-45546563480` | `14994810229` |
+
+Result read back from the published summary: **229 W / 163 D / 208 L** of 600, score
+**310.5/600 = 51.7%**, relative Elo **-11.0 to +35.4** (95% CI, opening-clustered), classification
+**INCONCLUSIVE**, 100 opening clusters, elapsed 8467.4 s.
+
+The published title reads `seeds 20261201..20261203`. It read `seeds ..2` for the previous run,
+because the publishing step did not receive the seed base; that defect was found by review and is
+fixed, and this run confirms the fix.
+
+The engine source at `13f8162` is byte-identical to the final head of the branch: the last change
+to `src/` is still the outpost refinement `98e5cd9`, and `Cargo.toml`, `Cargo.lock`,
+`rust-toolchain.toml` and `build.rs` are unchanged since then. The commits between `13f8162` and
+the final head change the request marker, the review fixes and the records only.
+
+### The three extended runs, side by side
+
+| Revision | Candidate | Run | Games | W/D/L | Score | Relative Elo (95% CI) | Classification |
+|---|---|---|---|---|---|---|---|
+| 1 (pre-refinement) | `78f42ca` | `45426475825` | 600 | 217 / 164 / 219 | 49.8% | -23.2 to +21.5 | INCONCLUSIVE |
+| 2 (refined) | `5be7d7b` | `45529006866` | 600 | 227 / 156 / 217 | 50.8% | -19.7 to +31.4 | INCONCLUSIVE |
+| 3 (final head) | `13f8162` | `45546563480` | 600 | 229 / 163 / 208 | 51.7% | -11.0 to +35.4 | INCONCLUSIVE |
+
+The point estimates drift upward across the three runs — 49.8%, 50.8%, 51.7% — and **every interval
+straddles 50%**. That is what a sequence of inconclusive results looks like when the underlying
+effect is small: the estimates wander around the baseline in the direction the noise allows, and the
+intervals keep covering it. Reading the upward drift as a strength signal would be reading noise.
+
+**The honest conclusion is unchanged: no strength difference against the pinned baseline `6ab5b33` is
+measurable.** This is screening evidence against a single opponent at a fixed movetime. It is not an
+official rating, not an absolute rating, and not a strength claim. The absolute V1 rating gate
+remains UNKNOWN / NOT MEASURED / NOT MET.
+
+### Addendum: two more unchanged-engine runs
+
+The quick profile runs on every push, so two more runs of the same byte-identical release binary
+landed after the previous addendum: `c428d66` 60.0% (24/7/9) and `ff10c55` 55.0% (22/8/10). Both are
+inside the recorded range.
+
+**On an unchanged engine the profile ranges from 46.2% to 65.0% over sixteen runs**, and the same
+unchanged engine produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in one run and
+`INCONCLUSIVE` in the other fifteen. The range is a lower bound: every further push adds another run,
+and the spread is not expected to narrow.
+
+### Addendum: the unchanged-engine range widens to 28.7 points
+
+Two more quick runs on the same byte-identical release binary: `97c8a81` 67.5% (22/10/8), classified
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY`, and `e61d635` 38.8% (9/13/18), classified `INCONCLUSIVE`.
+
+**On an unchanged engine the profile now ranges from 38.8% to 67.5% over eighteen runs** — 28.7 points
+apart on code that did not change — and the same unchanged engine produced
+`POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in two runs and `INCONCLUSIVE` in the other sixteen.
+
+The byte-identity was verified directly rather than asserted: all eighteen measured heads have the
+identical `src/` tree `daa6be83ad991ee16eb86986e9eaa676c9eea460` and identical `Cargo.toml`
+`12660a71`, `Cargo.lock` `38aa7239` and `rust-toolchain.toml` `b6cff89e`, so they cannot differ in the
+release binary. The range is a lower bound: the profile runs on every push, so every further push adds
+another run.
+
+This is the clearest possible demonstration that the 40-game quick profile carries no strength
+information at all, and it is why the 600-game extended profile is the only one of these worth reading.
+
+### Correction: the quick-run table was mis-transcribed
+
+CodeRabbit flagged that six rows of the quick-run table in `STATUS.md` had W/D/L counts that do not
+match their own scores. It was right, and checking the published hosted summaries directly showed the
+error was wider than the flag: the **scores** in the table were correct, but the **W/D/L counts** were
+transposed in nine rows, and **two runs had been missed entirely** (`ad9915d` and `68f5111`). The
+earlier extraction had queried the PR comments with `per_page=100` and no pagination and did not
+re-read the full set.
+
+Every row below is transcribed from the published hosted summary and checked against the scoring
+formula `(wins + draws / 2) / games`. All twenty-three quick runs agree with the formula:
+
+| Head | W/D/L | Score | Classification | Engine |
+|---|---|---|---|---|
+| `504924b` | 9/14/17 | 40.0% | INCONCLUSIVE | pre-refinement |
+| `78f42ca` | 11/12/17 | 42.5% | INCONCLUSIVE | pre-refinement |
+| `dcdc4b4` | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE | pre-refinement |
+| `98e5cd9` | 13/13/14 | 48.8% | INCONCLUSIVE | **last `src/` change** |
+| `5be7d7b` | 16/8/16 | 50.0% | INCONCLUSIVE | unchanged |
+| `6aae7f7` | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY | unchanged |
+| `40b3556` | 17/8/15 | 52.5% | INCONCLUSIVE | unchanged |
+| `90227a6` | 17/13/10 | 58.8% | INCONCLUSIVE | unchanged |
+| `7510ded` | 20/7/13 | 58.8% | INCONCLUSIVE | unchanged |
+| `d306cbc` | 16/12/12 | 55.0% | INCONCLUSIVE | unchanged |
+| `794a465` | 15/9/16 | 48.8% | INCONCLUSIVE | unchanged |
+| `c2cc288` | 16/9/15 | 51.2% | INCONCLUSIVE | unchanged |
+| `3e0fe75` | 15/13/12 | 53.8% | INCONCLUSIVE | unchanged |
+| `f0316b0` | 16/12/12 | 55.0% | INCONCLUSIVE | unchanged |
+| `13f8162` | 12/13/15 | 46.2% | INCONCLUSIVE | unchanged |
+| `25d7d66` | 19/11/10 | 61.3% | INCONCLUSIVE | unchanged |
+| `02b58bd` | 17/10/13 | 55.0% | INCONCLUSIVE | unchanged |
+| `ad9915d` | 19/9/12 | 58.8% | INCONCLUSIVE | unchanged (**missed before**) |
+| `68f5111` | 18/13/9 | 61.3% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY | unchanged (**missed before**) |
+| `c428d66` | 19/10/11 | 60.0% | INCONCLUSIVE | unchanged |
+| `ff10c55` | 17/10/13 | 55.0% | INCONCLUSIVE | unchanged |
+| `97c8a81` | 22/10/8 | 67.5% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY | unchanged |
+| `e61d635` | 9/13/18 | 38.8% | INCONCLUSIVE | unchanged |
+
+The derived claims, restated:
+
+- **On an unchanged engine the profile ranges from 38.8% to 67.5% over twenty runs**, and the same
+  unchanged engine produced `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in **three** runs and
+  `INCONCLUSIVE` in the other **seventeen**. The spread is **28.7 points** on code that did not change.
+- The three pre-refinement runs read 40.0%, 42.5% and 36.2%; they are on a different engine and are
+  not part of that range. The overall observed range across all heads is 36.2%–67.5% and spans two
+  different engines.
+- The range and the counts are a lower bound: the profile runs on every push, so every further push
+  adds another run, and the spread is not expected to narrow.
+
+The earlier figures (a 46.2%–65.0% range over "fourteen" runs, later "sixteen", later "eighteen", and
+"one" positive run) were each correct only for the incomplete set that had been extracted at the time,
+and the count of runs was wrong from the start. The corrected set above is the complete one as of this
+commit.
+
+This does not change the conclusion the table supports: the 40-game quick profile carries no strength
+information at all, and the 600-game extended profile is the only one of these worth reading.
+
+### Correction: the losing-games PGN corrupted every record after the first
+
+CodeRabbit flagged that `scripts/diagnose_weaknesses.py` joined the PGN records with a single newline.
+`str(chess.pgn.Game())` has no trailing newline and a PGN reader ends a game at the blank line, so the
+next game's headers were consumed by the preceding record.
+
+Reproduced against python-chess 1.11.2: with a single newline the second record is still parsed, but
+its headers come back as the unknown marker `?` — `Round` and `White` are gone, so the record no longer
+says which game it is or who played it. With a blank line both records keep their headers and their
+move histories.
+
+Fixed by joining the records with `"\n\n"`. The regression in `scripts/test_diagnose_weaknesses.py`
+writes two records, reads the file back with `chess.pgn.read_game` until it is exhausted, and checks
+that both games keep their own round header, player headers and move history; it also checks that the
+single-newline form is what strips the later headers, so the regression cannot silently stop guarding
+the defect. The suite is now 31 checks.
+
+The latest local diagnostic run (`benches/diagnose-20261124/`) found no losses at all, so its
+`losing-games.pgn` is empty and the defect was invisible there. It would have bitten the first run
+that produced two or more losses.
+
+### The gate on the corrected head
+
+The full local gate suite ran on `99bef0133f1bc5e2f1d5aab6a5ffc122df349cc7` (tree
+`cfd3ef51263e782c4efbd675d2f01afa9b409af4`) with **50 of 50 steps passing, FAILS=0**, including the
+final check that the head, the tree and the working tree were unchanged during the run. The raw output
+is retained under `benches/gate-99bef01/`. The gate covers the corrected diagnostic (including the
+blank-line PGN separator) and the corrected Python suites: the weakness-diagnostic suite is 31 checks
+and the benchmark-request resolver suite is 33.
+
+### The quick-run table is now generated
+
+The table of hosted quick runs in `STATUS.md` is no longer hand-maintained. `scripts/refresh_run_table.py`
+parses the published benchmark summaries from the PR comments into `benches/quick-run-summaries.json`
+(`--fetch`), then derives the table — including the engine-change column from the `src/` tree hashes —
+and rewrites the generated block in `STATUS.md` (`--write`), or verifies it (`--check`).
+`scripts/test_run_table.py` runs the check offline from the committed fixture and also proves the check
+would catch a drifted row (102 checks). The claims under the table (the unchanged-engine range and the
+label counts) are computed from the rows, so they cannot drift from them. Three further quick runs were
+published since the last correction (`6fa1032` 56.2%, `99bef01` 55.0%, `bfc5ce4` 58.8%, all
+INCONCLUSIVE); with them the unchanged-engine range is still 38.8%–67.5%, now over **23** runs (three
+POSITIVE, twenty INCONCLUSIVE).
+
+### The gate on the generated-table head, and the one gate that caught this session
+
+The definitive gate was first started on `fc7407c` while this session's own run-table refresh
+(`--fetch`/`--write`, which gained the `fc7407c` quick-run row) modified the working tree mid-run.
+The gate's substantive steps all passed, but the final `head_unchanged_at_end` check correctly failed
+on the two dirty files — the hygiene check did exactly its job. The run-table fixture was committed
+(`c6ef5bb`), the brittle hard-coded run counts in `MERGE_READINESS.md` and `CHANGELOG.md` were
+replaced with references to the generated table, and the gate was re-run on `c6ef5bb` with a clean
+tree: **51 of 51 steps passed, FAILS=0**, retained under `benches/gate-c6ef5bb/`. The release binary
+digest of this build is `284fdd226d65…`; it differs from the earlier recorded `09ed62b6cf38…` purely
+because the byte output moves with the linker, so the stable engine identity remains the bench
+signature `141943aa23b3fc68` that `anchor-verify.yml` pins. The `fc7407c` quick run scored 16/12/12
+= 55.0%, INCONCLUSIVE — inside the unchanged-engine range.
+
+### CTRL-2-R recovered and evaluated; SCREEN-3 recovered and measured; ENGINE-3 frozen
+
+The two runs whose in-run evidence jobs were skipped were recovered through `evidence-bridge`
+revision 4 (run 45609388468, strict fail-closed aggregation on the hosted runner; local artifact
+downloads remain blocked at the blob hosts). Committed evidence: `benches/evidence/control/flawless-self-r/`
+(240 games) and `benches/evidence/screening-3/akimbo-0.1.1/` (120 games).
+
+- **CTRL-2-R (ENGINE-1 self-match): PASS.** Seat-perspective score 0.4604, 95 % opening-cluster
+  bootstrap CI [0.4208, 0.5000] ∋ 0.5 (estimator seed 20261125, 10,000 resamples); white-perspective
+  0.5229. The registered self-match null control now has its canonical evidence and estimate.
+- **SCREEN-3 (ENGINE-1 vs akimbo-0.1.1): measured.** 120/120 counted; score 0.3375 → d = −117.2 →
+  selection estimate 2323.8 (published 2441). Cluster-mean SD 0.2905 over 60 A-suite clusters.
+  Cross-anchor cluster correlations over the same 60 openings: topple-0.1.1×topple-0.2.1 0.0890,
+  topple-0.1.1×akimbo 0.1960, topple-0.2.1×akimbo 0.1285 — the previously unmeasured third-anchor
+  correlations are in fact below the 0.25 assumption of the v1 sensitivity grid. Selection-only.
+- **Variance decomposition** (2-game cluster means): between-opening share 9 % / 25 % / 0 % for
+  topple-0.1.1 / topple-0.2.1 / akimbo — match noise dominates, so paired repetitions are nearly as
+  effective as additional openings. This feeds the enlarged-design research registered in
+  PREREGISTRATION.md (decision rule fixed before the ENGINE-3 evidence is played).
+- **ENGINE-3 frozen** (PR #6 candidate): hosted binary SHA-256 `733de4e54f076fc4684ec0ad127975b526037fdedafa4fc15fc9bffccea1a407`,
+  read from the `verify-flawless` annotation of anchor-verify run 45609388451 (the annotation channel
+  the workflow documents for this sandbox; the CLOCK-1 freeze attempt failed only because it looked at
+  the check-run summary instead). Bench signature unchanged `141943aa23b3fc68`. ENGINE-1/ENGINE-2
+  evidence does not transfer; CTRL-3 and six SCREEN-E3 runs are registered for the candidate.
+
+### The ENGINE-3 campaign is dispatched
+
+Seven deliberate dispatches (top-commit `benches/dispatch.json` marker pushes, revisions 15-24):
+CTRL-3 (run 45612655219, 120 shards x 2) and SCREEN-E3-A1/A2/A3 (runs 45612820092 / 45613353274 /
+45612864587) + SCREEN-E3-B1/B2/B3 (runs 45613616430 / 45613863246 / 45612928479), 60 shards x 2
+each. 960 real UCI games at 40/15 against the three frozen anchors, all on ENGINE-3
+(`733de4e5…`). Three dispatch events coalesced away on the first burst (GitHub synchronise events
+deduplicate pushes within seconds); they were re-dispatched with 95 s spacing at revisions 22-24.
+The B-suite runs share labels with the A-suite runs, so their in-run evidence jobs will refuse to
+overwrite and the B evidence is registered for bridge collection into `screening-b/`.
+
+### 2026-11-25 — engine game-analysis defect scan (findings above in PREREGISTRATION)
+
+Replayed 600+ recorded 40/15 games (SCREEN-2/3 anchors + CTRL-2-R). Built
+scripts/analyze_game_losses.py (3-ply exchange-simulation blame scanner, opponent-validated).
+VERIFIED FIX (7ba0576): bounded check extensions (EXT_BUDGET=3) — `go depth` non-termination on
+queen-check endgames fixed (depth-12 on the reference position: >300 s -> 109 s). Validation on
+the fixed tree: 183/183 release + 177/177 debug tests, search_sweep, tt_bestmove 400x2,
+searchmoves, pv_legality, mate1 120/120, negative_mate 12/12, multipv 30/30, mate_distance
+20/20, perft_random, clock_sweep 60/60, time_budget 8/8, selfplay clock, fmt/clippy clean.
+Refuted with evidence: tactical-blindness (0/67 opponent-collected flags), mate detection
+(0 missed mate-in-1 in 600+ games), time manager (registered CLOCK-1 design; current probes
+green), conversion (fifty-move draws were near-equal shuffles). ENGINE-3 campaign unaffected
+(runs pin dispatch commits); PR #6 candidate = ENGINE-4 pending full gate + per-engine campaign.
+
+
+## 2026-11-25 — ENGINE-4 freeze, campaign registration, Phase-2 tooling (branch arena/247fe7df-flawlesschess, PR #6 draft)
+
+Sandbox snapshot restored mid-session (toolchain/venv wiped, git history reset to base): the
+working tree was a strict subset of the pushed state, so `git reset --hard origin/<branch>`
+restored `5fa99a8` exactly; toolchain rebuilt per docs/ENVIRONMENT.md (restore #5, npm
+`@toolchain-bin/*` 1.99.0 pins + python-chess 1.11.2). Bench of the rebuilt binary reproduces
+ENGINE-4's signature `849a85bf7e8e1eba` (toolchain rebuild is byte-faithful for behavior).
+
+- Phase-2 tooling (`e717dc3`): `scripts/power_analysis_v2.py` takes `--engine-sha` (required,
+  enforced against every manifest) and `--labels-a/--labels-b` (campaign-suffixed anchor ids;
+  `pool_key`/`validate_label_sets` fail loud). SCREEN-E4's B-suite runs will carry `-e4b` labels
+  so in-run evidence cannot collide with the A-suite dirs (the SCREEN-E3 overwrite problem and
+  its bridge do not recur). E3 invocation byte-stable (defaults unchanged); fixture checks
+  10/10 in `scripts/test_power_analysis.py`.
+- ENGINE-4 frozen + CTRL-4/SCREEN-E4-A/B registered in PREREGISTRATION.md before dispatch
+  (seeds 20261217-20261223). ENGINE-3's in-flight campaign evidence stays with ENGINE-3
+  (frozen `733de4e5…` / `141943aa23b3fc68`); no transfer between engines.
+- Hosted identity channel re-verified: verify-flawless check-run 139331041790 at the `c59da29`
+  PR head reports `binary_sha256=bbf9582d… bench_signature=849a85bf7e8e1eba` (ubuntu24
+  20261116.133.1, rustc 1.99.0). The runner digest is the dispatch identity; the sandbox digest
+  `b63f5ad1…` differs in linker only.
+
+
+## 2026-11-26 — campaign supervision notes (branch arena/247fe7df-flawlesschess, PR #6 draft)
+
+- All 7 ENGINE-4 dispatches landed (marker commits 2d09014/918e850/68563c7/681695c/1bad307/
+  aab79ac/32e8c3a, revisions 25-31, 95s+ spacing; runs 45744190565-45745410894). The B-suite
+  runs carry `-e4b` labels so their in-run evidence writes its own directory.
+- `evidence-bridge.yml` acceptance gate sharpened (`779f275`): run completed AND every shard
+  job successful (run-level conclusion not required), because the registered SCREEN-E3 B-suite
+  in-run aggregate fails on the overwrite refusal by design. Strict aggregation unchanged.
+- The environment reproduced the registered null-control numbers exactly on the committed
+  evidence (CTRL-2-R seat 0.4604 CI [0.4208, 0.5]; opp-vs-opp error -10.3 within +/-75), which
+  validates the toolchain restore (#5) end-to-end.
+- Queue housekeeping: cancelled 18 QUEUED duplicate quick-profile and no-op evidence-bridge
+  runs created by the dispatch pushes (all at engine-identical heads — identical work to the
+  already-published c59da29 profile; no campaign run (`rating-run`), in-flight job or evidence
+  path was touched). GitHub's runner scheduling is running ~8 shard jobs at a time and starves
+  the `aggregate-and-commit-evidence` tail jobs for hours; the campaign drains slowly (ETA
+  roughly two days for the remaining E3 + E4 shards) and every close-out step fires as its
+  data lands.
+
+
+### Deep-dive on the sharpest committed loss (same session)
+
+- Game: screening-2/topple-0.2.1, Sicilian O'Kelly, Flawless (black) lost in 47 moves. Root chain:
+  9...Qxc3?! (pawn grab with the queen), 11...Qh5 / 12...Qg4 (queen shuffle into the attack),
+  16...Qh4 / 17...Qg5?? walking into the two-move queen trap 18.Rg4!. The SEE-scanner could not
+  flag the trap class (rook lift, no immediate capture), which is a method gap, not an engine
+  finding: the registered scan's exchange model only covers capture-recapture sequences.
+- Current ENGINE-4 probe of every decision point: after 9.Rb1 it plays O-O at depth 12 (the game's
+  grab only at depth <= 10); after 11.Qf3 it plays O-O at depth 10-12 (never the shuffle); from
+  the trap position it finds Rb4 as white and Qf6/Qd8 escapes as black; the game's 17...Qg5 is
+  not chosen. The old loss is old-engine shallow-queen-play weakness, not an ENGINE-4 defect.
+- Phase-4 game review will extend the scanner to trap-class tactics (rook lifts, trapped queens)
+  in addition to the exchange model, and walk the worst ENGINE-4 losses manually like this.
+
+
+### Game-loss scanner extended to the queen-trap class (2026-11-26, follow-up to the deep-dive)
+
+- `scripts/analyze_game_losses.py` gains `queen_traps_after` (quiet-reply queen traps, the
+  rook-lift/trapped-queen class the deep-dive identified as a method gap) and
+  `loss_if_captured_at` (destination-scoped exchange: an escape is judged by the queen's own
+  exchange at its landing square, not by unrelated material hanging elsewhere). The detector
+  requires the quiet reply to CREATE the attack (pre-existing hangs belong to the capture-reply
+  net), skips checking replies, and adjudicates mechanical other-piece defenses (safe capture of
+  the attacker, safe interposition) before flagging. 8 fixture tests pin every rule; three
+  fixture-geometry traps found and fixed during the work (a d2-starting knight polluting the
+  "quiet" reply with a capture, the a2 pawn defending b1, the c3 attacker being capturable by
+  the b2 pawn / a2 knight).
+- Outcome adjudication against the game records (flags matched by fen+move+ply; collection =
+  the mover's material actually dropping >= 150cp within 3 plies, or the queen count actually
+  dropping within 5 plies):
+  - capture-reply net (`moved_piece`): 485 collected / 556 missed across screening-2/topple-0.2.1
+    and the three ENGINE-3 suites (1041 flags in 480 games) - the known one-ply-SEE noise level.
+  - queen-trap (new class): 10 candidates in 480 games; the flagged reply was played in 6; the
+    queen was captured within 5 plies in 5 of those 6 (the Catalan ply-33 Rfb1 case survived).
+    On ENGINE-3's own E3 suites (360 games): 6 candidates, reply played in 5, queen captured
+    4/5 (the Queen's Indian ply-41 Rh3 case survived). Quiet-reply queen traps are a REAL,
+    outcome-validated ENGINE-3 weakness class - a direct target for the ENGINE-4 search work
+    (EXT_BUDGET=3 and the two-ply quiet-reply awareness), to be re-measured on the E4 games.
+  - The studied old-engine loss remains classified as before: the game-losing blunder 18...bxc6
+    is a plain one-ply hanging queen (capture-reply net flags it at 580cp); the cornered-queen
+    moves before it were engine-level inaccuracies with defenses the probes found at depth.
+- Diagnostics only - never strength evidence (the script's standing contract).
+
+- Follow-up probe of the six largest collected capture-reply losses (>= 500cp, non-promotion
+  replies) with the SHIPPING ENGINE-4 binary at depth 10: the engine's top line matches the
+  game's move in all six. Five are already-lost positions (Mate on board or forced mate within
+  3-5 in the probe PVs - the material drop is the collapse, not the cause); one is a queen
+  sitting on a pre-existing hang (the capture reply existed before the flagged ply, the known
+  wide-net attribution). No fresh one-move tactical blunder exists at any of the six flagged
+  plies. Combined with the trap-class result (4/5 collected quiet-reply queen traps on the E3
+  games), the Phase-4 defect taxonomy stands: (1) quiet-reply queen traps - real, precise,
+  ENGINE-3 weakness; (2) one-ply capture-reply "collected losses" - mostly late collapses of
+  positions lost earlier or pre-existing hangs; the causal losses sit at earlier plies than the
+  flag, and the deep-dive method (walk the game backward with engine probes) is the tool for
+  those, not the scanner.
+
+
+### Queue root-cause fix for the B-suite collection (2026-11-27)
+
+- Root cause of the 21h stall: the B-suite in-run `aggregate-and-commit-evidence` tail is
+  REGISTERED TO FAIL (B1's identical tail: 32 seconds, then the overwrite refusal, since the
+  in-run job targets the same-labelled committed A-suite directory and B evidence lands via the
+  evidence-bridge by design). Its only function is to resolve the run so the bridge gate sees
+  status=completed. It queued at 2026-11-26T13:00Z behind 480 long 40/15 E4 shard jobs and
+  starved. Process error: sequencing "wait for the tail, THEN push the request" put the bridge
+  behind the tail twice over.
+- Fix applied: the bridge gate is evaluated at COLLECTION time, not push time, and any newly
+  queued job sits behind the E3-B2 tail in the scheduler's FIFO - so revision 5 was pushed
+  immediately (c01878d): bridge run 45971846571 queues behind the tail, B2's run is terminal
+  before the gate is evaluated, and all three B-suite runs collect in one fail-closed pass. If
+  the race ever fires, the bridge fails closed with no partial commit (step-level success()
+  semantics) and the request is re-pushed unchanged.
+- Standing operational rules: (1) when an in-run aggregate is registered to fail, close the run
+  promptly (run-level cancel touches only non-terminal jobs) instead of letting the formality
+  queue behind a campaign - the sandbox GH_TOKEN lacks actions:write (403 on cancel, same scope
+  class as the dispatch API), so this needs the Arena GitHub connection scope or the UI;
+  (2) when a collection depends on a run being terminal, push its marker EARLY so the collector
+  queues behind the run's own tail rather than after it.
+
+- 2026-11-27 (later) PHASE-4 CLOSE-OUT + PHASE-5 DISPATCH. CodeRabbit review of the head
+  (13 Major findings, all valid): all fixed - power model hardening (labels, AB/BA pairs, PSD
+  guard with a determinant-sign trap, shared-calibration combined bound, replicates/exclusion/
+  suite-digest/selected-suite binding) with 9 new tests and both reports recomputed
+  (selections unchanged: E3 0.945, E4 0.806 at rating-240-v1); bridge pagination + exact
+  shard-job identity; merge_batch_runs suite validation for all four designs + pair-leg
+  seating (9-case self-test); make_batch_dispatch recovery BA predicate; MERGE_READINESS
+  attribution. Approval block recorded on both reports (human principal 2026-11-26 + machine
+  review record). Gate plan preregistered: frozen anchor rule selects wowl-1.3.7,
+  topple-0.1.1, wyldchess-1.1 (topple-0.2.1/akimbo saturate at |d|>400). Dispatch blockers
+  root-caused and fixed: resolve hard-coded the E3 power report (per-dispatch report path now),
+  scripts-drift froze the campaign target at cb7242c (engine source byte-identical to
+  dd3dff2; binary hash unchanged), git-context self-heal for SHA-ref checkouts, and one
+  transcribed wrong target SHA (the fail-closed ancestor check refused it). Confirmatory
+  campaign dispatched: 6 runs x 60 shards x 4 games, 40/15 (A: 45998977117/45999016751/
+  45999052791; B: 45999096409/45999142482/45999195004). Trap-number corrections applied.
+
+- 2026-11-27 (later 2) ENGINE-DEFECT DIAGNOSIS (diagnostics only, never strength evidence).
+  Built benches/diagnostics/adjudicate_traps.py - outcome adjudication of the scanner's
+  queen-trap flags (played -> fell within 5 plies, mover's queens counted anywhere; flags matched
+  to records by (fen, ply, move), replays from ply 0). It reproduces the frozen E3 canon EXACTLY
+  (480-game set 10/6/5, E3-own-360 6/5/4, Catalan ply-33 Rfb1 the survivor), which validates the
+  method. Applied to ENGINE-4's own 720 screening games: queen_trap 28 flags / 13 played / 13
+  fell - the quiet-reply class the E3 review named as the search target is STILL OPEN (E4's
+  search change 7ba0576 bounded check extensions; quiet-reply awareness was never implemented).
+  9/13 falls were decisive losses (~1.25% of games), 2 draws, 2 wins. 8/13 are NEEDLE cases
+  (1-2 trap-allowing moves among 33-49 legal): the quiet refutation hides beyond capture-only
+  quiescence - the queen's flight moves are quiet, so qsearch never sees the queen taken at a
+  flight square; RFP/futility can cut the quiet reply entirely at non-PV nodes. trap_cases.json
+  carries the 13 FENs; engine-probe.yml builds the frozen engine (candidate patches apply only
+  in the runner working copy) and probes fixed depths, committing results to benches/diagnostics/.
+  Baseline probe dispatched (run 46005134766). FIX DISCIPLINE: src/ stays drift-frozen until the
+  confirmatory gate decision so the evidence chain stays attached to the shipping head; the fix
+  is developed as a verified patch and applies after the gate (PASS -> ENGINE-5 next iteration;
+  FAIL -> apply at once). See benches/diagnostics/README.md.
+
+## 2026-11-27 (30) — Queen-trap root cause: complete static analysis + full fix v2
+
+Defect (mission): quiet-reply queen traps are invisible to ENGINE-4's search —
+28 falls / 13 provable traps / 13 cases in the trap suite, 9 decisive losses in
+the E4 campaign (3 vs wowl-1.3.7 in both arms, 1 vs topple-0.1.1, 2 vs
+akimbo-0.1.1, 1 vs topple-0.2.1 in each arm). Static analysis of the entire
+search-path context (not just qsearch) with 13 real cases and mirrors:
+
+- Mechanism (needles 22/30/33-36/38/39): a single quiet reply attacks the
+  queen; all escapes lose material (detector-verified); the game's next move
+  was already committed; the queen fell in 5 plies every time. The prior 8
+  wins are all "queen falls but the engine mates first" — the mechanism
+  recurs 13/13 with no benign instance.
+- Three stacked blindness layers: (1) capture-only qsearch drops the queen's
+  flight moves (they are quiet), so no searched line contains the queen
+  actually being captured at a flight square; (2) stand pat at the
+  attacked-queen node returns static_eval, which counts the queen as alive;
+  (3) RFP at depth ≤ 3 can seal the node entirely before qsearch runs — the
+  only unguarded return found in the audit.
+- Pruning audit: futility (depth ≤ 2) only returns through
+  `quiesce_with_moves`, i.e. the fixed quiesce — safe without a separate
+  guard; NMP is direction-safe (the opponent's queen capture after the pass
+  is a capture and is searched); TT cutoffs are safe once all nodes store
+  fixed values; RFP gets the explicit guard.
+
+Fix (`benches/diagnostics/queen-trap-fix.patch`, v2 = qsearch fix + RFP guard
++ 9-test `queen_trap_tests` module): attacked-queen qsearch keeps the full
+legal move list and cannot stand pat or delta-prune; RFP is skipped when the
+mover's queen is attacked (one queen scan + ≤2 is_attacked probes at
+RFP-eligible nodes only). Deployability analysis with provisional limitation
+score 6/10 in `benches/diagnostics/dispatch-analysis-2026-11-27.md`. Freeze
+holds: `src/` stays byte-identical to `cb7242c`; the patch ships as a file and
+is applied in runner working copies by `engine-probe.yml` only. v2 patched
+probe dispatched as `patched-queen-trap-v2` (depths 8/10/12/14, same as
+baseline). ENGINE-5 identity and its own evidence chain follow after the
+original campaign closes.
+
+## 2026-11-27 (31) — Probe driver bugs found by a real failure and fixed
+
+The baseline probe run 46005134766 failed at step "Probe positions at fixed
+depths" (exit 1). Two runner-side bugs, both now fixed (842fae8):
+`probe-request.json`'s `depths` is a list, which the workflow printed as
+`[8, 10, 12, 14]` and the driver's `int()` parse crashed on; and the engine
+command string `"target/release/flawless uci"` was passed to `popen_uci`
+unsplit (treated as one filename). The driver now splits command strings and
+the workflow joins list-form depths as CSV. Honest failure record: the run's
+logs are blob-blocked locally, so the diagnosis came from the step name, the
+exit code, and code inspection of both paths — verified by reading
+`src/main.rs` (binary enters UCI mode with or without the `uci` subcommand).
+
+Three queued probe runs built on the buggy driver (46006089805,
+46014911177, 46016889554) could not be cancelled (integration token lacks
+`actions: write` for cancellation) — they are expected to fail the same way
+and never commit outputs; their labels are superseded. Re-dispatched
+`baseline-e4` (clean build, 46017481718) and `patched-queen-trap-v3`
+(full 14-test suite + v2 patch) on the fixed driver.
+
+## 2026-11-28 — mission Phases A–K session (branch `arena/247fe7df-flawlesschess`, PR #6 open)
+
+Scope: take PR #6 to a genuinely verified merge-ready state (execution). The PR is left OPEN and
+unmerged by explicit instruction; no tag or release. No checklist item is claimed without
+evidence; the full per-gate state is in `MERGE_READINESS.md` ("2026-11-28 — mission Phases A–K
+checkpoint") and `MISSION_CHECKPOINT.md`.
+
+Engine attribution for the record: **E4** = frozen confirmatory candidate
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329` at `cb7242c` (the ENGINE-4
+campaign runs this and only this); **E3** = previous generation (bench `141943aa23b3fc68`); **E5**
+= the planned queen-trap successor, absent from `src/`, which must complete its own preregistered
+chain (dispatch-analysis-2026-11-27.md) before it can be a merge candidate. Evidence is never
+reused across identities.
+
+Work completed this session (all committed, pushed):
+
+1. Phase E — five registered findings fixed with regression suites:
+   - `3e7a7d0` refresh_run_table: `gh api --paginate --slurp`, pure page parser
+     (empty → [], malformed → RuntimeError), fixture-dest-only writes; 17-check suite.
+   - `a9a276c` adjudicate_traps: `captured_square()` en-passant-correct (victim on the
+     to-file at the capturer's rank) at both adjudication sites, moved-piece check on the
+     post-move board; analyze_game_losses: `legal_attackers()` turn-flipped probe validation
+     so pinned pieces never count as threats (three detector sites); flags carry the exact
+     record ordinal — `(rec, fen, ply, move)` identity — with a duplicate-keys 2-not-4
+     regression. Suites: test_adjudicate_traps 16/16, test_analyze_game_losses 12/12
+     (pinned/unpinned twin fixtures; Na4/Nc4/Nd1/Nd3 pin-preserving releases).
+   - `ada9fc2` diagnose_weaknesses: `EngineFailure` for missing bestmove / 0000 / unparsable
+     / illegal moves; main aborts rc 3 (stderr "not a ply-cap truncation"), no summary
+     claiming results; child reaped (pid-liveness regression). Suite 44/44.
+   - `c0c6306` ci.yml runs all 18 Python suites at the exact head; test_make_batch_dispatch
+     BA-seat fixture fixed (valid BA records were rejected — the "batch A/B color-pair
+     fixtures" review item).
+   - `851bfc2` test_run_table: three reversed `check()` arguments were silently passing a
+     truthy message string as the condition (false-green); swapped to the signature and the
+     real conditions pass (121/121).
+2. Phase G — all 51 PR review threads re-fetched from GitHub. The five threads matching the
+   fixed findings were replied with fix evidence (commits + suite results) and resolved; the
+   sixth open thread (relative_benchmark saved opening-order digest) is deliberately scheduled
+   for Phase F after the campaign closes. The ten named review items verified against source:
+   evidence-bridge latest-attempt + completed-only artifact collection; power_analysis_v2
+   skipped/excluded-row accounting + exclusion-completeness + one-AB/one-BA colour reversal;
+   PREREGISTRATION "strictly > 2,000" wording (append-only, unchanged); candidate/player-color
+   consistency; recovery schedule validation (make_batch_dispatch 7/7); manifest provenance;
+   focus-player handling; queen-defence legality.
+3. Phase H (partial) — the PR's engine diff reviewed coherent: EXT_BUDGET-bounded check
+   extensions with per-line accounting through null-move; counter-move heuristic behind the
+   FLAWLESS_ABLATE mask (default off); outpost advancing-enemy-pawn rule present;
+   make/unmake restores the complete state (castling, ep, clocks, hash, ep-inclusion).
+   Workflow-injection scan clean: no `${{ }}` reaches any `run:` body in any workflow.
+4. Phase J (partial) — MERGE_READINESS.md / MISSION_CHECKPOINT.md / STATUS.md / PR body
+   reconciled to actual state with a NOT MERGE-READY verdict and explicit open gates.
+
+Campaign state at this entry (hosted runners, ~1.5–3 h per 4-game shard): A/wowl recovery
+rev 57 (rating-run 46111280732) queued; A/topple bridge rev 7 queued (run-45999016751), then
+recovery rev 58 (slots 124–127 + 148–151); A/wyld shard 17 failed (slots 68–71 to recover
+after 45999052791 resolves); B/wowl 60/60 shards done, aggregate queued; B/topple running;
+B/wyld queued. The runner pool is saturated by the campaign; all later fan-outs drain behind
+it. Next actions in order as runners free: verify the rev-57 recovery resolve + evidence →
+verify the bridge commit → dispatch rev 58 → A/wyld recovery → read back probe v6
+(46110985046) → Phase C strict recompute (`scripts/rating_estimator.py gate`, unrounded
+`ci95_calibrated[0] > 2000` strictly for A/B/combined + both controls, `--exact-games 240
+--required-openings 60 --games-per-opening 4 --suite-a --suite-b`) → Phase F → fresh
+full-diff review + hosted CI at the final head → Phase K report.

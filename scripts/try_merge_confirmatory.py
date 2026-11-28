@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Attempt the canonical 100-game merge without treating missing slots as success.
+"""Attempt the canonical confirmatory merge without treating missing slots as success.
 
 A not-yet-complete campaign is a normal, explicit state while failed shards are
 being recovered. Any identity/manifest/duplicate error remains fatal.

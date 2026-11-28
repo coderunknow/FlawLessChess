@@ -2,6 +2,144 @@
 
 All notable changes are documented here. SemVer 2.0.0. Versions before the V1 release gate are `0.x`.
 
+## [Unreleased] — review disposition and evidence provenance (2026-11-25)
+
+- **Fixed (CI): the benchmark workflow no longer interpolates dispatch inputs into shell source.** The
+  dispatch profile and seed are passed through the step environment, validated there, and written to
+  `GITHUB_OUTPUT` with `printf` and a quoted variable, so an input can never be executed as a command.
+- **Fixed (CI): the quick regression screen now runs on every pull request of this repository**
+  instead of PR #6 only. Pull requests from forks stay excluded: the job checks out and runs the
+  pull request's own code while holding a `pull-requests: write` token.
+- **Fixed (CI): the publishing step now receives `SEED_BASE`**, so the published title names the real
+  seed range (`seeds 20261124..20261126`) instead of an empty base.
+- **Fixed (CI): the rustfmt annotation encodes the diff correctly.** `tr '\n' '%0A'` replaced a newline
+  with a bare `%` (the second argument of `tr` is a character *set*), which flattened a multiline diff.
+  The percent sign, carriage return and newline are now encoded as `%25`, `%0D` and `%0A`.
+- **Added (evidence): the effective `FLAWLESS_ABLATE` value is recorded in the manifests** written before
+  the first game starts — in `scripts/match.py` (the batch manifest) and in `scripts/relative_benchmark.py`
+  (the run manifest) — including the unset case. The aggregation step refuses to combine replicates whose
+  masks differ, so a full run and an ablated run can never be pooled into one summary by accident.
+  `docs/ABLATIONS.md` documents the field and the rule.
+- **Fixed (benchmark harness): a game without the candidate is left out of the scorable set** as well, so
+  the confidence interval is computed over exactly the games the point estimate is computed over.
+- **Fixed (benchmark harness): the saved opening order is verified against its digest** before aggregation,
+  and a damaged file is reported as a validation error instead of crashing the aggregator.
+- **Fixed (diagnostics): `scripts/diagnose_weaknesses.py` reads the piece-square tables from the engine
+  source** instead of keeping a copy that had drifted (the copied bishop table had 63 entries and would
+  have raised `IndexError` on the last square). The evaluation sign now follows the side to move, a closed
+  stdout is handled, the engine is reaped after a shutdown timeout, the material loss is measured through
+  the opponent's reply with a reference material that is never stale, the returned UCI string is printed
+  directly, and the losing games are written as PGN.
+- **Fixed (diagnostics): `scripts/tactic_test.py` accepts the free rook capture** in the `win_rook` fixture
+  (an exchange of equal value that the opponent cannot recapture is a win), handles EOF during UCI
+  initialisation, and tolerates a closed stdin during cleanup.
+- **Added (tests): the outpost advancing-pawn cases** — the b7 pawn, its colour mirror and the undefended
+  variant — as regressions. The reported advancing-pawn defect in `src/eval.rs` was reproduced and is a
+  **false positive**: the cited position scores outpost 0 because the piece is not pawn-defended, and the
+  defended variant with the same b7 pawn also scores 0. The algorithm is unchanged.
+- **Added (tests): four new benchmark-harness checks** covering the candidate exclusion, the opening-order
+  digest and the ablation-mask consistency rule (benchmark suite 37/37), a check that a perfect score is a
+  positive relative signal, and a resolver suite (33 checks) that pins both the push-request and the
+  manual-dispatch branches of the benchmark request resolver. The weakness diagnostic gained its own
+  suite (20 checks) covering the replayable PGN, the unfinished-game handling and the replace-on-every-run
+  behaviour of the losing-games file.
+
+- **Measured (relative benchmark, screening only):** the revision-2 extended run on the refined head
+  (hosted run `45529006866`, candidate `5be7d7b`, 600 real UCI games, 100 opening clusters) finished
+  **227 W / 156 D / 217 L**, score **305.0/600 = 50.8%**, relative Elo **-19.7 to +31.4** (95% CI),
+  classification **INCONCLUSIVE**. The point estimate moved from 49.8% to 50.8% between the two
+  revisions and the interval still straddles 50%: **no measurable strength difference against the
+  pinned baseline**. Screening evidence only — not an absolute rating and not a strength claim.
+- **Measured (relative benchmark, screening only):** the revision-3 extended run on the exact final head
+  (hosted run `45546563480`, candidate `13f8162`, 600 real UCI games, 100 opening clusters, independent
+  seed) finished **229 W / 163 D / 208 L**, score **310.5/600 = 51.7%**, relative Elo **-11.0 to +35.4**
+  (95% CI), classification **INCONCLUSIVE**. The three extended runs now read 49.8%, 50.8% and 51.7%,
+  and **every interval straddles 50%**: the point estimates drift while the interval keeps covering the
+  baseline, which is what a small underlying effect looks like. **No measurable strength difference
+  against the pinned baseline.** Screening evidence only — not an absolute rating and not a strength
+  claim. The published title now reads `seeds 20261201..20261203`; the earlier run read `seeds ..2`
+  because the publishing step did not receive the seed base, which the review found and this branch
+  fixed.
+- **Measured (ablation matrix, screening only):** the four variants of the ablation study (hosted run
+  `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`, 200 games each) came out at
+  `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms` 46.8%, and **every variant is
+  INCONCLUSIVE with completely overlapping intervals**. The study therefore **does not measure the
+  contribution of any of the three terms** at this sample size. The switch itself is verified
+  deterministically; the magnitude of each term's contribution is not measured. A sharper design
+  would need a paired difference over the shared openings and a reproducible time control.
+
+## [Unreleased] — outpost correction, tempo semantics, ablation switch, paired benchmark (2026-11-24)
+
+- **Fixed (eval, EVAL-2): the outpost term.** White outposts are now on ranks 5-6 and Black outposts on
+  ranks 3-4 (files b-g). The previous zone (ranks 5-8 / 1-4) included the opponent's back rank and the
+  rank in front of it, where no enemy pawn can ever stand, so "cannot be attacked by an enemy pawn" was
+  vacuously true and pieces deep in enemy territory scored as outposts. The term now also applies the two
+  remaining classical conditions: the square must be **defended by one of our own pawns**, and no enemy
+  pawn may be able to **step forward** and attack it (the push is blocked only by one of our own pieces).
+  Values are unchanged (knight +30 mg / +15 eg, bishop +15 mg / +8 eg). The bench signature stays at
+  `141943aa23b3fc68`, unchanged from the pinned baseline: none of the twelve bench positions contains a
+  pawn-defended outpost square.
+- **Changed (eval): the tempo bonus is computed explicitly** as `relative = +/- tapered; total = relative +
+  TEMPO`, instead of one expression that relied on the binding of `+` to an `if` expression. The binding was
+  verified against the rustc parser (the tempo was applied to both colours) and is now pinned by a
+  regression test for both colours and for the colour mirror. `EvalBreakdown` additionally exposes `mg`,
+  `eg` and `phase`.
+- **Added (diagnostics): the `FLAWLESS_ABLATE` ablation switch** disables the `space` and `outpost`
+  evaluation terms and the `counter_move` move ordering heuristic for one process. Off by default, read
+  once, applied as a bit mask; the pinned baseline predates it and ignores the variable. See
+  `docs/ABLATIONS.md`.
+- **Added (tests): outpost boundary and symmetry cases** (opponent back rank, the rank in front of it, edge
+  file, own half, pawn-challenged square, two outposts at once) and a tempo regression test.
+- **Changed (CI): the relative strength benchmark** runs the quick paired profile on every pull request
+  and the three-replicate extended tournament on demand; results are published to the job summary and
+  to a pull request comment. The rustfmt gate reports its diff through annotations, because the Actions log
+  host is not reachable from the development sandbox.
+- **Changed (CI): the anchor-verify bench signature** follows the evaluation. The refined outpost term
+  leaves the signature at `141943aa23b3fc68`, unchanged from the pinned baseline, so the expectation is
+  unchanged; the intermediate, looser definition moved it to `ce6a84301216fadd`.
+
+- **Measured (relative benchmark, screening only):** the three-replicate extended profile (600 real UCI
+  games, candidate against the pinned baseline `6ab5b33`, 100 opening clusters, opening-clustered bootstrap)
+  finished **217 W / 164 D / 219 L**, score **49.8%**, relative Elo **-23.2 to +21.5** (95% CI),
+  classification **INCONCLUSIVE**. No strength difference against the pinned baseline is measurable. The
+  The hosted quick runs of the same 20-opening profile, on heads with a **byte-identical release
+  binary** (the last change to `src/` on the branch is the outpost refinement `98e5cd9`), have ranged from
+  **38.8% to 67.5%** — **28.7 points on code that did not change** — and the same unchanged engine
+  has produced both the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` and plain `INCONCLUSIVE`.
+  The generated table in `STATUS.md` carries every row and the current counts. The range is a lower bound: the profile runs on every push, so every further push adds
+  another run. Every row was transcribed from the published hosted summary and re-checked against the
+  scoring formula `(wins + draws / 2) / games`; an earlier transcription had the wrong W/D/L in six rows
+  and had missed two runs entirely, and the correction is appended to `AGENTS_LOG.md`. A fixed
+  100 ms movetime makes the reached depth depend on the machine speed and the timing jitter, so the
+  played games are not reproducible across runs even with the same opening seed: the seeded shuffle
+  fixes the opening order, not the games. The 40-game profile therefore carries roughly ±30 Elo of
+  pure sampling noise and its classification label must not be read as a strength signal; the 600-game
+  profile is the meaningful one.
+
+## [Unreleased] — engine improvements (2026-11-24)
+
+- **Changed (search):** removed the predictive-overrun early stop that halted clock-based searches
+  well before the soft budget. At 10 s the engine previously stopped at 116 ms of a 234 ms soft
+  budget (depth 9); it now runs to depth 10 at ~253 ms. Hard budget still caps worst-case
+  overspend; fixed-depth/movetime searches unaffected.
+- **Changed (search, HIST-1 from PR #2 audit):** added counter move heuristic. When a quiet move
+  causes a fail-high cutoff in reply to the opponent's previous move, store it as a counter move
+  ordered just above killers (92,000) and below good captures. Counter table cleared each root
+  search; not used in null-move search or quiescence.
+- **Changed (eval, EVAL-2 from PR #2 audit):** added space evaluation, rewarding control of
+  important squares weighted by centrality. Colour-symmetric via square mirroring; tapered full
+  weight in middlegame / half in endgame. Added `space` field to `EvalBreakdown` and CLI `eval`
+  output.
+- **Docs:** Reconciled STATUS.md, CHANGELOG.md, AGENTS_LOG.md to the actual GitHub state as of
+  `main` = `6ab5b33` (PR #5 merge). PRs #1/#3/#4/#5 merged; PR #1 not open or draft; PR #2 open,
+  draft, conflicting and NOT merged/cherry-picked/touched. Recorded environment constraint
+  (no Rust toolchain obtainable from static.rust-lang.org in this sandbox; toolchain recovered
+  from npm `@toolchain-bin/*` 1.99.0 pins).
+
+## [Unreleased] — documentation reconciliation & next-iteration plan (2026-11-24, superseded)
+
+Kept as historical record; the engine changes above supersede the plan-only entry.
+
 ## [Unreleased] — independent audit remediation (2026-11-20)
 
 - **Fixed (F-52, from external review of `bf026f8`): three engine defects and one probe gap.** `go ponder nodes N` now counts its cap from `ponderhit` (it was spent while pondering, so the search returned at once). `go movestogo` beyond `u64::MAX` saturates instead of falling back to 40 moves. `position fen` now rejects en-passant targets whose pawn came from an occupied square or whose halfmove clock is not 0 (`f6 0 1` with a bishop on `f7` was accepted). `uci_malformed_probe.py` no longer accepts `bestmove (none)` for a fully restricted search. Tests: `protocol_regressions` ponder cap, `uci` movestogo, `correctness` FEN (3).

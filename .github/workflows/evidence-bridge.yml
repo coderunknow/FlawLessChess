@@ -70,16 +70,85 @@ jobs:
 
           for ent in req["runs"]:
               run_id = str(ent["run_id"])
-              # Fail closed: only completed, successful runs have usable shards.
-              r = subprocess.run(
+              # Fail closed on unusable shards: the run must be completed and EVERY
+              # shard job successful. The run-level conclusion is deliberately not
+              # required to be success: the in-run aggregate job fails on the
+              # registered overwrite refusal when the B-suite run shares its label
+              # with an already-committed A-suite evidence directory (the B-suite
+              # evidence lands through THIS bridge instead), and the strict
+              # aggregator below re-verifies identity and completeness fail-closed
+              # on the raw shard artifacts either way.
+              # Job listings are paginated: wedged runs accumulate 100+ retry
+              # entries and a single ?per_page=100 page can hide the shard jobs
+              # entirely (CodeRabbit review 2026-11-27). Fetch every page.
+              jobs = []
+              page = 1
+              while True:
+                  r = subprocess.run(
+                      ["gh", "api",
+                       f"repos/{os.environ.get('GITHUB_REPOSITORY', 'coderunknow/FlawLessChess')}"
+                       f"/actions/runs/{run_id}/jobs?per_page=100&page={page}"],
+                      capture_output=True, text=True)
+                  chunk = (json.loads(r.stdout or "{}") or {}).get("jobs") or []
+                  jobs.extend(chunk)
+                  if len(chunk) < 100:
+                      break
+                  page += 1
+              r2 = subprocess.run(
                   ["gh", "run", "view", run_id, "--json", "conclusion,status"],
                   capture_output=True, text=True)
-              info = json.loads(r.stdout or "{}")
-              if info.get("status") != "completed" or info.get("conclusion") != "success":
-                  sys.exit(f"run {run_id} not completed/successfully: {info}")
+              info = json.loads(r2.stdout or "{}")
+              if info.get("status") != "completed":
+                  sys.exit(f"run {run_id} not completed: {info}")
+              # Identify shard jobs by their exact registered names
+              # ({purpose}-{batch}-{anchor_id}-shard{index}). Substring matching
+              # mislabeled any job whose name merely contained "-shard", and a
+              # count-only check could pass while checking the wrong jobs
+              # (CodeRabbit review 2026-11-27).
+              wanted = {
+                  f"{ent['purpose']}-{ent['batch']}-{ent['anchor_id']}-shard{i}": i
+                  for i in ent["shard_indices"]
+              }
+              by_name = {}
+              for j in jobs:
+                  name = j.get("name") or ""
+                  if name in wanted:
+                      by_name.setdefault(name, []).append(j)
+              missing = [n for n in wanted if n not in by_name]
+              if missing:
+                  sys.exit(f"run {run_id}: shard jobs missing: {missing[:5]}")
+              bad = []
+              for name in wanted:
+                  attempts = sorted(by_name[name], key=lambda j: j.get("started_at") or "")
+                  if attempts[-1].get("conclusion") != "success":
+                      bad.append((name, attempts[-1].get("conclusion")))
+              if bad:
+                  sys.exit(f"run {run_id}: shard jobs not all successful: {bad[:5]}")
               dl = f"/tmp/bridge-{run_id}"
               subprocess.run(["gh", "run", "download", run_id, "-D", dl], check=True)
-              out = f"benches/evidence/{ent['evidence_purpose']}/{ent['anchor_id']}"
+              # Attempt-specific completed-shard collection: a cancelled or aborted
+              # shard leg uploads a partial artifact (meta.json completion_status
+              # != completed). Those must never enter aggregation; only fully
+              # completed shard artifacts are collected, and the expected count
+              # is checked against the collected set (fail closed).
+              dl_complete = f"/tmp/bridge-{run_id}-complete"
+              r3 = subprocess.run(
+                  [sys.executable, "scripts/collect_completed_shards.py",
+                   "--source", dl, "--out", dl_complete],
+                  capture_output=True, text=True)
+              n_complete = (r3.stdout or "").strip().splitlines()[-1] if r3.stdout else "0"
+              if r3.returncode != 0:
+                  sys.exit(f"collect_completed_shards failed for run {run_id}: {r3.stderr[-500:]}")
+              want = len(ent["shard_indices"])
+              if int(n_complete) != want:
+                  sys.exit(f"run {run_id}: {n_complete} completed shard artifacts, entry expects {want}")
+              dl = dl_complete
+              # evidence_out (schema-1 optional) pins the exact output directory,
+              # e.g. a confirmatory per-run dir. Without it the legacy screening
+              # layout benches/evidence/{evidence_purpose}/{anchor_id} applies.
+              out = ent.get("evidence_out") or f"benches/evidence/{ent['evidence_purpose']}/{ent['anchor_id']}"
+              if not out.startswith("benches/evidence/"):
+                  sys.exit(f"evidence_out must live under benches/evidence/: {out!r}")
               os.makedirs(out, exist_ok=True)
               cmd = [
                   sys.executable, "scripts/aggregate_shards.py",

@@ -42,7 +42,19 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Format (rustfmt)
-        run: cargo fmt --all -- --check
+        shell: bash
+        run: |
+          if ! cargo fmt --all -- --check > fmt-diff.txt 2>&1; then
+            echo "::error::cargo fmt --check failed"
+            # The Actions log host is not reachable from every sandbox, so the real diff is
+            # surfaced through annotations (the only reliable channel).
+            # `tr` cannot do this: its second argument is a character *set*, so `tr '\n' '%0A'`
+            # would replace a newline with a bare `%`. The percent sign is encoded first so the
+            # escape sequences introduced afterwards are not encoded a second time.
+            sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g' fmt-diff.txt \
+              | head -c 60000 | sed 's/^/::error::fmt: /'
+            exit 1
+          fi
 
       - name: Clippy (deny warnings)
         run: cargo clippy --release --all-targets -- -D warnings
@@ -59,16 +71,16 @@ jobs:
           status=$?
           if [ $status -ne 0 ]; then
             echo "::error::pip install chess==1.11.2 failed"
-            tr '\n' '%0A' < pip-err.txt | head -c 3500 | sed 's/^/::error::pip: /'
+            sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' pip-err.txt | head -c 3500 | sed 's/^/::error::pip: /'
             exit $status
           fi
           "$PY" -c "import chess; print('::notice::chess', chess.__version__)"
-          for suite in scripts/test_match.py scripts/test_rating_estimator.py scripts/test_reduced_sample.py scripts/test_make_batch_dispatch.py scripts/test_power_analysis.py scripts/test_merge_batch_runs.py scripts/test_windows_artifact.py; do
+          for suite in scripts/test_match.py scripts/test_relative_benchmark.py scripts/test_rating_estimator.py scripts/test_reduced_sample.py scripts/test_make_batch_dispatch.py scripts/test_power_analysis.py scripts/test_merge_batch_runs.py scripts/test_windows_artifact.py scripts/test_aggregate_60.py scripts/test_analyze_game_losses.py scripts/test_benchmark_request_resolver.py scripts/test_diagnose_weaknesses.py scripts/test_mate_proof_classify.py scripts/test_probe_io.py scripts/test_recover_download.py scripts/test_run_table.py scripts/test_refresh_run_table.py scripts/test_adjudicate_traps.py; do
             if ! "$PY" "$suite" > suite-out.txt 2>&1; then
               echo "::error::$suite FAILED"
               # Surface the REAL diagnostic through annotations (logs are unreadable
               # from the dev sandbox; annotations API is the only reliable channel).
-              tail -c 3500 suite-out.txt | tr '\n' '%0A' | sed 's/^/::error::out: /'
+              tail -c 3500 suite-out.txt | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | sed 's/^/::error::out: /'
               exit 1
             fi
             tail -1 suite-out.txt | sed 's/^/::notice::ok: /'

@@ -571,3 +571,389 @@ The RATING-100 power assessment remains ENGINE-1-specific. Its screening inputs 
 - Therefore no hash is frozen by this entry. The local release SHA-256 of `000266e` (`0d9c508d…`, local build only) is NOT the hosted identity and is not recorded here as a freeze.
 - Consequences (unchanged): ENGINE-1 hash `9663697d…` and ENGINE-2 (SEE) hash `168dc0ab…` still describe the pre-CLOCK-1 binary. No screening, control, rating, or confirmatory game is authorized. The RATING-100 power guard continues to fail closed.
 - Next step, when the manifest is readable: take the SHA-256 of the `verify-flawless` binary from the exact-head anchor-verification run for the final head, append a new entry with that value, its run ID, and the source commit, and only then re-register screening on it.
+
+### ENGINE-3 binary identity freeze — the PR #6 candidate (2026-11-25, append-only)
+
+This entry performs the freeze the CLOCK-1 entry could not: the hosted binary SHA-256 is read from
+the `verify-flawless` job's `::notice::` **annotation** (the channel `anchor-verify.yml` documents
+for exactly this sandbox: "annotations (the sandbox cannot read artifacts)"). The earlier attempt
+looked at the check-run summary instead of the annotations endpoint and concluded the value was
+unreadable; the annotations endpoint (`/check-runs/{id}/annotations`) returns it.
+
+- Candidate: the PR #6 head (refined classical outpost term, explicit tempo semantics, `FLAWLESS_ABLATE`,
+  CLOCK-1 clock-floor fix included). The last change to `src/` is `98e5cd9`; the `src/` tree hash is
+  `daa6be83ad991ee16eb86986e9eaa676c9eea460`, and `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`
+  are unchanged across all heads from `98e5cd9` to the current head.
+- Verification run: `anchor-verify` run **45609388451**, job `verify-flawless` (139188650105),
+  annotation timestamp 2026-11-25T11:59:11Z. The job built the pull-request merge commit
+  `1de1e3e6ceae191cce138975396c07fddb95a478` of head `9a13b111`; `main` is still `6ab5b33` (the
+  branch's merge-base), so the merge tree equals the PR head tree and the build covers this
+  branch's engine exactly.
+- Build: `cargo build --release --locked`, image `ubuntu24 20261116.376.1`, rustc 1.99.0
+  (b940084d7), cargo 1.99.0, gcc 13.3.0 — identical flags and toolchain to the rating-run shard
+  builds (the same cross-run identity that the SCREEN-2 freeze verified for ENGINE-1).
+- **Binary SHA-256: `733de4e54f076fc4684ec0ad127975b526037fdedafa4fc15fc9bffccea1a407`.**
+- Fixed-depth-10 bench signature: `141943aa23b3fc68` (unchanged; `anchor-verify.yml` pins it).
+
+This freezes ENGINE-3. It supersedes ENGINE-1 (`9663697d…`, pre-CLOCK-1) and ENGINE-2 (`168dc0ab…`,
+pre-CLOCK-1) as the V1 gate candidate. Per the ENGINE-2 entry's dispatch restriction, ENGINE-1's
+CTRL-2-R / SCREEN-2R / SCREEN-3 evidence does NOT transfer to ENGINE-3; the candidate-specific
+controls and screenings below are registered first, and no confirmatory game is authorized until the
+ENGINE-3 power assessment is a reviewed, evidence-backed PASS.
+
+### CTRL-3 — self-match null control for ENGINE-3 (registered 2026-11-25, before dispatch)
+
+- **Purpose:** control (null control #2, candidate-specific per the ENGINE-2 restriction). Harness
+  symmetry with the ENGINE-3 binary both sides; CTRL-1 (anchor-vs-anchor) does not seat the candidate
+  and its existing PASS stands unchanged.
+- **Methodology:** ENGINE-3 (`733de4e5…`) both sides; 60 openings (batch-A suite `2c4a54d8…`) ×
+  2 paired reps × AB/BA = **240 games**; 120 shards × 2; TC 40/15; dispatch seed 20261210;
+  purpose `control`, batch `CTRL`, label `flawless-self-e3`; evidence dir
+  `benches/evidence/control/flawless-self-e3/`.
+- **Acceptance criterion (fixed, unchanged from CTRL-2-R):** seat-perspective score 0.5 within its
+  95% opening-cluster bootstrap CI (estimator seed 20261210); white-perspective score recorded for
+  transparency. Failure → investigate, record in FAILURE_LEDGER, never adjust the threshold.
+
+### SCREEN-E3-A / SCREEN-E3-B — candidate screenings on both registered suites (registered 2026-11-25, before dispatch)
+
+- **Purpose:** exploratory screening for ENGINE-3 only: measure the per-anchor opening-cluster
+  distributions, the variance decomposition (between-opening vs match noise), and the cross-anchor
+  cluster correlations **on both registered 60-opening suites**, so the prospective power assessment
+  covers the actual engine hash AND the disjoint A/B suites — the two inputs whose absence blocked
+  the ENGINE-1 assessment. NEVER gate evidence; used only for anchor selection and the power model.
+- **Methodology:** ENGINE-3 (`733de4e5…`) vs each of the three mechanically selected anchors
+  (`topple-0.1.1` 2324±17, `topple-0.2.1` 2439±14, `akimbo-0.1.1` 2441±19; frozen pool): 60 openings ×
+  1 paired rep × AB/BA = **120 games per run**; 60 shards × 2; TC 40/15; purpose `screening`, batch A
+  (suite `2c4a54d8…`) and batch B (suite `744a3981…`); labels `topple-0.1.1-e3`, `topple-0.2.1-e3`,
+  `akimbo-0.1.1-e3` (evidence under `benches/evidence/screening/<label>/`; the manifest records the
+  pool-key anchor binary hash). Six runs, six registered seeds: A1 20261211 (topple-0.1.1),
+  A2 20261212 (topple-0.2.1), A3 20261213 (akimbo-0.1.1), B1 20261214 (topple-0.1.1),
+  B2 20261215 (topple-0.2.1), B3 20261216 (akimbo-0.1.1).
+- **Acceptance:** all 120 attempted games counted per run (no engine errors); manifests hash-verified
+  on aggregation. Selection and power inputs only; never gate evidence.
+
+### Design research note (2026-11-25, pre-registered decision rule for the enlarged design)
+
+The ENGINE-1 sensitivity report showed the 100-game design (50 clusters × 2 games) is underpowered
+for the three strict lower-bound decisions at a 2,100 Elo alternative under variance stress. Measured
+inputs now available (ENGINE-1 screening evidence, recovered CTRL-2-R / SCREEN-3): cross-anchor
+cluster correlations 0.089–0.196 on the A suite; variance decomposition of 2-game cluster means shows
+match noise dominates (between-opening share 0 %, 9 % and 25 % for the three anchors), so additional
+paired repetitions shrink cluster-mean SD nearly as effectively as additional openings. The
+ENGINE-3 screenings above measure the same quantities on the actual candidate and both suites.
+
+**Pre-registered decision rule for the ENGINE-3 power assessment (fixed before its evidence is
+played):** among the candidate designs `{50 clusters × 1 rep (100 games), 60 × 1 (120), 60 × 2 (240),
+60 × 3 (360)} per anchor per batch on the registered suites (or the registered 50-opening subsets
+where noted), select the SMALLEST design whose simulated probability that **all three** lower-bound
+decisions pass (Batch A, Batch B, combined) is **≥ 0.80 at a true 2,100 Elo alternative under 1.5×
+cluster-SD inflation**, using the measured covariance and 250,000 deterministic Monte Carlo
+replicates. If no candidate reaches 0.80, the assessment stays BLOCKED and design research continues
+without weakening the CI level, the 2,000 threshold, the 40/15 time control or the null controls.
+Known intrinsic limitation to be reported with any PASS: power at alternatives below 2,100 is lower
+by construction; a true rating near the threshold can yield INCONCLUSIVE, which is fail-closed and
+never partial credit. The final evidence method remains the registered opening-cluster bootstrap,
+not this delta-method approximation.
+
+### SCREEN-E3 evidence-path clarification (2026-11-25, append-only)
+
+The six SCREEN-E3 dispatches label their A-suite and B-suite runs identically (`<pool key>-e3`).
+The in-run evidence job writes `benches/evidence/screening/<label>/` and refuses to overwrite, so
+the A-suite runs land there as registered, while the B-suite runs' evidence is collected through
+`benches/evidence-bridge` (revision 5) into `benches/evidence/screening-b/<label>/`. The games,
+shards and manifests are identical either way; only the committed directory differs. The power
+assessment consumes the two roots accordingly.
+
+### Game-analysis defect scan (2026-11-25, append-only)
+
+Method: replay every recorded 40/15 anchor game (SCREEN-2/SCREEN-3, 360 games) plus the CTRL-2-R
+self-matches (240); scan for (a) material given away at one-ply SEE with full recapture
+accounting, (b) mate-in-1 missed or allowed, (c) illegal moves/engine errors, (d) time-flag
+patterns and clock-at-end asymmetry, (e) fifty-move draws from positions of stable material
+advantage. Blunder candidates were cross-checked against BOTH the engine at depth 12+ AND the
+strong opponents' actual replies in the games. Findings and dispositions:
+
+1. **VERIFIED DEFECT — unbounded check extensions (fixed in 7ba0576).** `go depth` failed to
+   complete on queen-check endgames (depth 12 > 300 s on an 8-piece position; depth-8 tree 3.2M
+   nodes vs 49k at startpos; node curve ~5.5x per depth). Cause: the +1 check extension fired on
+   every evasion of a checking line with no per-line bound. Fix: per-line EXT_BUDGET = 3 (see
+   scripts/analyze_game_losses.py commit message and search.rs for the measured curve). All
+   registered tests and probes green after the fix. Superseding effect: the PR #6 candidate is
+   now ENGINE-4 (search change alters the bench signature and binary hash); ENGINE-3 stays frozen
+   for the in-flight campaign, whose runs pin their own dispatch commits.
+2. **Refuted — tactical blindness hypothesis.** The one-ply SEE flagged 90 "severe" hangs in
+   materially-equal positions; **the strong opponents collected 0 of 67 checked flags** (67/67
+   declined, e.g. a "hanging queen" that was poisoned). The engine's depth-12 judgments matched
+   the opponents' verdicts; the scanner's exchange model was the false-positive source. Tool
+   corrected (3-ply exchange simulation).
+3. **Refuted — mate-detection defect.** 0 missed mate-in-1 across 600+ recorded games; mate
+   probes (mate1 120/120, mate_distance mate-in-2 exact, negative_mate, multipv) green.
+4. **Refuted — time-manager defect.** The flag-era runs (screening-1 / control/flawless-self)
+   predate the registered CLOCK-1 budget; current clock behaviour verified (clock_sweep 60/60,
+   time_budget 8/8, selfplay 300/15000, screening-2/3 zero flags in 360 games). Flawless spends
+   the full period budget by design (soft = (t-reserve)/mtg).
+5. **Noted, strength-only — endgame conversion.** The 11 fifty-move draws vs akimbo had stable
+   material peaks of +0..+400cp (mostly +100..+350); no code defect found; consistent with
+   reduced endgame search depth (partially mitigated by finding 1).
+
+Registration: the ENGINE-4 candidate will be frozen after the full validation gate on the fixed
+tree; the per-engine campaign (CTRL-4 + SCREEN-E4-A/B + reviewed power assessment) is required
+before any confirmatory dispatch, exactly as for ENGINE-2/ENGINE-3 (per-engine hash restriction
+above). The design-decision rule (2026-11-25) is unchanged and will be applied to ENGINE-4's
+screening covariances.
+
+### ENGINE-4 freeze and campaign registrations (2026-11-25, append-only)
+
+**ENGINE-4 freeze.** The full validation gate on the fixed tree passed (52/52 steps, `FAILS=0`,
+record `benches/gate-c59da29/`; the search fix is `7ba0576` + `a33065e`, EXT_BUDGET=3 with the
+`ext_path` ply+1 hardening). Frozen identity, taken from the hosted `verify-flawless` annotation
+(check-run 139331041790, PR-head build of `c59da29`, image `ubuntu24 20261116.133.1`, rustc
+1.99.0 `b940084d7`):
+
+- bench signature: **`849a85bf7e8e1eba`** (the anchor-verify pin moved to this value in `c59da29`
+  as that workflow's contract requires);
+- release binary SHA-256: **`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`**
+  (ubuntu-24.04 runner build; the sandbox build `b63f5ad1…` differs in linker only and is not the
+  dispatch identity, exactly as for ENGINE-3's freeze).
+
+ENGINE-3's frozen identity (`733de4e5…` / `141943aa23b3fc68`) is unchanged and its in-flight
+campaign (CTRL-3 + SCREEN-E3-A/B, runs dispatched 2026-11-25) stays attributed to ENGINE-3. No
+ENGINE-3 evidence transfers to ENGINE-4: each engine's campaign stands on its own control,
+screening and reviewed power assessment (per-engine hash restriction above).
+
+**CTRL-4 (registered before dispatch).** Candidate-specific self-match null control for ENGINE-4:
+`benches/evidence/control/flawless-self-e4/`, batch `CTRL`, anchor `flawless-self-e4`,
+white = black = `flawless`, 60 openings x 2 paired repetitions x AB/BA = 240 counted games
+(120 shards x 2), suite `benches/rating-openings-batchA.txt`
+(`2c4a54d8…`), TC 40/15 (CLOCK-1), seed **20261217**, estimator seed 20261217. Acceptance:
+seat-perspective score 0.5 must lie inside the 95% opening-cluster bootstrap CI (the CTRL-2-R /
+CTRL-3 rule; ENGINE-3's CTRL-3 PASS would not transfer to this engine).
+
+**SCREEN-E4-A1/A2/A3 (registered before dispatch).** Screening versus the three calibrated
+anchors on suite A (`benches/rating-openings-batchA.txt`, `2c4a54d8…`): 60 openings x 2 paired
+repetitions x AB/BA = 120 counted games per anchor (60 shards x 2), TC 40/15 (CLOCK-1).
+Runs and labels:
+
+| dispatch | run | seed | label (in-run evidence dir) | anchor |
+|---|---|---|---|---|
+| SCREEN-E4-A1 | `topple-0.1.1` | 20261218 | `topple-0.1.1-e4` | `benches/evidence/screening/topple-0.1.1-e4/` |
+| SCREEN-E4-A2 | `topple-0.2.1` | 20261219 | `topple-0.2.1-e4` | `benches/evidence/screening/topple-0.2.1-e4/` |
+| SCREEN-E4-A3 | `akimbo-0.1.1` | 20261220 | `akimbo-0.1.1-e4` | `benches/evidence/screening/akimbo-0.1.1-e4/` |
+
+**SCREEN-E4-B1/B2/B3 (registered before dispatch).** The same three anchors on suite B
+(`benches/rating-openings-batchB.txt`, `744a3981…`), same shape, seeds **20261221 / 20261222 /
+20261223**, labels **`topple-0.1.1-e4b` / `topple-0.2.1-e4b` / `akimbo-0.1.1-e4b`**, in-run
+evidence at `benches/evidence/screening/<label>/`. Unlike SCREEN-E3 (whose A- and B-suite runs
+shared one label and forced the registered evidence-bridge into `screening-b/`), the SCREEN-E4
+B-suite runs carry their own `-e4b` labels, so each run's in-run evidence job writes its own
+directory and commits directly — the overwrite collision cannot occur and no bridge is needed.
+The games, shards and manifests are shaped exactly as the A-suite's; only the label (and hence
+the committed directory) differs. `scripts/power_analysis_v2.py` consumes the two roots through
+`--labels-a <…-e4>` / `--labels-b <…-e4b>` with `--engine-sha bbf9582d…` (Phase-2 generalization,
+commit `e717dc3`; fixture-tested, E3 path unchanged).
+
+**ENGINE-4 power assessment (registered invocation).** After the six SCREEN-E4 runs commit their
+evidence: `scripts/power_analysis_v2.py --engine-sha
+bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329 --labels-a topple-0.1.1-e4,
+topple-0.2.1-e4,akimbo-0.1.1-e4 --labels-b topple-0.1.1-e4b,topple-0.2.1-e4b,akimbo-0.1.1-e4b
+--kind "SCREEN-E4 (PREREGISTRATION.md, 2026-11-25)" --screening-b benches/evidence/screening
+--out benches/rating-100-power-assessment.json`. The registered decision rule is unchanged:
+smallest of {rating-100-v1 (50x1), rating-120-v1 (60x1), rating-240-v1 (60x2), rating-360-v1
+(60x3)} games/anchor/batch with simulated P(all three lower bounds > 2000) >= 0.80 at true 2,100
+under 1.5x cluster-SD inflation (250,000 deterministic replicates), else BLOCKED (no weakening of
+CI level, threshold, time control or null controls). The selected design is cross-checked against
+the ENGINE-3 SCREEN-E3 assessment; if the two disagree the larger design is taken and the
+disagreement is documented. The report's `approval` block stays `null` until a named reviewer
+records reviewer/reviewed_at/evidence_ref/decision_rule — the confirmatory dispatch gate enforces
+this.
+
+**Confirmatory gate (unchanged).** The Phase-5 dispatches (make_batch_dispatch.py, both suites,
+the selected design, `--hash bbf9582d…`) run only against an explicit frozen `--target-commit`
+that is at/after the approved power assessment (the resolve step refuses engine/harness/suite/
+pool/power drift between target and dispatch head). Acceptance: two-sided 95% opening-cluster
+bootstrap CI lower endpoint >= 2,000 Elo per batch AND combined; CTRL-4 self-match CI contains
+0.5; opponent-vs-opponent control within +/-75 of 0. Strict aggregation, committed reproducible
+evidence, fail closed — INCONCLUSIVE never counts as partial credit.
+
+
+### SCREEN-E3 bridge acceptance rule (2026-11-25, append-only)
+
+`evidence-bridge.yml`'s acceptance gate is sharpened to the condition the registered
+SCREEN-E3 B-suite collection actually needs: the run must be completed and **every shard job
+successful**; the run-level conclusion is no longer required to be `success`. Reason: the in-run
+aggregate job of a B-suite run fails on the overwrite refusal (its label's evidence directory
+already holds the A-suite run's committed evidence — the collision this bridge exists for), which
+would mark the whole run `failure` and lock its artifacts out of collection. The gate was a coarse
+pre-filter only: `scripts/aggregate_shards.py` inside the bridge re-verifies identity (engine /
+anchor SHA-256 against the frozen values), suite hash, time control, shard completeness and
+`merged_sha256` fail-closed on the raw shard artifacts, and refuses duplicate shard ids — those
+checks are the evidence guarantees and are unchanged. The B-suite evidence remains recorded only
+at `benches/evidence/screening-b/<label>/` via request revision 5, exactly as registered above.
+
+### SCREEN-E3 unadjudicated-game disposition (2026-11-26, append-only)
+
+Data-quality event: SCREEN-E3-A2 (`topple-0.2.1-e3`, run 45613353274) recorded one
+`move_cap_unadjudicated` attempt — schedule_index 10 (AB leg of the Petroff Defence pair), a
+600-ply shuffle into a locked opposite-colour-pawn structure with no claimable draw and **no
+engine errors** (all 120 attempts preserved; 119 counted). The registered harness policy is
+explicit: move-cap termination "is NOT a draw ... never silently scored" and unadjudicated
+records "remain uncounted"; its replay rules cover engine-error attempts only, so this slot is
+not recoverable by replay. The committed evidence is final and immutable.
+
+Disposition, fixed NOW and blind to every game outcome/score (decided purely on pair
+completeness, before any strength or variance number was computed):
+
+- **Complete-case cluster exclusion in the analysis layer.** Any opening cluster that lacks its
+  counted AB/BA pair in ANY screening input of a power assessment is excluded from ALL screening
+  inputs of that assessment (all labels, both batches). The exclusion is analysis-only: the
+  committed games.jsonl/manifest.json are never modified. `scripts/power_analysis_v2.py` enforces
+  this through required `--exclude-openings` (fail-loud if a listed opening matches no record),
+  and the report records the excluded openings and the per-input record counts.
+- Applied to the ENGINE-3 assessment: `--exclude-openings "Petroff Defence"` drops that cluster
+  from all six SCREEN-E3 inputs (the A2 file contributes its remaining 59 complete clusters; the
+  other five files lose their complete Petroff pair for cross-anchor cluster-set equality). The
+  design rule, CI level, 2,000 threshold, time control and null controls are unchanged; the
+  variance components are measured on 59 clusters.
+- The same rule governs SCREEN-E4 and any future campaign mechanically, whatever the outcome of
+  the affected games.
+
+### SCREEN-E3 disposition addendum (2026-11-27, append-only, factual clarification)
+
+Empirical clarification of the scope sentence above, established while executing the
+ENGINE-3 assessment (the operative rule is unchanged): suite B (744a3981...) contains
+"Petrov Cozio" and no "Petroff Defence" cluster - only suite A (2c4a54d8...) schedules
+"Petroff Defence". The exclusion therefore matches exactly 6 records (the three A-batch
+inputs' Petroff pairs; the A2 file's unadjudicated AB leg is not a counted record), the
+phrase "the other five files lose their complete Petroff pair" applies to the two OTHER
+A-batch files, and no B-batch record is affected. Cross-cluster-set equality holds within
+each batch (A labels: 59 clusters each, equal sets; B labels: 60 clusters each, equal
+sets); variance components are measured on 59 clusters for batch A and 60 for batch B.
+The registered wording "measured on 59 clusters" described the A-batch measurement.
+
+## Confirmatory anchor selection — ENGINE-4 (recorded 2026-11-27)
+
+`benches/gate-plan.json` applies the frozen BATCH-A/B anchor set rule
+(frozen 2026-11-14, unchanged) to the ENGINE-4 screening evidence:
+
+- screening estimate (selection-only): **2188.2** (pooled across the three
+  screening anchors' 120-game sets, batch A/B pairing);
+- per-anchor screening deltas: topple-0.1.1 -133.6, topple-0.2.1 -307.1,
+  akimbo-0.1.1 -198.7 (relative Elo, selection-only);
+- rule outcome: topple-0.2.1 (2439) and akimbo-0.1.1 (2441) are saturating
+  (|published - estimate| > 400) and excluded; the nearest compliant set with
+  the widest non-saturating discriminators is
+  **wowl-1.3.7, topple-0.1.1, wyldchess-1.1**.
+
+The confirmatory batches (sample design `rating-240-v1`: 60 opening clusters ×
+2 paired repetitions × AB/BA = 240 counted games per anchor per batch, TC 40/15
+wall-clock, dispatch seeds Batch A 20261121 / Batch B 20261122) run against
+that set. The gate plan binds engine
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`, the
+registered suite hashes (A `2c4a54d8…`, B `744a3981…`), threshold 2,000 with
+the strict two-sided 95% CI rule, and the ENGINE-4 controls (self-match
+`benches/evidence/control/flawless-self-e4`, anchor-vs-anchor
+`benches/evidence/control/topple-0.1.1-vs-topple-0.2.1`).
+
+### Campaign target re-freeze (recorded 2026-11-27)
+
+The confirmatory campaign target commit is **`cb7242c`** (refined-head
+precedent, PREREGISTRATION 2026-11-26): between the ENGINE-4 freeze
+`dd3dff2` and `cb7242c` the engine source (`src/`, `Cargo.toml`, `Cargo.lock`)
+and the in-game harness (`scripts/match.py`) are **byte-identical**, so the
+built binary is unchanged and hash-enforced as
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`; the
+differences are reviewed measurement-tooling fixes (power model hardening,
+merge/dispatch validation, evidence-bridge pagination — CodeRabbit review
+2026-11-27, commits `3b33f85`/`27080ce`/`cb7242c`) and recomputed power
+reports. The rating-run drift check pins `scripts/` and the registered reports
+between target and dispatch head, so no further tooling changes may land
+during the campaign without a new re-freeze record.
+
+## Rating-100 amendment 2026-11-28 (evening): §8.3 replacement anchors for the boundary/saturated exclusion
+
+Date registered: **2026-11-28, before any replacement dispatch** (append-only;
+supersedes nothing above — the frozen selection text governs the original
+confirmatory selection and remains valid history).
+
+**Registered gate outcome on the completed six-set evidence.** The ENGINE-4
+confirmatory gate was run under the registered §8.2/§8.3/§9.4 exclusion
+semantics (estimator conformance fix `59850b2`, regression suite
+`test_rating_estimator.py` 95 checks including reproductions of the prior
+die-on-boundary crash). Result: `benches/evidence/rating-gate/gate-2026-11-28-exclusion-semantics.json`
+— **FAIL, exactly one check: ">= 3 gate-eligible anchors"**:
+
+| batch/anchor | counted | score | d (flawless − anchor) | status |
+|---|---|---|---|---|
+| A / wowl-1.3.7 | 240 | 240/240 | boundary s=1.000 | **excluded** §8.3/§9.4 |
+| B / wowl-1.3.7 | 240 | 238.5/240 | +880.6 | **excluded** §8.2 saturated |
+| A / topple-0.1.1 | 240 | 74.5/240 | −139.2 | eligible |
+| B / topple-0.1.1 | 240 | 66/240 | −167.2 | eligible |
+| A / wyldchess-1.1 | 240 | 197.5/240 | +267.4 | eligible |
+| B / wyldchess-1.1 | 240 | 187/240 | +218.2 | eligible |
+
+All unrounded calibrated CI lower bounds cleared 2000 (A 2359.49, B 2261.16,
+combined 2325.83) and both registered null controls passed (anchor-vs-anchor
+err −10.32 within ±75; self-match CI [0.4375, 0.51875] ∋ 0.5). Jointly
+gate-eligible anchors: topple-0.1.1, wyldchess-1.1 — **2 < 3**.
+
+**Root-cause record (defect-scan category (d): time-flag patterns).** The
+boundary anomaly is driven by opponent time-forfeits: 224/240 (A) and 220/240
+(B) wowl games and 192/240 (A) and 185/240 (B) wyldchess games ended by flag
+at plies 79–95 (median 84–87, the second 40-move period boundary), with zero
+Flawless-side flags anywhere, zero flags in all 480 topple-0.1.1 games, and
+zero flags in the self-match controls. Flawless ends games at a median 0.3–3 s
+reserve by its registered clock budgeting (CLOCK-1, reserve floor 300 ms);
+wowl/wyldchess exhaust the full 40/15 repeating clock. Non-flag (on-board)
+scores: A/wowl 16/16, B/wowl 18.5/20, A/wyld 5.5/48, B/wyld 2/55. Time-forfeits
+are counted results under the registered adjudication rules; no post-hoc
+exclusion mechanism is invented. The pattern is recorded as a validity
+finding, reported here and in the PR discussion.
+
+**Registered recovery (RATING_PROTOCOL §8.3/§9.4: exclude and replace with a
+nearer calibrated anchor; never clamp; fresh pre-registered evidence).**
+wowl-1.3.7 is replaced in the ENGINE-4 rating gate by the two nearest
+calibrated pool anchors that have no flag pathology (2026-11-25 screening:
+zero flag ends in 120-game screenings each):
+
+- **topple-0.2.1** (published 2439 ± 14, ci95; §2 verified: MIT,
+  `binary_sha256_verified`, exact id mapping);
+- **akimbo-0.1.1** (published 2441 ± 19, ci95; §2 verified: MIT,
+  `binary_sha256_verified`, exact id mapping).
+
+The 2026-11-14 selection rule excluded them as saturating *relative to the
+pre-campaign screening estimate*; §8.3's registered replacement mechanism is
+defined against the **current** estimate (combined θ̂ ≈ 2326, all eligible
+per-anchor absolutes 2098–2692), where 2439/2441 are the nearest calibrated
+anchors in the pool. Both are added; either alone would restore the ≥3 design
+requirement, both are registered for robustness against a further exclusion.
+
+**Design (unchanged parameters):** sample design `rating-240-v1` (60 opening
+clusters × 2 paired repetitions × AB/BA = 240 counted games per anchor per
+batch), TC 40/15 wall-clock, engine
+`bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329`
+(ENGINE-4, source `src/` byte-identical since `cb7242c` — no engine change),
+batch seeds A 20261121 / B 20261122 on the registered suites (A `2c4a54d8…`,
+B `744a3981…`). Total: 4 sets × 240 = 960 counted games. Repetition of any
+counted slot is forbidden; recovery only for genuinely missing indices.
+
+**Validity reporting (registered before dispatch; NOT an outcome filter):**
+each replacement set will report its flag-end rate and clock-at-end
+distributions alongside the gate (screening expectation ≤ 10 flag ends per 120
+games, the ENGINE-1 SCREEN-2 acceptance line); deviations are documented in
+the PR discussion without altering counted results.
+
+**Re-freeze note.** The replacement campaign's measurement identity is the
+same engine and the same in-game harness (`scripts/match.py` byte-identical to
+`cb7242c`); the scripts tree at dispatch-target additionally carries the
+reviewed Phase E/F measurement-tooling fixes (`dd16276`) and the estimator's
+§8.2/§8.3/§9.4 conformance fix (`59850b2`), both with regression suites. The
+dispatch target commit is the commit registering this amendment; the
+rating-run drift check covers `src`, `Cargo.*`, `scripts/`, the pool and the
+registered opening suites.
+
+**Gate re-run.** After all four sets are committed, the gate re-runs over
+wowl-1.3.7 (reported, excluded), topple-0.1.1, wyldchess-1.1, topple-0.2.1,
+akimbo-0.1.1 with the unchanged rule: unrounded `ci95_calibrated[0] > 2000`
+for batch A, batch B, combined, and both registered controls, with ≥3 jointly
+gate-eligible anchors. Thresholds, suites, schedules, seeds and sample sizes
+are unchanged.

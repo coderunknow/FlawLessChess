@@ -1,0 +1,386 @@
+name: Relative strength benchmark
+
+on:
+  pull_request:
+    branches: [main]
+  # Deliberate dispatch for the extended tournament: moving the request marker in a push on the
+  # work branch starts it. The marker is the dispatch record (profile, seed, requester) and it
+  # travels with the evidence, so the run is reproducible from the branch history alone.
+  push:
+    branches: ["arena/**"]
+    paths: ["benches/benchmark-request.json"]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "quick PR regression screen or extended paired tournament"
+        required: true
+        type: choice
+        options: [quick, extended]
+        default: quick
+      seed:
+        description: "Opening-order shuffle seed (extended runs use seed, seed+1, seed+2)"
+        required: true
+        type: string
+        default: "20261124"
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+# Relative baseline fixed to the verified pre-PR #6 main tip. Do not silently track main:
+# advancing this SHA changes the comparison and requires a documented benchmark amendment.
+env:
+  BASELINE_SHA: 6ab5b3349264c6c0a740c433ce454f8e1fed698a
+  CARGO_TERM_COLOR: always
+
+jobs:
+  request:
+    name: Resolve the benchmark request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      profile: ${{ steps.resolve.outputs.profile }}
+      seed: ${{ steps.resolve.outputs.seed }}
+      variants: ${{ steps.resolve.outputs.variants }}
+      suites: ${{ steps.resolve.outputs.suites }}
+    steps:
+      - name: Check out the exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: resolve
+        name: Resolve profile, seed and ablation variants
+        env:
+          # The dispatch inputs are untrusted text. They are passed as environment values, never
+          # interpolated into the shell source, so an input can never become a command.
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PROFILE: ${{ inputs.profile }}
+          INPUT_SEED: ${{ inputs.seed }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            case "$INPUT_PROFILE" in
+              quick|screen|extended) ;;
+              *) echo "invalid profile: $INPUT_PROFILE" >&2; exit 2 ;;
+            esac
+            case "$INPUT_SEED" in
+              ''|*[!0-9]*) echo "invalid seed: $INPUT_SEED" >&2; exit 2 ;;
+            esac
+            printf 'profile=%s\n' "$INPUT_PROFILE" >> "$GITHUB_OUTPUT"
+            printf 'seed=%s\n' "$INPUT_SEED" >> "$GITHUB_OUTPUT"
+            printf 'variants=[{"name":"full","ablate":""}]\n' >> "$GITHUB_OUTPUT"
+            # The quick profile is the 20-opening screen. The screen and extended profiles are
+            # the 100-opening tournament and are frozen to the two batch suites, so a manual
+            # dispatch measures the same openings as a dispatched one.
+            if [ "$INPUT_PROFILE" = "quick" ]; then
+              printf 'suites=benches/openings-20.txt\n' >> "$GITHUB_OUTPUT"
+            else
+              printf 'suites=benches/rating-openings-100-batchA.txt,benches/rating-openings-100-batchB.txt\n' \
+                >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "push" ]; then
+            python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          req = json.load(open("benches/benchmark-request.json"))
+          if req.get("schema") != 1:
+              raise SystemExit("benchmark-request schema must be 1")
+          profile = req.get("profile")
+          if profile not in ("quick", "screen", "extended"):
+              raise SystemExit(f"unknown benchmark profile: {profile!r}")
+          seed = int(req.get("seed"))
+          variants = req.get("variants") or [{"name": "full", "ablate": ""}]
+          for variant in variants:
+              if not isinstance(variant, dict) or "name" not in variant:
+                  raise SystemExit("every variant needs a name")
+              variant.setdefault("ablate", "")
+          suites = req.get("opening_suites") or ["benches/openings-20.txt"]
+          if not isinstance(suites, list) or not suites:
+              raise SystemExit("opening_suites must be a non-empty list")
+          if profile == "extended":
+              # The extended job runs the full candidate and nothing else: it does not consume
+              # the variants, and it does not consume the suites. A request that asks for
+              # something the job would ignore is rejected here rather than measured wrongly.
+              if len(variants) != 1 or variants[0].get("name") != "full" or variants[0].get("ablate", ""):
+                  raise SystemExit(
+                      "the extended profile runs the full candidate only; it does not support "
+                      "ablation variants"
+                  )
+              if suites != ["benches/rating-openings-100-batchA.txt", "benches/rating-openings-100-batchB.txt"]:
+                  raise SystemExit(
+                      "the extended profile is frozen to the two batch opening suites; "
+                      f"got {suites!r}"
+                  )
+          print(f"profile={profile}")
+          print(f"seed={seed}")
+          print("suites=" + ",".join(suites))
+          print("variants=" + json.dumps(variants, separators=(",", ":")))
+          PY
+            exit 0
+          fi
+          printf 'profile=quick\n' >> "$GITHUB_OUTPUT"
+          printf 'seed=20261124\n' >> "$GITHUB_OUTPUT"
+          printf 'variants=[{"name":"full","ablate":""}]\n' >> "$GITHUB_OUTPUT"
+          printf 'suites=benches/openings-20.txt\n' >> "$GITHUB_OUTPUT"
+
+  quick:
+    name: Quick paired engine match (${{ matrix.variant.name }})
+    needs: request
+    # The quick profile is a cheap regression screen, so it runs on every pull request of this
+    # repository. It is not a strength measurement: a 40-game fixed-movetime match swings by tens
+    # of points between runs of an unchanged engine, so the screen only detects gross regressions.
+    # Pull requests from forks are excluded: the job checks out the pull request's own code and
+    # runs it, and the job holds a pull-requests: write token, so untrusted code from another
+    # repository must not be able to run here.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch' && inputs.profile == 'quick' || github.event_name == 'push' && (needs.request.outputs.profile == 'quick' || needs.request.outputs.profile == 'screen')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.request.outputs.variants) }}
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      QUICK_SEED: ${{ needs.request.outputs.seed }}
+      # The ablation switch is honoured by the candidate only: the pinned baseline predates the
+      # module and ignores the variable, so the baseline always plays as it always did.
+      FLAWLESS_ABLATE: ${{ matrix.variant.ablate }}
+      QUICK_SUITES: ${{ needs.request.outputs.suites }}
+      QUICK_PROFILE: ${{ needs.request.outputs.profile }}
+    steps:
+      - name: Check out exact candidate PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Check out pinned baseline source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline-src
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # pinned from master on 2026-11-20
+        with:
+          toolchain: 1.99.0
+
+      - name: Set up Python and install the pinned referee
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check chess==1.11.2
+
+      - name: Record compiler and source identities
+        run: |
+          rustc -vV
+          cargo --version
+          printf 'candidate_sha=%s\nbaseline_sha=%s\n' "$CANDIDATE_SHA" "$BASELINE_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git -C baseline-src rev-parse HEAD)" = "$BASELINE_SHA"
+
+      - name: Build candidate release binary
+        run: cargo build --release --locked
+
+      - name: Build baseline release binary with a separate target directory
+        run: cargo build --release --locked --manifest-path baseline-src/Cargo.toml
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/baseline-target
+
+      - name: Verify binary hashes and run 20 paired openings (40 real UCI games)
+        run: |
+          set -euo pipefail
+          sha256sum target/release/flawless "${RUNNER_TEMP}/baseline-target/release/flawless"
+          case "$QUICK_SEED" in *[!0-9]*|'') echo "invalid seed: $QUICK_SEED"; exit 2 ;; esac
+          suite_args=()
+          IFS=',' read -ra suites <<< "$QUICK_SUITES"
+          for suite in "${suites[@]}"; do
+            suite_args+=(--opening-suite "$suite")
+          done
+          python scripts/relative_benchmark.py run \
+            --profile "$QUICK_PROFILE" \
+            --candidate "$PWD/target/release/flawless" \
+            --baseline "${RUNNER_TEMP}/baseline-target/release/flawless" \
+            "${suite_args[@]}" \
+            --seed "$QUICK_SEED" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --baseline-sha "$BASELINE_SHA" \
+            --out "benchmark-output/quick-${GITHUB_RUN_ID}-${{ matrix.variant.name }}"
+
+      - name: Publish the benchmark summary (job summary and pull request comment)
+        if: always()
+        # The publish step never decides the outcome of the job: when the benchmark itself failed
+        # there is no summary to publish, and the benchmark step already reported the failure.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          python scripts/publish_benchmark_summary.py \
+            --summary "benchmark-output/quick-${GITHUB_RUN_ID}-${{ matrix.variant.name }}/summary.json" \
+            --title "Relative engine benchmark — quick profile, variant ${{ matrix.variant.name }} (seed ${QUICK_SEED})"
+
+      - name: Preserve raw games, PGN, suite and summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relative-strength-quick-${{ github.run_id }}-${{ matrix.variant.name }}
+          path: benchmark-output/quick-${{ github.run_id }}-${{ matrix.variant.name }}/
+          if-no-files-found: warn
+          retention-days: 90
+
+  extended:
+    name: Extended paired engine match (replicate ${{ matrix.replicate }})
+    needs: request
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'extended' || github.event_name == 'push' && needs.request.outputs.profile == 'extended'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        replicate: [1, 2, 3]
+    env:
+      CANDIDATE_SHA: ${{ github.sha }}
+      SEED_BASE: ${{ needs.request.outputs.seed }}
+      RUN_INDEX: ${{ matrix.replicate }}
+    steps:
+      - name: Check out exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check out pinned baseline source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          path: baseline-src
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # pinned from master on 2026-11-20
+        with:
+          toolchain: 1.99.0
+
+      - name: Set up Python and install the pinned referee
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check chess==1.11.2
+
+      - name: Verify exact source identities
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git -C baseline-src rev-parse HEAD)" = "$BASELINE_SHA"
+          rustc -vV
+          cargo --version
+
+      - name: Build candidate release binary
+        run: cargo build --release --locked
+
+      - name: Build baseline release binary with a separate target directory
+        run: cargo build --release --locked --manifest-path baseline-src/Cargo.toml
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/baseline-target
+
+      - name: Run 100 paired openings (200 real UCI games) for this independent seed
+        env:
+          # The suites come from the resolved request, so the run measures exactly the openings
+          # that were requested. The resolver rejects an extended request that names any other
+          # suites, because the extended profile is a frozen tournament.
+          EXTENDED_SUITES: ${{ needs.request.outputs.suites }}
+        run: |
+          set -euo pipefail
+          case "$SEED_BASE" in *[!0-9]*|'') echo "invalid seed: $SEED_BASE"; exit 2 ;; esac
+          seed=$((SEED_BASE + RUN_INDEX - 1))
+          suite_args=()
+          IFS=',' read -ra suites <<< "$EXTENDED_SUITES"
+          for suite in "${suites[@]}"; do
+            suite_args+=(--opening-suite "$suite")
+          done
+          if [ "${#suite_args[@]}" -eq 0 ]; then echo "no opening suites resolved" >&2; exit 2; fi
+          sha256sum target/release/flawless "${RUNNER_TEMP}/baseline-target/release/flawless"
+          python scripts/relative_benchmark.py run \
+            --profile extended \
+            --candidate "$PWD/target/release/flawless" \
+            --baseline "${RUNNER_TEMP}/baseline-target/release/flawless" \
+            "${suite_args[@]}" \
+            --seed "$seed" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --baseline-sha "$BASELINE_SHA" \
+            --out "benchmark-output/extended-${RUN_INDEX}"
+
+      - name: Preserve raw games, PGN, suite and summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relative-strength-extended-${{ github.run_id }}-${{ matrix.replicate }}
+          path: benchmark-output/extended-${{ matrix.replicate }}/
+          if-no-files-found: warn
+          retention-days: 90
+
+  extended-aggregate:
+    name: Extended aggregate (opening-clustered inference)
+    if: always() && (github.event_name == 'workflow_dispatch' && inputs.profile == 'extended' || github.event_name == 'push' && needs.request.outputs.profile == 'extended')
+    needs: [request, extended]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out candidate benchmark tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python and install the pinned referee
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check chess==1.11.2
+
+      - name: Download all extended replicate evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: relative-strength-extended-${{ github.run_id }}-*
+          path: benchmark-artifacts
+          merge-multiple: false
+
+      - name: Validate provenance and aggregate by opening cluster
+        env:
+          SEED_BASE: ${{ needs.request.outputs.seed }}
+        run: |
+          set -euo pipefail
+          case "$SEED_BASE" in *[!0-9]*|'') echo "invalid seed: $SEED_BASE"; exit 2 ;; esac
+          bootstrap_seed=$((SEED_BASE + 1000))
+          python scripts/relative_benchmark.py aggregate \
+            --runs-root benchmark-artifacts \
+            --out benchmark-aggregate \
+            --bootstrap-seed "$bootstrap_seed"
+
+      - name: Publish the pooled result (job summary and pull request comment)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+          # Step-level env does not carry over from the aggregation step, so the seed base has to be
+          # given to this step explicitly for the published title to name the real seed range.
+          SEED_BASE: ${{ needs.request.outputs.seed }}
+        run: |
+          python scripts/publish_benchmark_summary.py \
+            --summary benchmark-aggregate/aggregate-summary.json \
+            --title "Relative engine benchmark — extended profile (3 replicates, seeds ${SEED_BASE}..$((SEED_BASE+2)))"
+
+      - name: Preserve pooled result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relative-strength-extended-aggregate-${{ github.run_id }}
+          path: benchmark-aggregate/
+          if-no-files-found: warn
+          retention-days: 90

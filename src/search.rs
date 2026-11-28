@@ -15,6 +15,17 @@ use crate::eval::{
     ClassicalEvaluator, Evaluator, DRAW_SCORE, INF_SCORE, MATE_SCORE, PIECE_VALUE_MG,
 };
 use crate::movegen::{generate_legal, in_check};
+
+/// Maximum check extensions granted along one search line. Check evasions extend the horizon by
+/// one ply so forcing defence lines cannot hide at the tree edge; without a bound, a perpetual
+/// check chain extends on every evasion and the tree grows at its full branching factor instead
+/// of shrinking with depth (measured: 3.2M nodes at depth 8 in a KQ-vs-KR check endgame vs 146k
+/// with extensions disabled). The budget of 3 comes from the measured node curve on that
+/// reference position (budget 0/1/2/3/4/6 = 146k/330k/993k/1.34M/2.99M/6.56M nodes at depth 8):
+/// it is the largest value that keeps the tree near-linear while covering the deepest registered
+/// mate/claim sequences (mate-in-3 with quiet evasions, F-44/F-59/F-61, and the fifty-move claim
+/// tests), keeping every line within the nominal depth plus three plies.
+const EXT_BUDGET: i32 = 3;
 use crate::position::Position;
 use crate::tt::{TranspositionTable, BOUND_EXACT, BOUND_LOWER, BOUND_UPPER};
 use crate::types::*;
@@ -24,10 +35,8 @@ use std::time::Instant;
 
 pub const MAX_PLY: i32 = 128;
 const MATE_BOUND: i32 = MATE_SCORE - 100;
-/// Predicted duration of the next iteration = last iteration time * this factor (R-08).
-/// Measured overspend without prediction was ~1.7x the soft budget; iteration times grow
-/// roughly 2-4x per ply, so 3 is the conservative middle. Tunable.
-const SOFT_GROWTH_FACTOR: u64 = 3;
+#[allow(dead_code)]
+const SOFT_GROWTH_FACTOR: u64 = 6;
 
 #[derive(Clone)]
 pub struct SearchLimits {
@@ -94,6 +103,14 @@ pub struct Searcher<'a> {
     limits: Arc<Mutex<SearchLimits>>,
     eval: ClassicalEvaluator,
     killers: [[Option<Move>; 2]; MAX_PLY as usize],
+    /// Counter move heuristic: counters[side][opponent_from * 64 + opponent_to] stores the move
+    /// that most recently caused a fail-high in reply to the opponent's move from/to.
+    /// A counter move is ordered just above killers and below good captures.
+    counters: [[Option<Move>; 64 * 64]; 2],
+    /// Ablation mask captured at construction time (see `crate::ablation`). The counter-move
+    /// heuristic is switched off completely when its bit is set: nothing is recorded and nothing
+    /// is ordered above the killers.
+    ablate: u32,
     history: [[i32; 64 * 64]; 2],
     lmr: [[i32; 256]; MAX_PLY as usize + 1],
     nodes: u64,
@@ -110,6 +127,10 @@ pub struct Searcher<'a> {
     /// Null-move descendants are hypothetical positions, not a legal game path. Repetition
     /// adjudication must not use the game/search history while this flag is set (F-53).
     null_move_search: bool,
+    /// Check extensions consumed along the current search line, indexed by ply. `ext_path[ply]`
+    /// counts every extension granted to reach this node; a node may extend only while the total
+    /// stays under [`EXT_BUDGET`] (bounded-extension rule, see that constant).
+    ext_path: [i32; MAX_PLY as usize + 1],
 }
 
 impl<'a> Searcher<'a> {
@@ -128,11 +149,14 @@ impl<'a> Searcher<'a> {
             limits,
             eval: ClassicalEvaluator,
             killers: [[None; 2]; MAX_PLY as usize],
+            counters: [[None; 64 * 64]; 2],
+            ablate: crate::ablation::mask(),
             history: [[0; 64 * 64]; 2],
             lmr: build_lmr_table(),
             nodes: 0,
             node_cap,
             seldepth: 0,
+            ext_path: [0; MAX_PLY as usize + 1],
             start: Instant::now(),
             root_moves: None,
             root_best: None,
@@ -236,13 +260,31 @@ impl<'a> Searcher<'a> {
         self.eval.evaluate(pos)
     }
 
-    fn move_order_score(&self, pos: &Position, m: Move, tt_move: Option<Move>, ply: usize) -> i32 {
+    fn move_order_score(
+        &self,
+        pos: &Position,
+        m: Move,
+        tt_move: Option<Move>,
+        ply: usize,
+        prev_move: Option<Move>,
+    ) -> i32 {
         if let Some(tm) = tt_move {
             if m == tm {
                 return 1_000_000;
             }
         }
         let us = pos.side;
+        // Counter move: our best response to the opponent's last move. Ordered just above
+        // killers, below good captures. Switched off entirely when ablated.
+        if (self.ablate & crate::ablation::COUNTER_MOVE) == 0 {
+            if let Some(pm) = prev_move {
+                if let Some(counter) = self.counters[us][pm.from as usize * 64 + pm.to as usize] {
+                    if m == counter {
+                        return 92_000;
+                    }
+                }
+            }
+        }
         let is_cap = is_capture(pos, m);
         if is_cap {
             let see = static_exchange_eval(pos, m);
@@ -280,9 +322,10 @@ impl<'a> Searcher<'a> {
         moves: &mut MoveList,
         tt_move: Option<Move>,
         ply: usize,
+        prev_move: Option<Move>,
     ) {
         for i in 0..moves.len {
-            moves.scores[i] = self.move_order_score(pos, moves.moves[i], tt_move, ply);
+            moves.scores[i] = self.move_order_score(pos, moves.moves[i], tt_move, ply, prev_move);
         }
         // Stable insertion sort by descending score (lists are short; branch-friendly). Equal
         // scores are ordered by a colour-relative key (S-14), not by generation order: generation
@@ -317,6 +360,7 @@ impl<'a> Searcher<'a> {
     ) -> SearchResult {
         self.tt.new_search();
         self.killers = [[None; 2]; MAX_PLY as usize];
+        self.counters = [[None; 64 * 64]; 2];
         self.root_best = None;
         for side in 0..2 {
             for v in self.history[side].iter_mut() {
@@ -374,7 +418,6 @@ impl<'a> Searcher<'a> {
             if depth > max_depth {
                 break;
             }
-            let iter_begin = self.budget_ms(&self.lim());
             // aspiration window after depth 5
             let (mut alpha, mut beta) = if depth >= 6 {
                 (prev_score - 25, prev_score + 25)
@@ -404,7 +447,7 @@ impl<'a> Searcher<'a> {
                 completed = true;
             } else {
                 loop {
-                    let score = self.search(pos, depth, alpha, beta, 0);
+                    let score = self.search(pos, depth, alpha, beta, 0, None);
                     if self.stop.load(Ordering::Relaxed) {
                         break;
                     }
@@ -450,16 +493,13 @@ impl<'a> Searcher<'a> {
             if multi_pv == 1 && !self.lim().infinite && best.score_cp >= MATE_SCORE - 1 {
                 break;
             }
-            // Soft budget (R-08): stop before an iteration that is predicted to overrun it.
-            // Completed iterations are always kept; the hard limit still applies inside the tree.
+            // Soft budget (R-08): stop once the soft budget is reached. Completed iterations
+            // are always kept; the hard limit still caps worst-case overspend inside the tree.
+            // The former predictive stop (next-iteration time * growth factor) left most of the
+            // clock unused on short time controls — e.g. only 116 ms of a 234 ms soft budget at
+            // 10 s. Removing it lets the search use closer to its full allocation.
             let l = self.lim();
-            let now = self.budget_ms(&l);
-            let iter_ms = now.saturating_sub(iter_begin);
-            // For a fixed movetime the soft budget equals the time to spend, so only the
-            // deadline itself ends the search; the growth prediction would stop it early.
-            let predicted_overrun = !l.fixed_time
-                && now.saturating_add(iter_ms.saturating_mul(SOFT_GROWTH_FACTOR)) > l.soft_ms;
-            if !l.infinite && (self.soft_ms_reached() || predicted_overrun) {
+            if !l.infinite && self.soft_ms_reached() {
                 break;
             }
             depth += 1;
@@ -486,7 +526,8 @@ impl<'a> Searcher<'a> {
                 break;
             }
             let undo = pos.make_move(rm);
-            let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1);
+            self.ext_path[1] = 0;
+            let mut score = -self.search(pos, depth - 1, -INF_SCORE, INF_SCORE, 1, Some(rm));
             pos.unmake_move(rm, &undo);
             if root_fifty_claim && score < DRAW_SCORE {
                 score = DRAW_SCORE;
@@ -552,7 +593,15 @@ impl<'a> Searcher<'a> {
         pv
     }
 
-    fn search(&mut self, pos: &mut Position, depth: i32, alpha: i32, beta: i32, ply: i32) -> i32 {
+    fn search(
+        &mut self,
+        pos: &mut Position,
+        depth: i32,
+        alpha: i32,
+        beta: i32,
+        ply: i32,
+        prev_move: Option<Move>,
+    ) -> i32 {
         if self.node_cap_reached() {
             return alpha;
         }
@@ -567,6 +616,10 @@ impl<'a> Searcher<'a> {
         if ply >= MAX_PLY {
             return self.static_eval(pos);
         }
+        if ply == 0 {
+            self.ext_path[0] = 0;
+        }
+        let ext_used = self.ext_path[ply as usize];
         // Draw rules (FIDE 5.2.2 / 9.2 / 9.3), applied in the order the rules require:
         //  * insufficient material: a certain draw at every node below the root. The root
         //    searches its moves like the repetition rule below, so it always yields a PV and a
@@ -667,7 +720,15 @@ impl<'a> Searcher<'a> {
             let reduction = 2 + depth / 4;
             let was_null_move_search = self.null_move_search;
             self.null_move_search = true;
-            let score = -self.search(pos, depth - 1 - reduction, -beta, -beta + 1, ply + 1);
+            self.ext_path[(ply + 1) as usize] = ext_used;
+            let score = -self.search(
+                pos,
+                depth - 1 - reduction,
+                -beta,
+                -beta + 1,
+                ply + 1,
+                None, // null move is not a real opponent move
+            );
             self.null_move_search = was_null_move_search;
             pos.unmake_null_move(prev_ep, prev_ep_included);
             if self.stop.load(Ordering::Relaxed) {
@@ -701,12 +762,17 @@ impl<'a> Searcher<'a> {
             }
         }
 
-        self.order_and_score(pos, &mut moves, tt_move, ply as usize);
+        self.order_and_score(pos, &mut moves, tt_move, ply as usize, prev_move);
 
         let mut best_score = -INF_SCORE;
         let mut best_move: Option<Move> = None;
 
-        let extension = if in_chk { 1 } else { 0 };
+        let extension = if in_chk && ext_used < EXT_BUDGET {
+            1
+        } else {
+            0
+        };
+        self.ext_path[(ply + 1) as usize] = ext_used + extension;
 
         let mut quiet_tried: [Move; 32] = [Move::NULL; 32];
 
@@ -744,7 +810,7 @@ impl<'a> Searcher<'a> {
             }
 
             let score = if searched_count == 0 {
-                -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1)
+                -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1, Some(m))
             } else {
                 let mut s = -self.search(
                     pos,
@@ -752,12 +818,20 @@ impl<'a> Searcher<'a> {
                     -alpha - 1,
                     -alpha,
                     ply + 1,
+                    Some(m),
                 );
                 if reduction > 0 && s > alpha {
-                    s = -self.search(pos, depth - 1 + extension, -alpha - 1, -alpha, ply + 1);
+                    s = -self.search(
+                        pos,
+                        depth - 1 + extension,
+                        -alpha - 1,
+                        -alpha,
+                        ply + 1,
+                        Some(m),
+                    );
                 }
                 if s > alpha && s < beta {
-                    s = -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1);
+                    s = -self.search(pos, depth - 1 + extension, -beta, -alpha, ply + 1, Some(m));
                 }
                 s
             };
@@ -778,6 +852,14 @@ impl<'a> Searcher<'a> {
                     let ply_idx = ply as usize;
                     self.killers[ply_idx][1] = self.killers[ply_idx][0];
                     self.killers[ply_idx][0] = Some(m);
+                    // Counter move: our move m caused a fail-high in reply to the opponent's
+                    // previous move. Store it so we can try it first next time we face that move.
+                    if (self.ablate & crate::ablation::COUNTER_MOVE) == 0 {
+                        if let Some(pm) = prev_move {
+                            self.counters[pos.side][pm.from as usize * 64 + pm.to as usize] =
+                                Some(m);
+                        }
+                    }
                     let h = &mut self.history[pos.side][(m.from as usize) * 64 + m.to as usize];
                     *h = (*h + depth * depth).min(100_000);
                     for q in quiet_tried.iter() {
@@ -941,7 +1023,7 @@ impl<'a> Searcher<'a> {
             }
             moves.len = j;
         }
-        self.order_and_score(pos, &mut moves, None, ply as usize);
+        self.order_and_score(pos, &mut moves, None, ply as usize, None);
 
         for i in 0..moves.len {
             let m = moves.moves[i];
@@ -1306,7 +1388,7 @@ mod draw_rule_tests {
         let stop = AtomicBool::new(false);
         let limits = Arc::new(Mutex::new(SearchLimits::default()));
         let mut searcher = Searcher::new(&mut tt, &stop, limits);
-        let _ = searcher.search(&mut pos, 2, -100, -99, 1);
+        let _ = searcher.search(&mut pos, 2, -100, -99, 1, None);
         assert!(
             searcher.nodes() > 1,
             "probe-clock-dependent TT score caused an unsafe cutoff"
@@ -1337,7 +1419,7 @@ mod draw_rule_tests {
         let limits = Arc::new(Mutex::new(SearchLimits::default()));
         let mut searcher = Searcher::new(&mut tt, &stop, limits);
         searcher.null_move_search = true;
-        let _ = searcher.search(&mut pos, 0, -INF_SCORE, INF_SCORE, 1);
+        let _ = searcher.search(&mut pos, 0, -INF_SCORE, INF_SCORE, 1, None);
         assert!(
             searcher.nodes() > 2,
             "search and quiescence must both ignore historical repetitions under a null move"
@@ -1485,7 +1567,7 @@ mod draw_rule_tests {
         let stop = AtomicBool::new(false);
         let limits = Arc::new(Mutex::new(SearchLimits::default()));
         let mut s = Searcher::new(&mut tt, &stop, limits);
-        let _ = s.search(&mut pos, 1, MATE_BOUND, MATE_BOUND + 1, 0);
+        let _ = s.search(&mut pos, 1, MATE_BOUND, MATE_BOUND + 1, 0, None);
         assert!(
             s.nodes() > 1,
             "search did not explore beyond the root: nodes={}, stop={}",

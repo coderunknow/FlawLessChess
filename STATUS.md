@@ -2,10 +2,141 @@
 
 **Project state: `ACTIVE / INCOMPLETE`** (V1 NOT complete; absolute rating is UNKNOWN / NOT MEASURED and the strict 2,000 Elo gate is NOT MET. SCREEN-3 run 43820645420 ended with resolver + 60/60 shard jobs successful, but its aggregate-and-commit-evidence job was skipped. CTRL-2-R run 43820392119 ended with resolver + 120/120 shard jobs successful, but its aggregate-and-commit-evidence job was also skipped. These shard artifacts are not canonical committed gate evidence. The RATING-100 amendment is implemented as a candidate design but its prospective power report remains BLOCKED; no confirmatory batch or gate plan has been dispatched. The SEE ordering candidate and new tooling await CI and fresh review.)
 
-**Current branch:** `arena/b756c5f1-asilzkkbatwabaieokwvfotrsioiij`
-**Starting commit (verified 2026-11-14):** `98b1a00203183d9c7ccb175f7d6eb8f5ef5eb429` (only an Apache-2.0 `LICENSE` present)
+**Current branch:** `arena/247fe7df-flawlesschess` (based on `main` = `6ab5b33`, the PR #5 merge
+commit; verified 2026-11-24).
+**Starting commit (verified 2026-11-14):** `98b1a00203183d9c7ccb175f7d6eb8f5ef5eb429` (only an Apache-2.0 `LICENSE` present).
 **Engine identity (UCI):** `Flawless`
 **License:** Apache-2.0 (preserved)
+
+> **Repository-state reconciliation (2026-11-24).** The entries above and much of the checklist and
+> review history in this file were written during the development of PR #1 (branch
+> `arena/b756c5f1-…`) and describe work that was in flight at that time. As of the current
+> `main` HEAD (`6ab5b33`, the PR #5 merge):
+> - Pull requests #1, #3, #4 and #5 are MERGED into `main`; PR #1 is no longer open or draft.
+> - The only open PR is #2 (`arena/8259ce1c` → `main`, head `5f952b12912dc6c77f8339fd8216aa90e6338fc0`),
+>   which is **Draft** and **CONFLICTING** with `main`. It holds the unvalidated SPEED-1 / HIST-1 /
+>   EVAL-2 experiments (fast legality filter, continuation/counter/capture history, evaluation
+>   upgrade behind ablation flags). Per the mission, PR #2 is NOT merged, NOT cherry-picked, and
+>   NOT silently closed here; it is audited against `main` in this session's report and its
+>   candidates remain for a later, gated iteration.
+> - `STATUS.md`, `MERGE_READINESS.md`, `TESTING.md`, `BENCHMARKING.md` and `AGENTS_LOG.md` still
+>   reference the pre-merge branch state and CI runs on commits (`ca61ea6`, `f2176b6`, `c24020b9`,
+>   `071f875`, `5b63e27`, …) that are not the current `main` HEAD. Those records are preserved as
+>   historical evidence; current-state claims below are re-scoped to `6ab5b33`.
+> - The V1 release gate (absolute rating > 2,000, two-sided 95% CI lower bound strictly > 2,000)
+>   remains NOT MEASURED and NOT MET; no absolute Elo claim is made.
+
+> ### Current session (2026-11-28, branch arena/247fe7df-flawlesschess — PR #6 open, mission Phases A–K)
+>
+> **PR #6 is OPEN and NOT MERGE-READY at this checkpoint.** The absolute V1 rating gate remains
+> **UNKNOWN / NOT MEASURED / NOT MET** — the ENGINE-4 confirmatory campaign (240 counted games ×
+> 3 anchors × 2 batches, `rating-240-v1`) is still executing on hosted runners and its registered
+> recovery protocol (rev 57 A/wowl shard 31; bridge rev 7 → rev 58 A/topple; A/wyld shard 17) is
+> queued behind it. Nothing here is a strength claim; no checklist item is checked without
+> evidence at the cited head. Per the 2026-11-28 mission instruction the PR must be left open,
+> merge-ready, for an explicitly authorized merge — no merge, tag or release is performed.
+>
+> What this session verified (details and commit SHAs in `MERGE_READINESS.md`
+> "2026-11-28 — mission Phases A–K checkpoint"): all five registered Phase-E findings fixed with
+> regression suites (comments pagination, en-passant captured square, pinned pseudo-attacker
+> exclusion, exact source-record flag identity, engine-failure abort rc 3); batch A/B colour-pair
+> seating fixture and a silent false-green (reversed `check()` args) fixed; the CI suite list now
+> runs all 18 Python suites at the exact head; 51 review threads re-fetched with the five fixed
+> findings replied and resolved; the ten named review items verified against source; the
+> search/eval diff reviewed coherent and the workflow-injection surface scanned clean. Harness
+> battery **18/18 green** at `851bfc2`, outputs inspected. Hosted CI at the exact head and the
+> full-depth adversarial audit remain in progress; ENGINE-5 (queen-trap) is NOT in `src/` and
+> must complete its own preregistered chain before it can be a merge candidate.
+>
+> ### Current session (2026-11-25, branch arena/247fe7df-flawlesschess — PR #6 draft)
+>
+> **PR #6 is a draft and is NOT MERGE-READY.** The absolute V1 rating gate remains
+> **UNKNOWN / NOT MEASURED / NOT MET**, and nothing in this session is a strength claim.
+>
+> The 20 CodeRabbit findings raised on the previous head were read back and dispositioned in commit
+> `67bee13`:
+>
+> 1. **Workflow (3 findings, all fixed).** The dispatch seed and profile are passed through the step
+>    environment, validated there and written with `printf` and a quoted variable, so an input can
+>    never become shell source. The quick regression screen now runs on every pull request instead of
+>    PR #6 only. The publishing step now receives `SEED_BASE`, so the published title names the real
+>    seed range. The rustfmt annotation encodes `%`, CR and LF as `%25`, `%0D` and `%0A` — the
+>    previous `tr '\n' '%0A'` replaced a newline with a bare `%` and flattened a multiline diff.
+> 2. **Evidence provenance (3 findings, all fixed).** The effective `FLAWLESS_ABLATE` value, including
+>    the unset case, is now written into the batch manifest (`scripts/match.py`) and the run manifest
+>    (`scripts/relative_benchmark.py`) *before* the first game starts, and the aggregation step refuses
+>    to combine replicates whose masks differ. `docs/ABLATIONS.md` documents the field and the rule.
+>    `AGENTS_LOG.md` gained an addendum naming the candidate commit (`78f42ca4c382…`), the hosted run
+>    (`45426475825`) and the artifact id of every replicate of the 600-game result.
+> 3. **Harness (6 findings, all fixed).** A game without the candidate is now excluded from the
+>    scorable set as well as from the point estimate, so the confidence interval and the estimate
+>    cover the same games. The saved opening order is verified against its recorded digest before
+>    aggregation, and a damaged file is reported as a validation error instead of crashing the
+>    aggregator. `scripts/diagnose_weaknesses.py` now reads the piece-square tables from the engine
+>    source (the copied bishop table had 63 entries), signs the evaluation by the side to move, handles
+>    a closed stdout, reaps the engine, measures the material loss through the opponent's reply with a
+>    never-stale reference, prints the returned UCI string directly and writes the losing games as PGN.
+>    `scripts/tactic_test.py` accepts the free rook capture, handles EOF during initialisation and
+>    tolerates a closed stdin during cleanup.
+> 4. **Outpost advancing pawn (1 finding, false positive).** The cited position
+>    `4k3/1p6/8/2N5/8/8/8/4K3 w - - 0 1` scores outpost 0 because the knight is not pawn-defended, and
+>    the defended variant with the same b7 pawn also scores 0, because the b7 pawn steps to b6 and
+>    attacks c5. The algorithm is unchanged; the b7 case, its colour mirror and the undefended case
+>    were added as regressions.
+>
+> Local gate suite on `c6ef5bb`: **51/51 steps, FAILS=0** (raw output retained under
+> `benches/gate-c6ef5bb/`). Within it: fmt clean, clippy `-D warnings` clean, `cargo test --release
+> --locked` 183/183, difftest 2,275 positions d=2 with 0 mismatches, perft(6) 119,060,324, match harness
+> 112/112, benchmark suite 37/37, weakness-diagnostic suite 31/31, benchmark-request resolver suite
+> 33/33, tactical diagnostic 6/6 on the refined engine. The bench signature stays at
+> `141943aa23b3fc68`, identical to the pinned baseline `6ab5b33`.
+>
+> Hosted relative evidence, read back:
+>
+> * **Extended profile, revision 2** (run `45529006866`, candidate `5be7d7b`, 600 games, 100 opening
+>   clusters): **227 W / 156 D / 217 L**, **50.8%**, relative Elo **-19.7 to +31.4** (95% CI),
+>   **INCONCLUSIVE**.
+> * **Extended profile, revision 3 — the final head** (run `45546563480`, candidate `13f8162`, 600 games,
+>   100 opening clusters, independent seed 20261201/02/03): **229 W / 163 D / 208 L**, **51.7%**,
+>   relative Elo **-11.0 to +35.4** (95% CI), **INCONCLUSIVE**. The engine source at the measured
+>   candidate is byte-identical to the final head.
+>
+>   The three extended runs read 49.8%, 50.8% and 51.7%, and **every interval straddles 50%**. The
+>   point estimates drift while the interval keeps covering the baseline: that is what a small
+>   underlying effect looks like, and reading the drift as a strength signal would be reading noise.
+> * **Ablation matrix** (run `45529550258`, candidate `d306cbc`, `screen` profile, seed `20261130`,
+>   200 games per variant): `full` 53.5%, `no-space` 53.8%, `no-counter-move` 47.8%, `no-new-terms`
+>   46.8% — **every variant INCONCLUSIVE with overlapping intervals**. The study therefore does **not**
+>   measure the contribution of any of the three terms at this sample size; the switch itself is
+>   verified, the magnitude of each term's contribution is not.
+>
+> All of this is screening evidence against a single opponent at a fixed movetime. It is **not** an
+> official rating, **not** an absolute rating and **not** a strength claim.
+>
+> Still open: a fresh independent review at the final head SHA and the absolute rating gate. No merge,
+> tag or release has been performed.
+
+> ### Previous session (2026-11-24, branch arena/247fe7df-flawlesschess — PR #6 draft)
+>
+> Three engine improvements implemented, each committed separately with full local validation
+> (fmt, clippy -D warnings, 172/172 tests, diftest 2321/0, perft(6)=119060324, bench signature
+> 141943aa23b3fc68 unchanged):
+>
+> 1. **Time management** (commit d5305ee): removed the predictive-overrun early stop that halted
+>    clock-based searches well before the soft budget. At 10 s the engine previously stopped at
+>    116 ms of a 234 ms soft budget (depth 9); it now runs to depth 10 at ~253 ms. Hard budget
+>    still caps worst-case overspend; fixed-depth/movetime searches unaffected.
+> 2. **Counter move heuristic** (commit a162baa, HIST-1 from PR #2 audit): when a quiet move
+>    causes a fail-high cutoff in reply to the opponent's previous move, store it as a counter
+>    move ordered just above killers (92,000) and below good captures. Counter table cleared each
+>    root search; not used in null-move search or quiescence.
+> 3. **Space evaluation** (commit 4038b75, EVAL-2 from PR #2 audit): reward control of important
+>    squares weighted by centrality. Colour-symmetric via square mirroring (sq ^ 56). Tapered:
+>    full weight middlegame / half endgame. Added `space` field to `EvalBreakdown` and CLI `eval`
+>    output.
+>
+> No claim of strength improvement is made for any of these changes; no rating evidence has been
+> re-measured. PR #2 (open, draft, conflicting) remains NOT merged, NOT cherry-picked, NOT touched.
 
 ## Checklist (binary acceptance criteria — see TASK in prompt)
 
@@ -32,7 +163,10 @@
 - [ ] RATING-100 confirmatory sample — NOT AUTHORIZED / BLOCKED. Proposed 100 counted games per anchor per batch (50 opening clusters × AB/BA), with disjoint A/B suites; all historical gate conditions and controls remain unchanged. The delta-method prospective sensitivity report is BLOCKED because full third-anchor covariance and Batch-B cluster variance are absent and power is weak near the 2,000 threshold. No confirmatory dispatch may proceed until a reviewed evidence-backed PASS exists.
 - [ ] SEE-based capture ordering candidate — implemented in source but NOT YET BUILT, TESTED, BENCHMARKED OR REVIEWED. No Elo gain or NPS improvement is claimed.
 - [ ] Reviews: CodeRabbit review 5903125228 fully dispositioned (13/13 findings; 11/11 threads replied+resolved 2026-11-14); FRESH review at the exact final SHA still required; Copilot BLOCKED (quota, lower-effort retry needs web UI); Codex RATE_LIMITED; Qodo BLOCKED (trial ended); Kilo BLOCKED (credits)
-- [x] PR #1 returned to **Draft** (2026-11-14, `gh pr ready --undo` verified): open, unmerged, draft=true. Earlier "not marked ready" claim was inaccurate (GitHub had it open/non-draft); corrected. PR stays open+unmerged; never merge/tag/release without explicit authorization.
+- [x] PR #1 ("Flawless V1 checkpoint: identity + correctness audit + CI") is **MERGED** into `main`
+  (`6ab5b33`). It is not open and not draft. The PR-stay-open statements here are historical only;
+  PR #1 must not be re-opened, re-merged, or used as the basis of a new PR without explicit
+  authorization.
 - [ ] Correctness, reliability, documentation, release gates (see TESTING.md)
 - [ ] v1.0.0 stable release (**NOT AUTHORIZED — gate not passed**)
 
@@ -145,13 +279,19 @@ Current head: see `git log --oneline -1`. PR #1 is OPEN, unmerged, **Draft** (co
 
 | Reviewer | State | Notes |
 |----------|-------|-------|
-| CodeRabbit | re-review requested 2026-11-14T09:25Z → **"Review rate limited"** on e769d9a; push-triggered reviews are DISABLED for this OSS repo ("manual review required for this OSS repository" on 89189a6/ca61ea6); `@coderabbitai resume` posted 2026-11-14T09:47Z — awaiting result. Prior substantive review 5903125228 (13/13 dispositioned) | REVIEW: do not claim pass before the bot completes on this exact final SHA — verify `gh api repos/coderunknow/FlawLessChess/commits/<sha>/check-runs` and map the reviewed SHA; manual review is the only working path (push path disabled), and it is rate limited — retry at the next hour boundary if resume fails |
-| GitHub Copilot | BLOCKED | quota insufficient at default effort (2026-11-14). Retry at LOWER effort requested by task but requires the web UI reviewers panel (effort selection); API re-request rejected (`422: not a collaborator`); docs.github.com unreachable from sandbox. No findings recorded. |
-| Codex | RATE_LIMITED | documented retry (`@codex review`) attempted 2026-11-14T05:47Z → "You have reached your Codex usage limits for code reviews." Prior run at 05a36c0: code review FAILED (usage limit), no findings available. |
-| Qodo | BLOCKED | "Qodo reviews are paused because your trial has ended." (billing-blocked, 2026-11-14). No code findings. |
-| Kilo | BLOCKED | "Kilo Code Review could not run — your account is out of credits." (2026-11-14). No code findings. |
+| CodeRabbit | **Not re-run on current `main` HEAD.** Last substantive review 5903125228 (13/13 dispositioned) was at PR #1 branch head `f07c4633`/e769d9a, before PRs #1–#5 were merged into `main` (`6ab5b33`). Push-triggered reviews are DISABLED for this OSS repo ("manual review required for this OSS repository"); `@coderabbitai resume` was posted 2026-11-14T09:47Z but the service is rate limited. No review pass may be claimed on the exact current `main` SHA until a reviewer completes there. | REVIEW: do not claim pass before a reviewer completes on `6ab5b33` (or the iteration's final HEAD). |
+| GitHub Copilot | BLOCKED | quota insufficient at default effort (2026-11-14). API re-request rejected (`422: not a collaborator`). No findings recorded. |
+| Codex | RATE_LIMITED | documented retry attempted 2026-11-14T05:47Z → usage limit; no findings available. |
+| Qodo | BLOCKED | trial ended (billing-blocked, 2026-11-14). No code findings. |
+| Kilo | BLOCKED | account out of credits (2026-11-14). No code findings. |
 
 Review policy: a reviewer FINISHED only when the service actually completes and findings are dispositioned.
+
+> **PR #1 status (corrected).** PR #1 ("Flawless V1 checkpoint: identity + correctness audit + CI",
+> branch `arena/b756c5f1-…`) is **MERGED** into `main` (`6ab5b33`). It is NOT open and NOT draft.
+> The earlier "open, unmerged, draft=true" statement in this file is stale and superseded by the
+> merge. PR #1 remains open+unmerged only as a historical record; it must not be re-opened or
+> re-merged here.
 
 ## CHECKPOINT — 2026-11-14T15:10Z (pre-waiting-boundary)
 
@@ -296,3 +436,180 @@ CI on c564c5c passed Ubuntu but failed the Windows power-analysis smoke because 
 - Not verified: Windows artifact bytes (SHA-256, PE machine, manifest) by hand; real GUI playability in Arena or Cute Chess; independent AI review; MSRV 1.80 on the new head (depends on CI).
 - Release gates: see `docs/audit/2026-11-19-v0.1.0-release-candidate.md`. The V1 rating gate remains NOT MET and does not apply to a pre-V1 claim.
 
+## 2026-11-24 — current session (branch arena/247fe7df-flawlesschess at `4038b75`, PR #6 draft)
+
+Toolchain recovered from npm `@toolchain-bin/*` 1.99.0 pins into `/home/user/.toolchain/sysroot` (static.rust-lang.org unreachable; crates.io unreachable). Python venv with python-chess 1.11.2 at `/home/user/.venv`.
+
+### Changes implemented
+
+1. **Time management** (src/search.rs): removed the predictive-overrun early stop that halted searches well before the soft budget on clock-based time controls. At 10 s the engine previously stopped at 116 ms of a 234 ms soft budget (depth 9); it now runs to depth 10 at ~253 ms. At 1 min it reaches depth 12 at ~1.65 s. Hard budget still caps worst-case overspend; fixed-depth/movetime searches unaffected (bench signature unchanged).
+
+2. **Counter move heuristic** (src/search.rs, HIST-1 from PR #2 audit): when a quiet move causes a fail-high cutoff in reply to the opponent's previous move, store it as a counter move. Ordered just above killers (92,000) and below good captures. Counter table cleared each root search like killers/history; not used in null-move search or quiescence.
+
+3. **Space evaluation** (src/eval.rs, src/main.rs, EVAL-2 from PR #2 audit): reward control of important squares weighted by centrality (centre squares weighted most). Colour-symmetric via square mirroring (sq ^ 56). Tapered: full weight in middlegame, half in endgame. Added `space` field to `EvalBreakdown` and CLI `eval` output.
+
+### Validation (local, this sandbox)
+
+- `cargo fmt --all -- --check`: clean
+- `cargo clippy --release --all-targets -- -D warnings`: clean
+- `cargo test --release`: **172/172 passed** (49 lib + 3 cli_batch + 3 cli_divide + 3 clock_smoke + 43 correctness + 12 movetime_smoke + 51 protocol_regressions + 11 uci_smoke)
+- `scripts/diftest.py`: **2,321 positions d=2, 0 mismatches** (python-chess oracle)
+- `./target/release/flawless perft 6`: **119,060,324** (matches CPW reference)
+- `./target/release/flawless bench`: signature **141943aa23b3fc68** (unchanged from pre-change baseline)
+- `scripts/test_match.py`: **111/111 passed**
+- `scripts/test_rating_estimator.py`: 65/65 checks pass; null control FAIL is pre-existing (anchor/environment issue, not engine-related)
+
+### Not done
+
+- Absolute rating: UNKNOWN / NOT MET (V1 gate requires >2,000 with 95% CI lower bound strictly >2,000)
+- Fresh CodeRabbit review at final SHA: not yet performed
+- MSRV 1.80 compile: not locally verifiable (no 1.80 toolchain obtainable; delegated to CI)
+- Windows execution: not locally verifiable (delegated to CI)
+- Continuation history (remaining HIST-1 element): not yet implemented
+- Outpost/other evaluation terms (remaining EVAL-2 elements): not yet implemented
+- PR #2 (open, draft, conflicting): NOT merged, NOT cherry-picked, NOT touched
+
+## 2026-11-24 — outpost correction, tempo semantics, ablation switch, paired benchmark (PR #6 draft)
+
+Toolchain recovered again from the npm `@toolchain-bin/*` 1.99.0 pins into `/home/user/.toolchain/sysroot`
+(rustc 1.99.0, cargo 1.99.0, rustfmt 1.10.0, clippy 0.1.99; `static.rust-lang.org`, `crates.io` and the
+Actions log host are unreachable from this sandbox). Python venv with python-chess 1.11.2 at `/home/user/.venv`.
+The Actions log host being blocked is why CI failures are surfaced through annotations and why the benchmark
+summary is published to a pull request comment.
+
+### Changes implemented
+
+1. **Outpost evaluation corrected (src/eval.rs, EVAL-2).** The zone is now the classical one: White outposts
+   are on ranks 5-6, Black outposts on ranks 3-4, files b-g. The previous zone (ranks 5-8 / 1-4) included the
+   opponent's back rank and the rank in front of it, where no enemy pawn can ever stand; "cannot be attacked
+   by an enemy pawn" held vacuously there, so any piece deep in enemy territory scored as an outpost. Values
+   unchanged (knight +30 mg / +15 eg, bishop +15 mg / +8 eg).
+   The audit of PR #2 (see below) then showed that the term was still missing two classical conditions, which
+   are now implemented: the square must be **defended by one of our own pawns** (otherwise the piece is simply
+   chased away), and no enemy pawn may be able to **step forward** and attack the square (the push is only
+   blocked by one of our own pieces). Both directions are pinned by regression tests, and the 13 test
+   position pairs were generated and verified with python-chess instead of being written by hand.
+2. **Tempo semantics made explicit and pinned by a test (src/eval.rs, tests/correctness.rs).** The score is
+   now computed as `relative = if side == WHITE { tapered } else { -tapered }; total = relative + TEMPO`. The
+   previous single expression depended on how `+` binds to an `if` expression; that binding was checked
+   against the rustc parser (the statement-expression restriction only applies in statement position, so the
+   tempo was applied to both colours) and the behaviour is now pinned by the pre-existing 303-pair colour
+   symmetry test plus a new dedicated test. `EvalBreakdown` additionally exposes `mg`, `eg` and `phase`.
+3. **Ablation switch (src/ablation.rs, docs/ABLATIONS.md).** `FLAWLESS_ABLATE=space,counter_move,outpost`
+   disables the listed terms for the process. Off by default, read once, applied as a bit mask. The pinned
+   baseline predates the module and ignores the variable, so both engines of a benchmark can share the
+   environment.
+4. **Benchmark harness and workflow (scripts/, .github/workflows/relative-benchmark.yml).** The quick profile
+   runs on every pull request of PR #6; the extended profile runs three replicates of 100 paired openings and
+   aggregates them with an opening-clustered bootstrap. `scripts/match.py` propagates an explicit thread count
+   and records schedule and replay metadata per game. Summaries are published to the job summary and to a
+   pull request comment because the artifact host is not reachable from this sandbox.
+
+### Validation (local, this sandbox, toolchain 1.99.0)
+
+- `cargo fmt --all -- --check`: clean
+- `cargo clippy --release --all-targets -- -D warnings`: clean
+- `cargo test --release --locked`: **183/183 passed** (55 lib + 3 cli_batch + 3 cli_divide + 3 clock_smoke +
+  45 correctness + 12 movetime_smoke + 51 protocol_regressions + 11 uci_smoke)
+- `scripts/diftest.py --games 300 --seed 1234`: **2,321 positions d=2, 0 mismatches** (DIFTEST PASSED)
+- `./target/release/flawless perft 6`: **119,060,324** (matches the CPW reference)
+- `./target/release/flawless bench`: signature **141943aa23b3fc68**, identical to the pinned baseline
+  `6ab5b33` on the same machine and stable over three runs. The signature covers the chosen moves, and with
+  the refined definition none of the twelve bench positions contains a pawn-defended outpost square, so the
+  outpost term contributes nothing there. The earlier, looser definition changed the signature to
+  `ce6a84301216fadd`; the refinement restores it.
+- `scripts/test_match.py`: **112/112 passed**; `scripts/test_relative_benchmark.py`: **20/20 passed**
+
+### Relative benchmark evidence (screening only)
+
+- **Extended profile, hosted CI, 3 replicates, 600 real UCI games** (candidate vs pinned baseline `6ab5b33`,
+  100 paired openings per replicate, seeds 20261124/20261125/20261126, movetime 100 ms, hash 64 MB, one
+  thread): **217 W / 164 D / 219 L**, score 299.0/600 = **49.8%**, relative Elo **-23.2 to +21.5**
+  (95% CI, opening-clustered percentile bootstrap). Classification **INCONCLUSIVE**, `valid: true`.
+  **No strength difference is measurable against the pinned baseline.**
+- Quick profile, hosted CI, 40 games per run on the **same 20 openings and the same seed**. The rows
+  below are grouped by binary identity: the 27 heads from `98e5cd9` share one **byte-identical
+  release binary**, and the three heads before it do not. The search fix (`7ba0576` + `a33065e`)
+  changed `src/` again, so **no hosted quick run is on the current candidate's binary yet** — the
+  generated claims below say so explicitly and quote the range of the earlier binary:
+
+<!-- BEGIN GENERATED: hosted quick-run table -->
+
+| Head | Engine change | W/D/L | Score | Classification |
+|---|---|---|---|---|
+| `504924b` | different engine (pre-refinement) | 9/14/17 | 40.0% | INCONCLUSIVE |
+| `78f42ca` | different engine (pre-refinement) | 11/12/17 | 42.5% | INCONCLUSIVE |
+| `dcdc4b4` | different engine (pre-refinement) | 9/11/20 | 36.2% | NEGATIVE_RELATIVE_SIGNAL_NOT_SEVERE |
+| `98e5cd9` | **last `src/` change** (complete the classical outpost definition) | 13/13/14 | 48.8% | INCONCLUSIVE |
+| `5be7d7b` | **no engine change** | 16/8/16 | 50.0% | INCONCLUSIVE |
+| `6aae7f7` | **no engine change** | 21/10/9 | 65.0% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `40b3556` | **no engine change** | 17/8/15 | 52.5% | INCONCLUSIVE |
+| `90227a6` | **no engine change** | 17/13/10 | 58.8% | INCONCLUSIVE |
+| `7510ded` | **no engine change** | 20/7/13 | 58.8% | INCONCLUSIVE |
+| `d306cbc` | **no engine change** | 16/12/12 | 55.0% | INCONCLUSIVE |
+| `794a465` | **no engine change** | 15/9/16 | 48.8% | INCONCLUSIVE |
+| `c2cc288` | **no engine change** | 16/9/15 | 51.2% | INCONCLUSIVE |
+| `3e0fe75` | **no engine change** | 15/13/12 | 53.8% | INCONCLUSIVE |
+| `f0316b0` | **no engine change** | 16/12/12 | 55.0% | INCONCLUSIVE |
+| `13f8162` | **no engine change** | 12/13/15 | 46.2% | INCONCLUSIVE |
+| `25d7d66` | **no engine change** | 19/11/10 | 61.3% | INCONCLUSIVE |
+| `02b58bd` | **no engine change** | 17/10/13 | 55.0% | INCONCLUSIVE |
+| `ad9915d` | **no engine change** | 19/9/12 | 58.8% | INCONCLUSIVE |
+| `68f5111` | **no engine change** | 18/13/9 | 61.3% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `c428d66` | **no engine change** | 19/10/11 | 60.0% | INCONCLUSIVE |
+| `ff10c55` | **no engine change** | 17/10/13 | 55.0% | INCONCLUSIVE |
+| `97c8a81` | **no engine change** | 22/10/8 | 67.5% | POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY |
+| `e61d635` | **no engine change** | 9/13/18 | 38.8% | INCONCLUSIVE |
+| `6fa1032` | **no engine change** | 14/17/9 | 56.2% | INCONCLUSIVE |
+| `99bef01` | **no engine change** | 17/10/13 | 55.0% | INCONCLUSIVE |
+| `bfc5ce4` | **no engine change** | 16/15/9 | 58.8% | INCONCLUSIVE |
+| `fc7407c` | **no engine change** | 16/12/12 | 55.0% | INCONCLUSIVE |
+| `c6ef5bb` | **no engine change** | 17/12/11 | 57.5% | INCONCLUSIVE |
+| `b701006` | **no engine change** | 21/9/10 | 63.7% | INCONCLUSIVE |
+| `75a8fde` | **no engine change** | 18/9/13 | 56.2% | INCONCLUSIVE |
+
+  **On the identical earlier binary the profile ranges from 38.8% to 67.5%** (27 runs, listed above, all on the identical release binary), and the same binary produced the label `POSITIVE_RELATIVE_SIGNAL_SCREENING_ONLY` in 3 runs and `INCONCLUSIVE` in the other 24. The two extremes are 28.7 points apart on code that did not change.
+  The 3 runs below the engine-change boundary (40.0%, 42.5%, 36.2%) are on a *different* engine and are not part of that range. The overall observed range across all heads is 36.2%–67.5%, but it spans two different engines; the same-binary range is 38.8%–67.5%.
+  The engine-change boundary is `98e5cd9`, the last commit that produced that binary's `src/` tree.
+  No hosted quick runs are on the current candidate engine yet: the last `src/` change on this branch is `a33065e` (size ext_path for the ply+1 write). Every row above predates it.
+  Every row above was transcribed from the published hosted summary and re-checked against the scoring formula `(wins + draws / 2) / games`; the counts and the scores agree in all of them. The block is generated by `scripts/refresh_run_table.py` from the committed fixture `benches/quick-run-summaries.json`, and `scripts/test_run_table.py` fails if it drifts from the published summaries.
+
+<!-- END GENERATED: hosted quick-run table -->
+
+  At a fixed 100 ms movetime the reached depth depends on the machine speed and the timing jitter, so
+  the played games are **not** reproducible across runs even with the same opening seed — the seeded
+  shuffle fixes the opening order, not the games. A 40-game profile at this time control carries
+  roughly ±30 Elo of pure sampling noise and its classification label must not be read as a strength
+  signal. The 600-game profile is the only one of these worth reading.
+- A local run of the same quick profile scored 24/6/10 (67.5%), which is inside the same spread: the
+  local machine and the hosted runner play different games.
+- Every one of these is a fixed-movetime screening comparison against a single opponent. None of them is an
+  official or absolute rating, and none of them is a strength claim.
+
+### PR #2 audit (read only, PR #2 untouched)
+
+PR #2 (`arena/8259ce1c-flawlesschess`, head `5f952b1`, draft, conflicting with `main`) diverged from
+`main` at `5e36b06` and carries 49 commits and 12,971 insertions across 66 files. It is **not** merged,
+cherry-picked or modified. The audit found:
+
+- **Overlap:** PR #2 also implements an outpost term, plus continuation/counter/capture history, a fast
+  legality filter and a large rating-harness expansion. The space evaluation and the counter-move heuristic
+  of this PR were taken from PR #2's ideas earlier and are reimplemented here independently.
+- **Technical finding, acted upon here:** PR #2's outpost term requires the square to be defended by one of
+  our own pawns and to be safe from an enemy pawn that can also step forward to attack it. This PR's term
+  had neither condition and rewarded an undefended piece. The two classical conditions were ported into
+  this PR's own implementation (not PR #2's code) and are covered by regression tests.
+- **Technical finding, not acted upon:** PR #2's zone is "rank 4 or beyond for White", which includes the
+  4th rank — White's own half — and its outpost value is a flat +16 mg / +8 eg for knight and bishop.
+  This PR keeps its explicit zone (White ranks 5-6, Black ranks 3-4) and differentiated values
+  (knight +30/+15, bishop +15/+8).
+- **Not comparable:** PR #2's own screening results are recorded as INCONCLUSIVE for its evaluation and
+  search work, and its branch is in conflict with `main`. Porting its fast legality filter or its
+  continuation/capture history would need its own measurement and is out of scope for this iteration.
+
+### Not done
+
+- Absolute rating: **UNKNOWN / NOT MEASURED / NOT MET** (the V1 gate needs >2,000 with a 95% lower bound
+  strictly above 2,000 against a defined anchor pool and time control; nothing here measures that).
+- Fresh independent review at the final head SHA: not performed in this session.
+- PR #2 (open, draft, conflicting): NOT merged, NOT cherry-picked, NOT touched.

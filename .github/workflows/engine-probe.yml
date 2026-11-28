@@ -1,0 +1,126 @@
+# engine-probe.yml — build the frozen engine (optionally with a candidate patch
+# applied) and probe curated diagnostic positions at fixed depths. Results are
+# committed to benches/diagnostics/ so they survive sandbox restores and are
+# readable without log access. Diagnostic only — never strength evidence.
+#
+# The workflow touches nothing in the drift-frozen measurement paths (src/ is
+# only modified in the runner's working copy, never committed).
+
+name: engine-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      patch:
+        description: "Optional patch path (e.g. benches/diagnostics/queen-trap-fix.patch); empty = clean build"
+        required: false
+        default: ""
+      label:
+        description: "Result label (result file becomes benches/diagnostics/probe-<label>.json)"
+        required: true
+        default: "baseline"
+      depths:
+        description: "Comma-separated fixed depths"
+        required: false
+        default: "8,10,12"
+  push:
+    paths:
+      - "benches/diagnostics/probe-request.json"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve parameters (marker push or dispatch inputs)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IN_LABEL: ${{ inputs.label }}
+          IN_DEPTHS: ${{ inputs.depths }}
+          IN_PATCH: ${{ inputs.patch }}
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then
+            LABEL=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json'))['label'])")
+            DEPTHS=$(python3 -c "import json;d=json.load(open('benches/diagnostics/probe-request.json')).get('depths','8,10,12');print(','.join(str(x) for x in d) if isinstance(d,list) else d)")
+            PATCH=$(python3 -c "import json;print(json.load(open('benches/diagnostics/probe-request.json')).get('patch',''))")
+          else
+            LABEL="$IN_LABEL"
+            DEPTHS="$IN_DEPTHS"
+            PATCH="$IN_PATCH"
+          fi
+          echo "LABEL=$LABEL" >> "$GITHUB_ENV"
+          echo "DEPTHS=$DEPTHS" >> "$GITHUB_ENV"
+          echo "PATCH=$PATCH" >> "$GITHUB_ENV"
+
+      - name: Install Rust (pinned) + python-chess
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.99.0 --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --user chess==1.11.2
+
+      - name: Apply candidate patch (working copy only)
+        if: env.PATCH != ''
+        run: git apply --verbose "$PATCH"
+
+      - name: Build engine + release tests
+        run: |
+          set -o pipefail
+          cargo build --release --locked
+          sha256sum target/release/flawless | tee "benches/diagnostics/probe-$LABEL-build.txt"
+          set +e
+          cargo test --release --locked 2>&1 | tee "benches/diagnostics/probe-$LABEL-tests.txt" | tail -20
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "cargo test exit code: $rc" | tee -a "benches/diagnostics/probe-$LABEL-tests.txt"
+          ./target/release/flawless bench | tail -2 | tee -a "benches/diagnostics/probe-$LABEL-build.txt"
+          # Test failures must not abort the probe: the diagnostic runs and its
+          # output is committed either way (v6 lost its output to a failing
+          # cargo test — the run is only useful if the failure is readable).
+          if [ "$rc" != 0 ]; then echo "::warning::cargo test failed rc=$rc (output committed below)"; fi
+
+      - name: Probe positions at fixed depths
+        run: |
+          set -o pipefail
+          python3 benches/diagnostics/uci_probe.py "target/release/flawless uci" \
+            benches/diagnostics/trap_cases.json \
+            --depths "$DEPTHS" \
+            --out "benches/diagnostics/probe-$LABEL.json" 2>&1 | tee -a "benches/diagnostics/probe-$LABEL-tests.txt"
+
+      - name: Commit probe results
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Add each file separately: a single `git add A B C` refuses the whole
+          # command when one path is missing (e.g. the probe json after an early
+          # failure), which silently discarded the v5/v6 outputs.
+          for f in "benches/diagnostics/probe-$LABEL.json" \
+                   "benches/diagnostics/probe-$LABEL-tests.txt" \
+                   "benches/diagnostics/probe-$LABEL-build.txt"; do
+            git add "$f" 2>/dev/null || echo "not present: $f"
+          done
+          if git diff --cached --quiet; then
+            echo "no probe output to commit"
+          else
+            git commit -m "diagnostics: engine probe results ($LABEL, depths $DEPTHS)"
+            COMMIT_SHA=$(git rev-parse HEAD)
+            # checkout@v4 leaves a depth-1 detached HEAD; `git pull --rebase` from
+            # there fails with exit 128 (no merge base) and silently lost the v7
+            # output. Rebuild the commit on top of the verified remote tip instead:
+            # fetch the branch, switch to it (untracked probe output survives), and
+            # cherry-pick the commit. If the tip already holds identical bytes the
+            # cherry-pick becomes empty and the push is a no-op — idempotent.
+            git fetch origin "$GITHUB_REF_NAME"
+            git checkout -B probe-commit "origin/$GITHUB_REF_NAME"
+            if git cherry-pick -x "$COMMIT_SHA" >/dev/null 2>&1; then
+              git push origin "HEAD:$GITHUB_REF_NAME"
+            else
+              echo "cherry-pick produced no new commit (identical output already on tip)"
+              git cherry-pick --abort 2>/dev/null || true
+            fi
+          fi

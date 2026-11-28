@@ -25,22 +25,27 @@ def main():
     ap.add_argument("--runs-root", required=True,
                     help="benches/evidence/confirmatory/<anchor>/ containing run-*/ dirs")
     ap.add_argument("--out", required=True, help="canonical dir, e.g. benches/evidence/batchA/<anchor>")
-    ap.add_argument("--expected-games", type=int, default=2040)
-    ap.add_argument("--suite", default=None,
-                    help="registered opening suite; required for the exact 100-game design")
+    ap.add_argument("--expected-games", type=int, default=100)
+    ap.add_argument("--suite", required=True,
+                    help="registered opening suite for exact opening and AB/BA checks")
     a = ap.parse_args()
-    expected_openings = None
-    if a.expected_games == 100:
-        if not a.suite:
-            die("--suite is required for the 100-game/50-opening design")
-        with open(a.suite, encoding="utf-8") as handle:
-            expected_openings = [
-                line.partition("|")[0].strip()
-                for line in handle
-                if line.strip() and not line.lstrip().startswith("#")
-            ]
-        if len(expected_openings) != 50 or len(set(expected_openings)) != 50:
-            die("registered suite must contain exactly 50 unique opening clusters")
+    # Registered confirmatory designs: games -> (opening clusters, schedule slots
+    # per opening). The opening/AB-BA mapping must be validated for EVERY design,
+    # not just the 100-game one: a 240-game set could otherwise cover every index
+    # with one wrong opening and still commit as canonical (CodeRabbit review
+    # 2026-11-27).
+    design_shapes = {100: (50, 2), 120: (60, 2), 240: (60, 4), 360: (60, 6)}
+    if a.expected_games not in design_shapes:
+        die(f"--expected-games must be one of {sorted(design_shapes)} (registered designs)")
+    clusters, slots_per_opening = design_shapes[a.expected_games]
+    with open(a.suite, encoding="utf-8") as handle:
+        expected_openings = [
+            line.partition("|")[0].strip()
+            for line in handle
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    if len(expected_openings) != clusters or len(set(expected_openings)) != clusters:
+        die(f"registered suite must contain exactly {clusters} unique opening clusters")
 
     if not os.path.isdir(a.runs_root):
         die(f"runs root does not exist: {a.runs_root}")
@@ -104,23 +109,30 @@ def main():
             f"{len(extra)} out-of-range (first: {extra[:5]}), total counted {len(idx)}")
 
     all_games.sort(key=lambda g: g["schedule_index"])
-    if expected_openings is not None:
-        if len(expected_openings) != 50 or len(set(expected_openings)) != 50:
-            die("registered opening suite must contain exactly 50 unique labels")
-        if len({g.get("opening") for g in all_games}) != 50:
-            die("counted records must cover exactly the 50 registered opening clusters")
-        for index, game in enumerate(all_games):
-            expected_opening = expected_openings[index // 2]
-            expected_pair = "AB" if index % 2 == 0 else "BA"
-            if game.get("opening") != expected_opening or game.get("color_pair") != expected_pair:
-                die(f"schedule index {index}: expected {expected_opening}/{expected_pair}, "
-                    f"got {game.get('opening')}/{game.get('color_pair')}")
-            if game.get("engine_error") or game.get("adjudicated") is False:
-                die(f"counted schedule index {index} has engine_error/unadjudicated metadata")
-            if game.get("result") not in ("1-0", "0-1", "1/2-1/2"):
-                die(f"counted schedule index {index} has invalid result {game.get('result')!r}")
-            if str(game.get("white", "")).casefold() != "flawless" or str(game.get("black", "")).casefold() != str(a.anchor).casefold():
-                die(f"counted schedule index {index} has wrong seated engine identities")
+    if len({g.get("opening") for g in all_games}) != clusters:
+        die(f"counted records must cover exactly the {clusters} registered opening clusters")
+    for index, game in enumerate(all_games):
+        expected_opening = expected_openings[index // slots_per_opening]
+        expected_pair = "AB" if (index % slots_per_opening) % 2 == 0 else "BA"
+        if game.get("opening") != expected_opening or game.get("color_pair") != expected_pair:
+            die(f"schedule index {index}: expected {expected_opening}/{expected_pair}, "
+                f"got {game.get('opening')}/{game.get('color_pair')}")
+        if game.get("engine_error") or game.get("adjudicated") is False:
+            die(f"counted schedule index {index} has engine_error/unadjudicated metadata")
+        if game.get("result") not in ("1-0", "0-1", "1/2-1/2"):
+            die(f"counted schedule index {index} has invalid result {game.get('result')!r}")
+        # Seated identities follow the pair leg: AB = Flawless white / anchor
+        # black, BA reverses (an earlier cut hard-coded AB for every index and
+        # made valid BA records unmergeable).
+        white = str(game.get("white", "")).casefold()
+        black = str(game.get("black", "")).casefold()
+        anchor = str(ident0["anchor"]).casefold()
+        if expected_pair == "AB":
+            ok_seats = white == "flawless" and black == anchor
+        else:
+            ok_seats = white == anchor and black == "flawless"
+        if not ok_seats:
+            die(f"counted schedule index {index} has wrong seated engine identities")
     os.makedirs(a.out, exist_ok=True)
     gp = os.path.join(a.out, "games.jsonl")
     with open(gp, "w") as f:
@@ -134,7 +146,7 @@ def main():
         "n_runs": len(runs),
         "provenance": provenance,
         "merge_rule": "counted games only; schedule_index must cover 0..n-1 exactly once; "
-                       "50 registered openings × AB/BA",
+                       f"{clusters} registered openings x {slots_per_opening} slots (AB/BA pairs)",
     })
     with open(os.path.join(a.out, "manifest.json"), "w") as f:
         json.dump(man, f, indent=2, sort_keys=True)

@@ -28,6 +28,7 @@ macro_rules! err_line {
     }};
 }
 
+pub mod ablation;
 pub mod attack;
 pub mod eval;
 pub mod movegen;

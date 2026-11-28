@@ -1,0 +1,24 @@
+{
+  "batch": "B",
+  "anchor": "topple-0.1.1",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "anchor_sha256": "db75d4d816710b77810fb3b5d544b0f6f025542ff992a1c12301d7dffad5ffac",
+  "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  },
+  "shard_ids": [
+    "confirmatory-B-topple-0.1.1-43"
+  ],
+  "n_shards": 1,
+  "n_attempts": 4,
+  "n_counted": 4,
+  "n_engine_errors": 0,
+  "n_unadjudicated": 0,
+  "hardware_cpu_model": [
+    "AMD EPYC 9V45 96-Core Processor"
+  ],
+  "merged_sha256": "03735c995476221e95379dd4963c73bd985347b4c09e0b85a1dcfb634bbed545"
+}

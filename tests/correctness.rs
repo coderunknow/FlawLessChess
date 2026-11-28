@@ -698,6 +698,150 @@ fn static_evaluation_is_colour_symmetric() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Outpost evaluation (EVAL-2) and tempo semantics.
+// ---------------------------------------------------------------------------------------------
+
+/// Checks that a position and its colour mirror receive the expected outpost score.
+///
+/// The mirror is the rank flip with the colours and the side to move swapped, so the outpost
+/// term of the mirrored position must be the exact negation of the original one and the
+/// side-to-move relative totals must be equal.
+fn check_outpost(fen: &str, mirror: &str, expected: i32) {
+    use flawless::eval::breakdown;
+    attack::init_attacks();
+    let a = Position::from_fen(fen).expect("fen");
+    let b = Position::from_fen(mirror).expect("mirror fen");
+    let ea = breakdown(&a);
+    let eb = breakdown(&b);
+    assert_eq!(ea.outpost, expected, "outpost mismatch for {fen}");
+    assert_eq!(
+        eb.outpost, -expected,
+        "mirrored outpost mismatch for {mirror}"
+    );
+    assert_eq!(ea.total, eb.total, "outpost breaks colour symmetry: {fen}");
+}
+
+#[test]
+fn outposts_follow_the_classical_definition_and_are_colour_symmetric() {
+    use flawless::eval::{OUTPOST_BISHOP_MG, OUTPOST_KNIGHT_MG};
+    attack::init_attacks();
+
+    // The shipped build must not disable anything (see docs/ABLATIONS.md).
+    assert_eq!(
+        flawless::ablation::mask(),
+        0,
+        "ablation must be off by default"
+    );
+
+    // A minor piece on an outpost square of the opponent's camp, defended by one of our pawns.
+    let c5_w = "4k3/8/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let c5_m = "4k3/8/8/3p4/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(c5_w, c5_m, OUTPOST_KNIGHT_MG);
+    let bc5_w = "4k3/8/8/2B5/3P4/8/8/4K3 w - - 0 1";
+    let bc5_m = "4k3/8/8/3p4/2b5/8/8/4K3 b - - 0 1";
+    check_outpost(bc5_w, bc5_m, OUTPOST_BISHOP_MG);
+    let c6_w = "4k3/8/2N5/3P4/8/8/8/4K3 w - - 0 1";
+    let c6_m = "4k3/8/8/8/3p4/2n5/8/4K3 b - - 0 1";
+    check_outpost(c6_w, c6_m, OUTPOST_KNIGHT_MG);
+    let two_w = "4k3/8/4B3/2N2P2/3P4/8/8/4K3 w - - 0 1";
+    let two_m = "4k3/8/8/3p4/2n2p2/4b3/8/4K3 b - - 0 1";
+    check_outpost(two_w, two_m, OUTPOST_KNIGHT_MG + OUTPOST_BISHOP_MG);
+
+    // An outpost square must be defended by one of our own pawns: without the pawn the
+    // piece is simply chased away, so the square is not an outpost.
+    let free_w = "4k3/8/8/2N5/8/8/8/4K3 w - - 0 1";
+    let free_m = "4k3/8/8/8/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(free_w, free_m, 0);
+
+    // An enemy pawn that can step forward and then attack the piece removes the outpost:
+    // the black pawn on d7 pushes to d6 and attacks c5.
+    let step_w = "4k3/3p4/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let step_m = "4k3/8/8/3p4/2n5/8/3P4/4K3 b - - 0 1";
+    check_outpost(step_w, step_m, 0);
+
+    // The same push, but blocked by one of our own pieces on d6: the pawn cannot step, so
+    // the square stays an outpost.
+    let blocked_w = "4k3/3p4/3P4/2N5/1P6/8/8/4K3 w - - 0 1";
+    let blocked_m = "4k3/8/8/1p6/2n5/3p4/3P4/4K3 b - - 0 1";
+    check_outpost(blocked_w, blocked_m, OUTPOST_KNIGHT_MG);
+
+    // The advancing pawn on the *other* adjacent file: the black pawn on b7 steps to b6 and
+    // then attacks c5, so the square is not an outpost. This is the mirror side of the d7 case
+    // above, and it is the position that a one-sided file check would get wrong.
+    let b7_w = "4k3/1p6/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let b7_m = "4k3/8/8/3p4/2n5/8/1P6/4K3 b - - 0 1";
+    check_outpost(b7_w, b7_m, 0);
+
+    // Removing the b7 pawn restores the bonus: the knight is defended and no enemy pawn can
+    // reach c5.
+    let no_b7_w = "4k3/8/8/2N5/3P4/8/8/4K3 w - - 0 1";
+    let no_b7_m = "4k3/8/8/3p4/2n5/8/8/4K3 b - - 0 1";
+    check_outpost(no_b7_w, no_b7_m, OUTPOST_KNIGHT_MG);
+
+    // An undefended piece is never an outpost, whatever the enemy pawns do. The b7 pawn cannot
+    // change that: without a defending pawn the piece is simply chased away.
+    let undefended_b7_w = "4k3/1p6/8/2N5/8/8/8/4K3 w - - 0 1";
+    let undefended_b7_m = "4k3/8/8/8/2n5/8/1P6/4K3 b - - 0 1";
+    check_outpost(undefended_b7_w, undefended_b7_m, 0);
+
+    // An enemy pawn that attacks the piece right now removes the outpost.
+    let hit_w = "4k3/8/3p4/2N5/3P4/8/8/4K3 w - - 0 1";
+    let hit_m = "4k3/8/8/3p4/2n5/3P4/8/4K3 b - - 0 1";
+    check_outpost(hit_w, hit_m, 0);
+    let hit6_w = "4k3/1p6/2N5/3P4/8/8/8/4K3 w - - 0 1";
+    let hit6_m = "4k3/8/8/8/3p4/2n5/1P6/4K3 b - - 0 1";
+    check_outpost(hit6_w, hit6_m, 0);
+
+    // Edge files are not outposts.
+    let edge_w = "4k3/8/8/N7/1P6/8/8/4K3 w - - 0 1";
+    let edge_m = "4k3/8/8/1p6/n7/8/8/4K3 b - - 0 1";
+    check_outpost(edge_w, edge_m, 0);
+
+    // Own half of the board is not an outpost.
+    let own_w = "4k3/8/8/8/4N3/3P4/8/4K3 w - - 0 1";
+    let own_m = "4k3/8/3p4/4n3/8/8/8/4K3 b - - 0 1";
+    check_outpost(own_w, own_m, 0);
+
+    // The rank in front of the opponent's back rank is not an outpost: no enemy pawn can
+    // ever stand there, so "cannot be attacked by an enemy pawn" would hold vacuously.
+    let r7_w = "4k3/3N4/2P5/8/8/8/8/4K3 w - - 0 1";
+    let r7_m = "4k3/8/8/8/8/2p5/3n4/4K3 b - - 0 1";
+    check_outpost(r7_w, r7_m, 0);
+
+    // The opponent's back rank is never an outpost.
+    let r8_w = "2N1k3/1P6/8/8/8/8/8/4K3 w - - 0 1";
+    let r8_m = "4k3/8/8/8/8/8/1p6/2n1K3 b - - 0 1";
+    check_outpost(r8_w, r8_m, 0);
+}
+
+#[test]
+fn tempo_is_awarded_to_the_side_to_move_for_both_colours() {
+    use flawless::eval::{breakdown, TEMPO, TOTAL_PHASE};
+    attack::init_attacks();
+
+    // White to move with a knight on c5 and a pawn on d4: a non-symmetric position, so the
+    // tempo bonus is observable. The second position is its colour mirror with Black to move.
+    let white = Position::from_fen("4k3/8/8/2N5/3P4/8/8/4K3 w - - 0 1").unwrap();
+    let black = Position::from_fen("4k3/8/8/3p4/2n5/8/8/4K3 b - - 0 1").unwrap();
+
+    let bw = breakdown(&white);
+    let bb = breakdown(&black);
+    let tw = (bw.mg * bw.phase + bw.eg * (TOTAL_PHASE - bw.phase)) / TOTAL_PHASE;
+    let tb = (bb.mg * bb.phase + bb.eg * (TOTAL_PHASE - bb.phase)) / TOTAL_PHASE;
+    assert_ne!(tw, 0, "the test position must not be symmetric");
+    assert_ne!(tb, 0, "the test position must not be symmetric");
+
+    assert_eq!(bw.tempo, TEMPO, "the breakdown must report the tempo bonus");
+    assert_eq!(bb.tempo, TEMPO, "the breakdown must report the tempo bonus");
+    assert_eq!(bw.total, tw + TEMPO, "White to move: score plus tempo");
+    assert_eq!(bb.total, -tb + TEMPO, "Black to move: score plus tempo");
+
+    // The side-to-move relative score is invariant under the colour mirror. This fails if the
+    // tempo bonus is applied to one colour only.
+    assert_eq!(bw.total, bb.total, "the score must be colour symmetric");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Search regressions (S-08 node cap, S-14 colour symmetry). Library-level, deterministic.
 // ---------------------------------------------------------------------------------------------
 

@@ -1,0 +1,410 @@
+# queen-trap-fix.patch — ENGINE-5 fix (v2: qsearch + RFP guard + regression tests)
+#
+# Defect (benches/diagnostics/ 2026-11-27): quiet-reply queen traps are
+# invisible to the search. The queen's own flight moves are quiet, so the
+# capture-only qsearch never sees the queen captured at a flight square; stand
+# pat keeps the static score (queen counted as alive) even while it is attacked;
+# and reverse futility at depth <= 3 can seal the node entirely before any
+# defence is searched. Against ENGINE-4 the trap suite shows 28 queen falls /
+# 13 provable traps / 13 cases (9 decisive losses: 3 vs wowl-1.3.7 in both
+# arms, 1 vs topple-0.1.1, 2 vs akimbo-0.1.1, 1 vs topple-0.2.1 in each arm).
+#
+# Fix contract (mission 2026-11-27, implemented here in full):
+#   1. quiesce_core: when the mover has an attacked queen, (a) keep the FULL
+#      legal move list (queen flights included) instead of captures-only,
+#      (b) disable stand pat — "doing nothing" there loses the queen on the
+#      opponent's next capture — which also disables delta pruning for the
+#      node (delta only guards the stand-pat path).
+#   2. search(): reverse futility pruning gets an explicit guard — one queen
+#      scan plus at most two is_attacked probes, only at RFP-eligible nodes
+#      (depth <= 3, non-PV, not in check) — and is skipped when the mover's
+#      queen is attacked.
+#   3. Pruning audit (AGENTS_LOG.md, 2026-11-27): futility's only return path
+#      descends through quiesce_with_moves (the fixed quiesce), so futility
+#      needs no separate guard; null-move pruning is direction-safe (after the
+#      pass the opponent's queen capture is a capture and is searched); TT
+#      cutoffs are safe once all nodes store fixed values. RFP was the one
+#      unguarded return and is fixed here.
+#   4. Full regression module queen_trap_tests (13 tests): the 7 avoidable needle trap
+#      FENs plus the 6 broad/lost cases from trap_cases.json, stand-pat blindness on a real post-reply
+#      fixture plus its color mirror, RFP sealing guard (and RFP preserved
+#      without an attacked queen), multi-queen and one-attacked-of-many scans,
+#      terminal states (mate, stalemate, insufficient, fifty-move), endgame
+#      queen-preservation, quiet stand-pat behaviour preserved, in-check
+#      legality, and strict searchmoves under the widened qsearch list.
+#
+# Apply on top of target cb7242cbb9a88a17e9c1a2b11437a507733e46eb (ENGINE-4).
+diff --git a/src/search.rs b/src/search.rs
+index 2ae01c6..15ef94b 100644
+--- a/src/search.rs
++++ b/src/search.rs
+@@ -755,10 +755,29 @@ impl<'a> Searcher<'a> {
+ 
+         // Reverse futility pruning (static null-move): far-above-beta quiet
+         // positions fail high without searching. Non-PV, not in check, mate-bound safe.
++        // It must never seal a hanging queen: static eval counts the queen as alive
++        // while every defence may be quiet (queen-trap blindness, benches/diagnostics/
++        // 2026-11-27), so a position with an attacked queen of the side to move is
++        // searched normally here. The guard costs one queen scan and at most two
++        // is_attacked probes per RFP-eligible node only.
+         if depth <= 3 && !in_chk && !is_pv && !fifty_claim && beta.abs() < MATE_BOUND && !sparse {
+-            let s = self.static_eval(pos);
+-            if s - 150 * depth >= beta {
+-                return beta;
++            let us = pos.side;
++            let opp = us ^ 1;
++            let mut queens = pos.pieces[us * 6 + QUEEN];
++            let mut hanging_queen = false;
++            while queens != 0 {
++                let sq = queens.trailing_zeros() as Square;
++                if pos.is_attacked(sq, opp) {
++                    hanging_queen = true;
++                    break;
++                }
++                queens &= queens - 1;
++            }
++            if !hanging_queen {
++                let s = self.static_eval(pos);
++                if s - 150 * depth >= beta {
++                    return beta;
++                }
+             }
+         }
+ 
+@@ -999,7 +1018,25 @@ impl<'a> Searcher<'a> {
+             return DRAW_SCORE;
+         }
+ 
+-        let stand_pat = if !in_chk {
++        // Quiet-reply queen-trap blindness (benches/diagnostics/ 2026-11-27): an
++        // attacked queen's defences are its own flight moves, which are quiet, so
++        // capture-only quiescence never sees the queen captured at a flight square
++        // and the whole quiet-reply trap hides beyond the horizon. Keep the attacked
++        // queen's moves in qsearch so the loss is visible at the leaf, and do not
++        // stand pat on a position whose queen is hanging: "doing nothing" there
++        // loses the queen on the opponent's next capture.
++        let us = pos.side;
++        let opp = us ^ 1;
++        let mut queen_evasion = 0u64;
++        let mut queens = pos.pieces[us * 6 + QUEEN];
++        while queens != 0 {
++            let sq = queens.trailing_zeros() as Square;
++            if pos.is_attacked(sq, opp) {
++                queen_evasion |= 1u64 << sq;
++            }
++            queens &= queens - 1;
++        }
++        let stand_pat = if !in_chk && queen_evasion == 0 {
+             let sp = self.static_eval(pos);
+             if sp >= beta {
+                 return beta;
+@@ -1011,7 +1048,7 @@ impl<'a> Searcher<'a> {
+         } else {
+             None
+         };
+-        if !in_chk {
++        if !in_chk && queen_evasion == 0 {
+             let mut j = 0;
+             for i in 0..moves.len {
+                 let m = moves.moves[i];
+@@ -1607,3 +1644,300 @@ mod draw_rule_tests {
+         );
+     }
+ }
++
++/// Queen-trap regression suite (ENGINE-5 fix, benches/diagnostics/ 2026-11-27).
++///
++/// Defect: a quiet-reply queen trap is invisible to capture-only quiescence —
++/// the queen's own flight moves are quiet, so the searched line never contains
++/// the queen actually being captured at a flight square, stand pat keeps the
++/// static score (queen counted as alive), and reverse futility sealing keeps
++/// even quiescence from starting. Against ENGINE-4 this cost 9 decisive losses
++/// (28 falls / 13 provable traps / 13 cases); root cause and the fix contract
++/// are documented in AGENTS_LOG.md. Every fixture here is a real game FEN from
++/// `benches/diagnostics/trap_cases.json` or a mechanically derived variant.
++#[cfg(test)]
++mod queen_trap_tests {
++    use super::*;
++    use crate::movegen::generate_legal;
++    use std::sync::atomic::AtomicBool;
++    use std::sync::{Arc, Mutex};
++
++    fn position(fen: &str) -> Position {
++        Position::from_fen(fen).expect("test FEN")
++    }
++
++    fn run_root(fen: &str, depth: i32) -> SearchResult {
++        let mut pos = position(fen);
++        let mut tt = TranspositionTable::new(4);
++        let stop = AtomicBool::new(false);
++        let limits = Arc::new(Mutex::new(SearchLimits {
++            max_depth: depth,
++            ..SearchLimits::default()
++        }));
++        let mut s = Searcher::new(&mut tt, &stop, limits);
++        s.search_root(&mut pos, None, 1, &mut |_| {})
++    }
++
++    fn run_quiesce(fen: &str) -> (i32, i32) {
++        let mut pos = position(fen);
++        let mut tt = TranspositionTable::new(4);
++        let stop = AtomicBool::new(false);
++        let limits = Arc::new(Mutex::new(SearchLimits {
++            max_depth: 1,
++            ..SearchLimits::default()
++        }));
++        let mut s = Searcher::new(&mut tt, &stop, limits);
++        let sp = s.static_eval(&mut pos);
++        let q = s.quiesce(&mut pos, -MATE_BOUND, MATE_BOUND, 0);
++        (sp, q)
++    }
++
++    /// The 7 avoidable "needle" trap cases (1-2 trap-allowing moves among 23-49
++    /// legal ones) from `benches/diagnostics/trap_cases.json` (the 8th needle,
++    /// topple-0.1.1-e4b-ply45 with 2/2 allowing, is smoke-tested instead: every
++    /// legal move allows the trap, so no move-level assertion is possible). The
++    /// played move in each row is the trap-allowing move the game actually chose;
++    /// the search must not pick it once the blindness is fixed.
++    #[test]
++    fn needle_trap_moves_are_avoided() {
++        let cases: [(&str, &str); 7] = [
++            (
++                "3rr3/pb1Q1pk1/1p5p/2pPq1p1/1n6/2N1P2P/PP3PP1/1B1RR1K1 w - - 1 21",
++                "d7b7",
++            ), // topple-0.1.1-e4-ply40 allowing 1/42
++            (
++                "r3r1k1/pp3ppp/1qbb4/2nQP3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 18",
++                "d5d6",
++            ), // topple-0.1.1-e4-ply34 allowing 1/44
++            (
++                "k1r5/1p3Q2/8/2qpB3/2b2P2/1P5P/6P1/2R4K b - - 0 41",
++                "c5a3",
++            ), // topple-0.2.1-e4-ply81 allowing 2/33
++            (
++                "r4rk1/1b3ppp/2nq1n2/p7/2p5/1QB1PN2/PP3PPP/R4RK1 w - - 0 16",
++                "b3b7",
++            ), // topple-0.2.1-e4-ply30 allowing 1/38
++            (
++                "6r1/1k5p/1pp4r/p2bp3/Q3p1p1/P2P3q/1P1RNP1P/6KR w - - 0 39",
++                "d3e4",
++            ), // topple-0.1.1-e4b-ply76 allowing 2/23
++            (
++                "6rk/pp2rpp1/2n2n1p/1R1p2Bq/3Pp3/P1P2PR1/P3BPKP/2Q5 b - - 3 25",
++                "h6g5",
++            ), // topple-0.2.1-e4b-ply49 allowing 2/36
++            (
++                "r3r1k1/1pbb1ppp/p2p1n2/1NpP4/P2qP3/1P1B3P/2QB1PP1/3RR1K1 b - - 10 22",
++                "a6b5",
++            ), // akimbo-0.1.1-e4b-ply43 allowing 1/49
++        ];
++        for (fen, trap_move) in cases {
++            let best = run_root(fen, 8).best_move.to_string();
++            assert_ne!(
++                best, trap_move,
++                "search picked the trap-allowing move {trap_move} in {fen}"
++            );
++        }
++    }
++
++    /// The core blindness: at a node whose queen is attacked with no safe
++    /// defence, capture-only stand pat returned `static_eval` as if the queen
++    /// were alive. Real fixture: topple-0.1.1-e4 ply 34, after Qd5-d6?!
++    /// Rad8-d8 (the queen is attacked and cannot escape loss).
++    #[test]
++    fn stand_pat_cannot_hide_a_lost_queen() {
++        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 19";
++        let (sp, q) = run_quiesce(fen);
++        // The queen always falls: the best recovery is the d6xd8 queen-for-rook
++        // trade (~400 material), so the visible drop is ~400, not ~900.
++        assert!(
++            q < sp - 300,
++            "quiesce must see the lost queen: static {sp} vs quiesce {q}"
++        );
++    }
++
++    /// Color-mirrored twin of `stand_pat_cannot_hide_a_lost_queen`: the fix
++    /// scans `pos.pieces[us * 6 + QUEEN]` for the mover regardless of color.
++    #[test]
++    fn stand_pat_cannot_hide_a_lost_queen_color_mirrored() {
++        let fen = "1r1k1b1r/pppb2p1/3p1n1p/8/2N1p3/1QBq4/PP3PPP/3RR1K1 b - - 1 19";
++        let (sp, q) = run_quiesce(fen);
++        assert!(
++            q < sp - 300,
++            "mirrored quiesce must see the lost queen: static {sp} vs quiesce {q}"
++        );
++    }
++
++    /// Reverse futility could return `beta` before any defence was searched.
++    /// The fixture's best recovery is the queen-for-rook trade (~400 material),
++    /// so the window is shaped at depth 1: the old condition `sp - 150*1 >=
++    /// beta` fires for beta = sp - 200 while the true value (below sp - 300)
++    /// is under beta. The guard must force the node to be searched and the
++    /// queen loss must show instead of a blind fail-high.
++    #[test]
++    fn rfp_does_not_seal_an_attacked_queen() {
++        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 19";
++        let mut pos = position(fen);
++        let mut tt = TranspositionTable::new(4);
++        let stop = AtomicBool::new(false);
++        let limits = Arc::new(Mutex::new(SearchLimits {
++            max_depth: 3,
++            ..SearchLimits::default()
++        }));
++        let mut s = Searcher::new(&mut tt, &stop, limits);
++        let sp = s.static_eval(&mut pos);
++        let beta = sp - 200;
++        let score = s.search(&mut pos, 1, beta - 1, beta, 0, None);
++        assert!(
++            score < beta,
++            "RFP sealed an attacked-queen node: returned {score} with beta {beta} (static {sp})"
++        );
++    }
++
++    /// The guard must be narrow: with no attacked queen, RFP keeps its exact
++    /// fail-high behaviour (returns beta unchanged).
++    #[test]
++    fn rfp_still_applies_without_an_attacked_queen() {
++        let fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
++        let mut pos = position(fen);
++        let mut tt = TranspositionTable::new(4);
++        let stop = AtomicBool::new(false);
++        let limits = Arc::new(Mutex::new(SearchLimits {
++            max_depth: 3,
++            ..SearchLimits::default()
++        }));
++        let mut s = Searcher::new(&mut tt, &stop, limits);
++        let sp = s.static_eval(&mut pos);
++        let beta = sp - 500;
++        let score = s.search(&mut pos, 3, beta - 1, beta, 0, None);
++        assert_eq!(
++            score, beta,
++            "RFP must keep its fail-high without an attacked queen (static {sp})"
++        );
++    }
++
++    /// Multi-queen node: the scan must cover every queen of the mover and see
++    /// the hanging one even with two safe queens on the board. Fixture is the
++    /// stand-pat case with extra queens on h4 and a1; the extra queen on h4 can
++    /// only mitigate the loss to a queen-for-rook trade, so the loss margin is
++    /// asserted at 300.
++    #[test]
++    fn multiple_queens_scanned() {
++        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/7Q/3P1N1P/PPPB2P1/QR1K1B1R w - - 1 19";
++        let (sp, q) = run_quiesce(fen);
++        assert!(
++            q < sp - 300,
++            "quiesce must see the hanging queen among three: static {sp} vs quiesce {q}"
++        );
++    }
++
++    /// One queen attacked and another not: the safe queen must not mask the
++    /// hanging one (two-white-queen fixture derived from the stand-pat case).
++    #[test]
++    fn one_attacked_queen_among_safe_ones() {
++        let fen = "3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/QR1K1B1R w - - 1 19";
++        let (sp, q) = run_quiesce(fen);
++        assert!(
++            q < sp - 300,
++            "the safe queen must not mask the hanging one: static {sp} vs quiesce {q}"
++        );
++    }
++
++    /// Behaviour preservation: when no queen is attacked the qsearch keeps
++    /// standing pat — a capture-free position returns exactly `static_eval`.
++    #[test]
++    fn quiet_quiescence_still_stands_pat() {
++        let fen = "4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1";
++        let (sp, q) = run_quiesce(fen);
++        assert_eq!(sp, q, "quiet quiesce must stand pat (static {sp}, got {q})");
++    }
++
++    /// In-check handling is untouched by the fix: evasions are already searched
++    /// in full there. Fixture is in check AND has an attacked queen; the search
++    /// must return a legal move without panicking.
++    #[test]
++    fn in_check_attacked_queen_stays_legal() {
++        let fen = "6k1/8/8/6rQ/q7/8/8/3K4 w - - 0 1";
++        let r = run_root(fen, 4);
++        let legal = generate_legal(&mut position(fen));
++        assert!(
++            legal.iter().any(|m| *m == r.best_move),
++            "best move {} must be legal in check fixture",
++            r.best_move
++        );
++    }
++
++    /// The 5 broad trap cases (22-30 allowing moves among 34-49) and the one
++    /// fully-lost case (2/2 allowing) from trap_cases.json. The trap is not
++    /// avoidable there, so the best move is not asserted; the contract is that
++    /// the fix changes nothing structurally on these real positions (legal
++    /// answer, no panic). The 8 needle cases carry the behavioural assertion.
++    #[test]
++    fn broad_and_lost_trap_cases_smoke() {
++        let cases: [&str; 6] = [
++            "r3r1k1/pb3p2/1p3p1p/2pP4/3qP3/2N4Q/PP2B1PP/R4R1K w - - 0 25",
++            "2k1r3/p2n1ppp/q1p1b3/2r5/3P4/2P1PN2/P1PB1PPP/2RQ1RK1 b - - 0 21",
++            "r4r2/pb3p1p/1np1pkp1/2p5/3P4/2P1PN2/PP2BPPP/2R2RK1 w - - 0 21",
++            "r2q1rk1/pb1nbppp/1pp1p3/2P5/3P4/2N1PN2/PP2BPPP/R2Q1RK1 b - - 0 16",
++            "1r4k1/5ppp/1p2p3/1P2P3/3P1p2/2Q4P/5PP1/2R3K1 b - - 0 36",
++            "r4r2/pb2Nkp1/2p2pB1/1p2q1p1/8/5P2/PP1B1K2/2R3QR b - - 3 23",
++        ];
++        for fen in cases {
++            let r = run_root(fen, 6);
++            assert_ne!(r.best_move, Move::NULL, "no legal best move in {fen}");
++        }
++    }
++
++    /// Terminal states keep their semantics (the terminal branch runs before any
++    /// stand-pat logic, so the fix cannot mask mate or stalemate).
++    #[test]
++    fn terminal_states_scoring_unchanged() {
++        // Back-rank mate: black to move is mated.
++        let mate = "R6k/6pp/8/8/8/8/8/K7 b - - 0 1";
++        let (_, q) = run_quiesce(mate);
++        assert_eq!(q, -MATE_SCORE, "mate must score mate, got {q}");
++        // Classic stalemate: black to move has no legal move and is not in check.
++        let stale = "7k/5P2/6K1/8/8/8/8/8 b - - 0 1";
++        let (_, q) = run_quiesce(stale);
++        assert_eq!(q, DRAW_SCORE, "stalemate must score draw, got {q}");
++        // Insufficient material is a draw regardless of attacked queens.
++        let insufficient = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
++        let (_, q) = run_quiesce(insufficient);
++        assert_eq!(q, DRAW_SCORE, "insufficient material must draw, got {q}");
++        // Fifty-move claim at the boundary: the claim wrapper guarantees at
++        // least a draw (it does not cap winning scores).
++        let fifty = "4k3/8/8/8/8/8/4P3/4K3 w - - 100 100";
++        let (_, q) = run_quiesce(fifty);
++        assert!(q >= DRAW_SCORE, "fifty-move claim must hold the draw, got {q}");
++    }
++
++    /// Endgame behaviour preservation: an attacked queen with a safe flight and
++    /// no free capture of the attacker must simply flee — the fix must not make
++    /// the search give the queen away in endgames.
++    #[test]
++    fn endgame_attacked_queen_saves_itself() {
++        let fen = "3r4/7k/5b2/8/8/8/3Q4/3K4 w - - 0 1";
++        let (sp, q) = run_quiesce(fen);
++        assert!(
++            q >= sp - 300,
++            "the queen must save itself in the endgame: static {sp} vs quiesce {q}"
++        );
++    }
++
++    /// The qsearch move-list widening must not leak into `searchmoves`
++    /// filtering: a filter that names only illegal moves still searches
++    /// nothing, even with an attacked queen on the board.
++    #[test]
++    fn searchmoves_strictness_holds_with_attacked_queen() {
++        let mut pos = position("3rr1k1/pp3ppp/1qbQ4/2n1P3/8/3P1N1P/PPPB2P1/1R1K1B1R w - - 1 19");
++        let mut tt = TranspositionTable::new(4);
++        let stop = AtomicBool::new(false);
++        let limits = Arc::new(Mutex::new(SearchLimits {
++            max_depth: 2,
++            ..SearchLimits::default()
++        }));
++        let mut s = Searcher::new(&mut tt, &stop, limits);
++        let illegal = Move::from_uci("e2e5").expect("parse");
++        let r = s.search_root(&mut pos, Some(vec![illegal]), 1, &mut |_| {});
++        assert_eq!(r.best_move, Move::NULL);
++    }
++}

@@ -1,0 +1,10 @@
+{
+ "label": "patched-queen-trap-v8",
+ "depths": [
+  8,
+  10,
+  12,
+  14
+ ],
+ "patch": "benches/diagnostics/queen-trap-fix.patch"
+}

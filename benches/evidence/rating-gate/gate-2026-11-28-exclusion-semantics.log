@@ -1,0 +1,20 @@
+sample design batch_a/wowl-1.3.7: {'n_counted': 240, 'n_openings': 60, 'games_per_opening': 4, 'schedule_indices': [0, 239], 'paired_color_reversals': None}
+sample design batch_a/topple-0.1.1: {'n_counted': 240, 'n_openings': 60, 'games_per_opening': 4, 'schedule_indices': [0, 239], 'paired_color_reversals': None}
+sample design batch_a/wyldchess-1.1: {'n_counted': 240, 'n_openings': 60, 'games_per_opening': 4, 'schedule_indices': [0, 239], 'paired_color_reversals': None}
+sample design batch_b/wowl-1.3.7: {'n_counted': 240, 'n_openings': 60, 'games_per_opening': 4, 'schedule_indices': [0, 239], 'paired_color_reversals': None}
+sample design batch_b/topple-0.1.1: {'n_counted': 240, 'n_openings': 60, 'games_per_opening': 4, 'schedule_indices': [0, 239], 'paired_color_reversals': None}
+sample design batch_b/wyldchess-1.1: {'n_counted': 240, 'n_openings': 60, 'games_per_opening': 4, 'schedule_indices': [0, 239], 'paired_color_reversals': None}
+note: pool anchors without batch evidence (excluded from the gate): ['topple-0.2.1', 'akimbo-0.1.1', 'wyldchess-1.2']
+FAIL >= 3 gate-eligible anchors with evidence in both batches (boundary/saturated excluded per §8.2/§8.3): jointly eligible ['topple-0.1.1', 'wyldchess-1.1']; excluded {'wowl-1.3.7': {'batch_a': 'boundary score s=1.000 (non-finite Elo) — excluded from WLS and gate per RATING_PROTOCOL §8.3/§9.4; replace with a nearer calibrated anchor and collect fresh pre-registered evidence; never clamp', 'batch_b': 'saturated: |d|=880.6 > 400 — excluded from WLS and gate per RATING_PROTOCOL §8.2; report and replace per §8.3'}}
+PASS batch_a: calibrated 95% CI lower bound 2359.494246218332 > 2000.0 (strict, unrounded)
+PASS batch_b: calibrated 95% CI lower bound 2261.1572646984587 > 2000.0 (strict, unrounded)
+PASS combined: calibrated 95% CI lower bound 2325.830945066319 > 2000.0 (strict, unrounded)
+PASS batch_a/topple-0.1.1: counted games 240 >= 240
+PASS batch_a/wyldchess-1.1: counted games 240 >= 240
+PASS batch_a: GLS used (fallback would need explicit preregistered handling)
+PASS batch_b/topple-0.1.1: counted games 240 >= 240
+PASS batch_b/wyldchess-1.1: counted games 240 >= 240
+PASS batch_b: GLS used (fallback would need explicit preregistered handling)
+PASS null control anchor-vs-anchor within +/-75 (err=-10.321147968747653)
+PASS null control self-match consistent with 0.5 (CI=[0.4375, 0.51875])
+GATE: FAIL  (details in /tmp/gate-result-v2.json)

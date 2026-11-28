@@ -1,0 +1,3 @@
+  binary file download: extracted=['shardA/benches/rating-A/anchor/games.jsonl', 'shardA/benches/rating-A/anchor/meta.json', 'shardB/benches/rating-A/anchor/games.jsonl', 'shardB/benches/rating-A/anchor/meta.json'] out_path_calls=['/tmp/recdl-x8tl916f/111.zip', '/tmp/recdl-x8tl916f/222.zip'] -> PASS
+  empty-download symptom: raises (BadZipFile/FileNotFoundError) -> PASS (fail-closed)
+OVERALL: PASS

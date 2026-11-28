@@ -168,22 +168,32 @@ def make_cluster_list(triple):
     return [1.0] * w + [0.0] * l + [0.5] * d
 
 
-def test_boundaries_rejected():
-    # Perfect score everywhere -> bootstrap hits boundary -> fail closed.
+def test_boundaries_excluded_and_reported():
+    # Registered RATING_PROTOCOL §8.3/§9.4 semantics (supersedes the
+    # pre-2026-11-28 fail-closed crash contract, which diverged from the
+    # protocol): boundary scores are never clamped and never fatal — the anchor
+    # is excluded from the WLS, reported with its raw score and a §8.3/§9.4
+    # reason, and flagged for replacement by a nearer calibrated anchor.
     a = {"name": "A", "published_elo": 1900, "eps_sd": 10.0,
          "clusters": {f"op{i}": [1.0] * 20 for i in range(5)}}
-    try:
-        re.joint_bootstrap([a], 100, 7)
-        check(False, "perfect score rejected")
-    except SystemExit:
-        check(True, "perfect score -> EvidenceError (fail closed)")
+    boot = re.joint_bootstrap([a], 100, 7)
+    check(boot["nonfinite_reps"] == [100],
+          "perfect score: every bootstrap replicate counted non-finite")
     a2 = {"name": "A", "published_elo": 1900, "eps_sd": 10.0,
           "clusters": {f"op{i}": [0.0] * 20 for i in range(5)}}
-    try:
-        re.joint_bootstrap([a2], 100, 7)
-        check(False, "zero score rejected")
-    except SystemExit:
-        check(True, "zero score -> EvidenceError (fail closed)")
+    boot2 = re.joint_bootstrap([a2], 100, 7)
+    check(boot2["nonfinite_reps"] == [100],
+          "zero score: every bootstrap replicate counted non-finite")
+    # end-to-end through batch_estimate: exclusion recorded, nothing clamped.
+    sweep = make_games("S", uniform_openings(5, 20, 0, 0))
+    res = re.batch_estimate({"S": sweep}, [pool_entry("S", 1900, 20)], FOCUS, 50, 7)
+    p = res["per_anchor"][0]
+    check(p["d_flawless_minus_anchor"] is None and p["boundary"] and not p["gate_eligible"],
+          "boundary anchor excluded and reported (d null, never clamped)")
+    check(res["theta"] is None and res["eligible_anchors"] == [],
+          "no WLS exists when every anchor is boundary — reported, not crashed")
+    check("§8.3" in p["excluded_reason"] and "replace" in p["excluded_reason"],
+          "exclusion reason names the registered replacement recovery")
 
 
 def test_batch_estimate_recovery():
@@ -213,6 +223,76 @@ def test_saturation_flagged():
     p = res["per_anchor"][0]
     check(p["d_flawless_minus_anchor"] > 400 and not p["gate_eligible"] and p["saturated"],
           "saturation recorded and excluded from gate eligibility")
+
+
+def test_boundary_anchor_excluded_not_fatal():
+    # REGRESSION (protocol §8.2/§8.3/§9.4 divergence, discovered on the real
+    # ENGINE-4 confirmatory evidence 2026-11-28): an anchor with a boundary
+    # score (s = 1.0 sweep) used to abort the whole gate with
+    # "bootstrap replicate 0 hit a boundary score (non-finite Elo)".
+    # Registered treatment is exclusion + reporting + replacement, never clamp
+    # and never a crash: the WLS must run on the remaining anchors and the
+    # exclusion must be reported with its raw score and the §8.3/§9.4 reason.
+    sweep = make_games("W", uniform_openings(60, 34, 0, 0))
+    h1 = make_games("H1", varied_openings(60, prefix="a"))
+    h2 = make_games("H2", varied_openings(60, prefix="a"))
+    entries = [pool_entry("W", 1800, 22), pool_entry("H1", 2300, 17), pool_entry("H2", 2400, 14)]
+    res = re.batch_estimate({"W": sweep, "H1": h1, "H2": h2}, entries, FOCUS, 500, 7)
+    pw = res["per_anchor"][0]
+    check(pw["d_flawless_minus_anchor"] is None, "boundary d reported as null (never clamped)")
+    check(pw["boundary"] and not pw["gate_eligible"] and not pw["saturated"],
+          "boundary anchor marked, gate-ineligible")
+    check("§8.3" in pw["excluded_reason"] and "§9.4" in pw["excluded_reason"],
+          "exclusion reason cites the registered protocol clauses")
+    check(pw["score"] == 1.0, "raw boundary score still reported")
+    check(res["eligible_anchors"] == ["H1", "H2"], "WLS runs on the non-boundary anchors")
+    check(math.isfinite(res["theta"]), "theta finite after exclusion")
+    check(len(res["weights"]) == 2, "WLS dimension equals the eligible set")
+    check(res["bootstrap_boundary_exclusions"] == [], "no bootstrap-boundary exclusions here")
+    # The excluded anchor must not influence theta: single-anchor world H1.
+    solo = re.batch_estimate({"H1": h1}, [pool_entry("H1", 2300, 17)], FOCUS, 500, 7)
+    combined = re.batch_estimate({"H1": h1, "H2": h2},
+                                 [pool_entry("H1", 2300, 17), pool_entry("H2", 2400, 14)],
+                                 FOCUS, 500, 7)
+    check(abs(combined["theta"] - res["theta"]) < 1e-6,
+          "boundary anchor excluded from WLS: estimate equals the eligible-only estimate")
+
+
+def test_saturated_anchor_excluded_from_wls():
+    # §8.2: saturated anchors are excluded from the gate; §8.3: from the WLS.
+    sat = make_games("S", uniform_openings(60, 33, 1, 0))
+    h1 = make_games("H1", varied_openings(60, prefix="a"))
+    entries = [pool_entry("S", 2000, 30), pool_entry("H1", 2300, 17)]
+    res = re.batch_estimate({"S": sat, "H1": h1}, entries, FOCUS, 500, 3)
+    ps = res["per_anchor"][0]
+    check(ps["saturated"] and not ps["gate_eligible"] and ps["d_flawless_minus_anchor"] > 400,
+          "saturated anchor keeps its finite d and is marked")
+    check(res["eligible_anchors"] == ["H1"], "saturated anchor excluded from WLS")
+    check(close(res["theta"], 2300.0 + re.elo_from_score(
+        sum(sum(v) for v in re.focus_scores_by_opening(h1, FOCUS).values()) /
+        sum(len(v) for v in re.focus_scores_by_opening(h1, FOCUS).values())), 1e-6),
+        "single eligible anchor: theta = published + observed d exactly")
+
+
+def test_bootstrap_boundary_anchor_excluded():
+    # §9.4 face 2: an anchor whose OBSERVED score is interior (|d| <= 400) but
+    # whose cluster composition makes bootstrap resamples hit s = 0/1 is
+    # uninformative — excluded with a reported reason, never fatal, never
+    # clamped. Two win-clusters + one loss-cluster: observed 4/6 (interior) but
+    # (2/3)^3 of resamples sweep.
+    bad = make_games("BAD", [("o0", 2, 0, 0), ("o1", 2, 0, 0), ("o2", 0, 2, 0)])
+    h1 = make_games("H1", [("o0", 1, 1, 0), ("o1", 1, 1, 0), ("o2", 1, 1, 0)])
+    h2 = make_games("H2", [("o0", 1, 1, 0), ("o1", 1, 1, 0), ("o2", 1, 1, 0)])
+    entries = [pool_entry("BAD", 1800, 22), pool_entry("H1", 2300, 17), pool_entry("H2", 2400, 14)]
+    res = re.batch_estimate({"BAD": bad, "H1": h1, "H2": h2}, entries, FOCUS, 100, 5)
+    pbad = res["per_anchor"][0]
+    check(pbad["d_flawless_minus_anchor"] is None and pbad["boundary"],
+          "bootstrap-boundary anchor reported as boundary, d null")
+    check("§9.4" in pbad["excluded_reason"], "bootstrap exclusion cites §9.4")
+    check(res["bootstrap_boundary_exclusions"] == ["BAD"],
+          "bootstrap-boundary exclusion recorded by name")
+    check(res["eligible_anchors"] == ["H1", "H2"], "WLS proceeds on the informative anchors")
+    check(math.isfinite(res["theta"]), "theta finite after bootstrap-boundary exclusion")
 
 
 def test_shared_calibration():
@@ -544,6 +624,83 @@ def test_gate_full():
         check(proc.returncode != 0, "missing evidence -> gate refuses (fail closed)")
 
 
+def _build_exclusion_gate_world(td, n_healthy, with_sweep=True):
+    """n_healthy transitively-consistent anchors (+1 sweeping boundary anchor)."""
+    anchors = [(f"A{i+1}", 1900 + 100 * i) for i in range(n_healthy)]
+    scores = {}
+    for i, (n, _e) in enumerate(anchors):
+        scores[n] = anchor_openings("x", 25 - 4 * i, 6 + 3 * i)
+    names = [n for n, _ in anchors]
+    if with_sweep:
+        scores["SWEEP"] = uniform_openings(60, 34, 0, 0)
+        anchors.append(("SWEEP", 1800))
+    pool = {"rating_source": "CCRL 40/15 list", "list_publication_date": "2026-11-13",
+            "retrieval_date": "2026-11-14", "time_control": "40 moves in 15 minutes",
+            "engines": [pool_entry(n, e, 30) for n, e in anchors]}
+    pj = os.path.join(td, "pool.json")
+    json.dump(pool, open(pj, "w"))
+    for batch in ("A", "B"):
+        for n, _e in anchors:
+            write_jsonl(os.path.join(td, f"{batch}-{n}.games.jsonl"), make_games(n, scores[n]))
+    ctrl = []
+    for oname, w, l, d in anchor_openings("c", 10, 19):
+        for res_ in ["1-0"] * w + ["0-1"] * l + ["1/2-1/2"] * d:
+            ctrl.append({"opening": oname, "white": names[0], "black": names[1], "result": res_,
+                         "counted": True, "engine_error": False})
+    write_jsonl(os.path.join(td, "ctrl-anchor.jsonl"), ctrl)
+    write_jsonl(os.path.join(td, "ctrl-self.jsonl"),
+                make_games("Opp", uniform_openings(60, 10, 10, 4)))
+    allnames = names + (["SWEEP"] if with_sweep else [])
+    argv = [sys.executable, os.path.join(HERE, "rating_estimator.py"), "gate",
+            "--anchor-json", pj, "--focus", FOCUS,
+            "--batch-a"] + [f"{n}={os.path.join(td, f'A-{n}.games.jsonl')}" for n in allnames] + \
+           ["--batch-b"] + [f"{n}={os.path.join(td, f'B-{n}.games.jsonl')}" for n in allnames] + \
+           ["--control-anchor", os.path.join(td, "ctrl-anchor.jsonl"),
+            "--control-anchor-names", names[0], names[1],
+            "--control-self", os.path.join(td, "ctrl-self.jsonl"),
+            "--min-games", "2000", "--threshold", "2000",
+            "--bootstrap", "2000", "--seed", "20261114",
+            "--out", os.path.join(td, "gate.json")]
+    return argv, [n for n, _ in anchors]
+
+
+def test_gate_boundary_anchor_reported_not_fatal():
+    # REGRESSION: a boundary (sweep) anchor must not crash the gate; it must be
+    # excluded per §8.2/§8.3 with a reported reason, and the >=3 check must
+    # count only jointly-eligible anchors. With 3 healthy + 1 sweep the gate
+    # runs the CI checks on the healthy set (same world as test_gate_full -> PASS).
+    with tempfile.TemporaryDirectory() as td:
+        argv, names = _build_exclusion_gate_world(td, n_healthy=3, with_sweep=True)
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=600)
+        res = json.load(open(os.path.join(td, "gate.json")))
+        check(res["gate_eligible_anchors"] == sorted(names[:3]),
+              f"jointly-eligible anchors = the healthy three (got {res['gate_eligible_anchors']})")
+        check("SWEEP" in res["excluded_anchors"], "sweep anchor reported in the exclusion record")
+        check(res["excluded_anchors"]["SWEEP"]["batch_a"] and
+              "§8.3" in res["excluded_anchors"]["SWEEP"]["batch_a"],
+              "exclusion reason cites §8.3 in the gate output")
+        check(any(c["pass"] and ">= 3 gate-eligible anchors" in c["check"] for c in res["checks"]),
+              "eligibility check present and passing with 3 eligible")
+        check(res["results"]["batch_a"]["per_anchor"][3]["d_flawless_minus_anchor"] is None,
+              "boundary per-anchor row carries null d (never clamped)")
+        check(proc.returncode == 0 and res["pass"] is True,
+              f"gate evaluates the eligible subset to a verdict (rc={proc.returncode})")
+
+
+def test_gate_fail_closed_under_three_eligible():
+    # With the sweep excluded only 2 eligible anchors remain -> the registered
+    # >=3 design requirement must fail the gate with the exclusion named.
+    with tempfile.TemporaryDirectory() as td:
+        argv, names = _build_exclusion_gate_world(td, n_healthy=2, with_sweep=True)
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=600)
+        res = json.load(open(os.path.join(td, "gate.json")))
+        check(proc.returncode != 0, "gate FAILS with <3 jointly-eligible anchors")
+        check(res["pass"] is False and res["verdict"] == "FAIL", "verdict FAIL recorded")
+        elig = [c for c in res["checks"] if ">= 3 gate-eligible anchors" in c["check"]]
+        check(elig and not elig[0]["pass"], "the failing check is the >=3 eligibility check")
+        check("SWEEP" in elig[0]["check"], "failing check names the excluded anchor and reason")
+
+
 def test_focus_label_case_insensitive():
     # Harness history: the focus engine was seated under the display name
     # "Flawless" while pool keys / estimator focus are lowercase. Labels are
@@ -630,9 +787,12 @@ def main():
     test_eps_conversion()
     test_gls_math()
     test_joint_bootstrap_correlation()
-    test_boundaries_rejected()
+    test_boundaries_excluded_and_reported()
     test_batch_estimate_recovery()
     test_saturation_flagged()
+    test_boundary_anchor_excluded_not_fatal()
+    test_saturated_anchor_excluded_from_wls()
+    test_bootstrap_boundary_anchor_excluded()
     test_shared_calibration()
     test_missing_invalid_evidence()
     test_null_controls()
@@ -642,6 +802,8 @@ def main():
     test_verify_evidence_fail_closed()
     test_gate_uses_eligible_subset_of_pool()
     test_gate_full()
+    test_gate_boundary_anchor_reported_not_fatal()
+    test_gate_fail_closed_under_three_eligible()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0
 

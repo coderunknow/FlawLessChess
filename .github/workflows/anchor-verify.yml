@@ -151,7 +151,14 @@ jobs:
           echo "$OUT" | tail -4
           SIG=$(echo "$OUT" | grep -oE "signature[ =:]+[0-9a-f]{16}" | grep -oE "[0-9a-f]{16}" | tail -1)
           echo "signature=$SIG"
-          [ "$SIG" = "141943aa23b3fc68" ] || { echo "::error::bench signature mismatch: got $SIG want 141943aa23b3fc68"; exit 7; }
+          # The expected signature tracks the search/evaluation of the checked-out source. Any
+          # change of either changes it and must update this constant in the same commit.
+          # ENGINE-3 (the in-flight campaign's frozen engine, binary 733de4e5...) carried the
+          # pinned-baseline signature 141943aa23b3fc68. The bounded check-extension fix
+          # (7ba0576 + a33065e) intentionally changes the search, so ENGINE-4's identity is
+          # 849a85bf7e8e1eba; that is the signature this workflow now pins and reports.
+          WANT_SIG="849a85bf7e8e1eba"
+          [ "$SIG" = "$WANT_SIG" ] || { echo "::error::bench signature mismatch: got $SIG want $WANT_SIG"; exit 7; }
           SHA=$(sha256sum "./$BIN" | cut -d' ' -f1)
           echo "binary_sha256=$SHA"
           {

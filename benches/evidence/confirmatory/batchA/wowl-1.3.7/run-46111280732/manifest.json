@@ -1,0 +1,24 @@
+{
+  "batch": "A",
+  "anchor": "wowl-1.3.7",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "anchor_sha256": "98ccd00e7090b187887a1edb3c65eab91581396703f4a3faeeeadfca69301415",
+  "opening_suite_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  },
+  "shard_ids": [
+    "confirmatory-A-wowl-1.3.7-31"
+  ],
+  "n_shards": 1,
+  "n_attempts": 4,
+  "n_counted": 4,
+  "n_engine_errors": 0,
+  "n_unadjudicated": 0,
+  "hardware_cpu_model": [
+    "Intel(R) Xeon(R) 6975P-C"
+  ],
+  "merged_sha256": "db3bc80f77542607d61606d35e02a099935c2d8e42f06c8ea714a4134de940b5"
+}
