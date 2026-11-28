@@ -325,7 +325,7 @@ index 2ae01c6..15ef94b 100644
 +    fn in_check_attacked_queen_stays_legal() {
 +        let fen = "6k1/8/8/6rQ/q7/8/8/3K4 w - - 0 1";
 +        let r = run_root(fen, 4);
-+        let legal = generate_legal(&position(fen));
++        let legal = generate_legal(&mut position(fen));
 +        assert!(
 +            legal.iter().any(|m| *m == r.best_move),
 +            "best move {} must be legal in check fixture",
