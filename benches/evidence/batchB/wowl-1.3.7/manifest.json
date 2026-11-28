@@ -1,0 +1,25 @@
+{
+  "anchor": "wowl-1.3.7",
+  "anchor_sha256": "98ccd00e7090b187887a1edb3c65eab91581396703f4a3faeeeadfca69301415",
+  "batch": "B",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "merge_rule": "counted games only; schedule_index must cover 0..n-1 exactly once; 60 registered openings x 4 slots (AB/BA pairs)",
+  "merged_sha256": "eb4c2943bd44327ca0e2c58696822d2ab058bf929ac0148d95af5f03e3fb3172",
+  "n_counted": 240,
+  "n_runs": 1,
+  "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
+  "provenance": [
+    {
+      "manifest": "2b240e6abc7da009c099b752e928f64c274c8afca38666b6eaff50d0567975de",
+      "n_counted": 240,
+      "n_replay": 7,
+      "run": "run-45999096409",
+      "run_games_sha256": "2b240e6abc7da009c099b752e928f64c274c8afca38666b6eaff50d0567975de"
+    }
+  ],
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  }
+}
