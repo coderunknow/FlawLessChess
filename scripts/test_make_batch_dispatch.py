@@ -39,12 +39,20 @@ def write_run(root, name, games, *, identity=None):
 
 
 def game(index, *, counted=True, pair=None):
+    pair = pair or ("AB" if index % 2 == 0 else "BA")
+    # Seated identities follow the pair leg: AB = Flawless white / anchor black,
+    # BA = reversed. The fixture must seat both legs correctly or every valid BA
+    # record is rejected as a wrong-seats slot.
+    if pair == "AB":
+        white, black = "flawless", "akimbo-0.1.1"
+    else:
+        white, black = "akimbo-0.1.1", "flawless"
     return {
         "schedule_index": index,
-        "white": "flawless",
-        "black": "akimbo-0.1.1",
+        "white": white,
+        "black": black,
         "opening": OPENINGS[index // 2],
-        "color_pair": pair or ("AB" if index % 2 == 0 else "BA"),
+        "color_pair": pair,
         "counted": counted,
         "engine_error": not counted,
         "adjudicated": True,

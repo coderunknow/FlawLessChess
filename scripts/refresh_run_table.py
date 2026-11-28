@@ -55,12 +55,13 @@ def load_fixture() -> dict:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
 
 
-def fetch_fixture() -> dict:
-    """Re-read the published benchmark summaries and rewrite the fixture."""
+def fetch_comments() -> str:
+    """Fetch every PR comment page (raw `gh api --paginate --slurp` output)."""
     proc = subprocess.run(
         [
             "gh", "api",
             "--paginate",
+            "--slurp",
             "repos/coderunknow/FlawLessChess/issues/6/comments?per_page=100",
         ],
         cwd=REPO_ROOT,
@@ -70,7 +71,39 @@ def fetch_fixture() -> dict:
     )
     if proc.returncode != 0:
         raise RuntimeError(f"gh api failed: {proc.stderr.strip()}")
-    comments = json.loads(proc.stdout)
+    return proc.stdout
+
+
+def parse_comments_output(text: str) -> list:
+    """Parse paginated `gh api` output into one flat list of comments.
+
+    `gh api --paginate` prints one JSON document per page with nothing between
+    them, so >100 comments (more than one page) arrive as `[[...]][...]`, which
+    is not a single JSON document and used to crash `--fetch`. `--slurp` wraps
+    the pages in an outer array instead: `[[...], [...]]`. Both shapes are
+    accepted here — a list of lists is flattened exactly one level, a flat list
+    of comment objects is returned unchanged, and an empty response yields an
+    empty list. Anything else is a hard error: a malformed response must never
+    silently regenerate a partial fixture.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return []
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"malformed JSON from gh api: {exc}") from exc
+    if not isinstance(data, list):
+        raise RuntimeError(f"unexpected JSON shape from gh api: {type(data).__name__}")
+    if all(isinstance(page, list) for page in data):
+        return [item for page in data for item in page]
+    if all(isinstance(item, dict) for item in data):
+        return data
+    raise RuntimeError("mixed JSON shape from gh api: expected pages or comment objects")
+
+
+def build_fixture(comments: list) -> dict:
+    """Extract the published summary fields (pure; deterministic)."""
     runs = []
     for comment in comments:
         body = comment.get("body") or ""
@@ -99,7 +132,7 @@ def fetch_fixture() -> dict:
                 "classification": classification.group(1) if classification else None,
             }
         )
-    runs.sort(key=lambda run: run["published_at"])
+    runs.sort(key=lambda run: (run["published_at"], run["comment_url"]))
     fixture = {
         "schema": 1,
         "kind": "published-relative-benchmark-summaries",
@@ -110,7 +143,13 @@ def fetch_fixture() -> dict:
         ),
         "runs": runs,
     }
-    FIXTURE.write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
+    return fixture
+
+
+def fetch_fixture(dest: Path) -> dict:
+    """Re-read the published summaries and write them ONLY to `dest`."""
+    fixture = build_fixture(parse_comments_output(fetch_comments()))
+    dest.write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
     return fixture
 
 
@@ -388,8 +427,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.fetch:
-        fixture = fetch_fixture()
-        Path(args.fixture).write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
+        fixture = fetch_fixture(Path(args.fixture))
         print(f"fetched {len(fixture['runs'])} published summaries into {args.fixture}")
         return 0
 
