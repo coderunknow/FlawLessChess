@@ -1,0 +1,39 @@
+   Compiling flawless v0.1.0 (/home/runner/work/FlawLessChess/FlawLessChess)
+    Finished `release` profile [optimized] target(s) in 18.33s
+     Running unittests src/lib.rs (target/release/deps/flawless-6d1234986f2ec616)
+
+running 68 tests
+test ablation::tests::disabled_in_matches_the_selected_terms ... ok
+test ablation::tests::duplicate_terms_are_collapsed ... ok
+test ablation::tests::empty_specification_disables_nothing ... ok
+test ablation::tests::mask_from_spec_enables_exactly_the_selected_terms ... ok
+test ablation::tests::known_terms_are_selected_and_unknown_terms_ignored ... ok
+test ablation::tests::mask_bits_are_distinct_and_unknown_terms_map_to_zero ... ok
+test position::ep_legality_tests::castling_letters_are_checked_for_form ... ok
+test position::ep_legality_tests::fen_with_extra_trailing_field_is_refused ... ok
+test position::ep_legality_tests::fullmove_counter_saturates_instead_of_overflowing ... ok
+test position::ep_legality_tests::insufficient_material_matches_the_fide_dead_positions ... ok
+test position::repetition_window_tests::bounded_repetition_scan_matches_full_history_across_irreversible_moves ... ok
+test search::draw_rule_tests::clock_99_without_eligible_quiet_move_is_not_claimable_in_multipv ... ok
+test search::draw_rule_tests::intended_fifty_move_claim_is_honored_after_quiet_check_evasion ... ok
+test search::draw_rule_tests::mate_beats_fifty_move_claim ... ok
+test search::draw_rule_tests::multipv_root_claim_does_not_clamp_a_positive_score_to_draw ... ok
+test search::draw_rule_tests::multipv_root_claim_survives_restricted_clock_resetting_move ... ok
+test search::draw_rule_tests::qsearch_honors_intended_claim_and_keeps_mate_precedence ... ok
+test search::draw_rule_tests::null_move_search_does_not_claim_game_history_repetition ... ok
+test search::draw_rule_tests::root_repetition_is_searched ... ok
+test search::draw_rule_tests::searchmoves_with_no_legal_move_searches_nothing ... ok
+test search::draw_rule_tests::tt_score_does_not_cross_clock_before_extended_quiescence_claim ... ok
+test search::draw_rule_tests::searchmoves_result_is_always_inside_the_requested_set ... ok
+test search::draw_rule_tests::tt_score_from_low_clock_context_does_not_cut_off_near_fifty_move_horizon ... ok
+test search::queen_trap_tests::endgame_attacked_queen_saves_itself ... ok
+test position::ep_legality_tests::fast_ep_probe_matches_full_legality ... ok
+test search::queen_trap_tests::multiple_queens_scanned ... FAILED
+
+thread 'search::queen_trap_tests::in_check_attacked_queen_stays_legal' (2446) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+error: test failed, to rerun pass `--lib`
+
+Caused by:
+  process didn't exit successfully: `/home/runner/work/FlawLessChess/FlawLessChess/target/release/deps/flawless-6d1234986f2ec616` (signal: 6, SIGABRT: process abort signal)
+cargo test exit code: 101
