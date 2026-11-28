@@ -143,7 +143,12 @@ jobs:
               if int(n_complete) != want:
                   sys.exit(f"run {run_id}: {n_complete} completed shard artifacts, entry expects {want}")
               dl = dl_complete
-              out = f"benches/evidence/{ent['evidence_purpose']}/{ent['anchor_id']}"
+              # evidence_out (schema-1 optional) pins the exact output directory,
+              # e.g. a confirmatory per-run dir. Without it the legacy screening
+              # layout benches/evidence/{evidence_purpose}/{anchor_id} applies.
+              out = ent.get("evidence_out") or f"benches/evidence/{ent['evidence_purpose']}/{ent['anchor_id']}"
+              if not out.startswith("benches/evidence/"):
+                  sys.exit(f"evidence_out must live under benches/evidence/: {out!r}")
               os.makedirs(out, exist_ok=True)
               cmd = [
                   sys.executable, "scripts/aggregate_shards.py",
