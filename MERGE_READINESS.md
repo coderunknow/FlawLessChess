@@ -295,12 +295,24 @@ candidate. Evidence produced under one identity is never reused for another.
       colour reversal ✓; PREREGISTRATION wording "strictly > 2,000" ✓ (append-only, unchanged);
       candidate/player-color consistency ✓; recovery schedule validation ✓ (7/7 tests);
       manifest provenance checks ✓; focus-player handling ✓; queen-defence legality ✓.
-- [x] Phase H adversarial audit — partial: search.rs diff coherent (EXT_BUDGET-bounded check
-      extensions with per-line accounting through null-move; counter-move behind the ablation
-      mask; soft-budget stop), eval.rs outpost advancing-enemy-pawn rule present, ablation
-      switch defaults off, make/unmake restores the full state (castling, ep, clocks, hash,
-      ep-inclusion). Workflow-injection scan clean: no `${{ }}` reaches any `run:` body in any
-      workflow (env-var indirection only).
+- [x] Phase H adversarial audit complete — all ten areas: (1) pruning: search.rs diff coherent
+      (EXT_BUDGET-bounded check extensions with per-line accounting through null-move;
+      counter-move behind the ablation mask; soft-budget stop; LMR/NMP conditions unchanged);
+      (2) legality: make/unmake restores the full state (castling, ep, clocks, hash,
+      ep-inclusion) and the perft/legal differentials cover it in CI; (3) TT: clock-safe
+      contextual keys, depth-preferred replacement with generation aging, key16 verification;
+      (4) qsearch: terminal-before-stand-pat, fifty-move claim wrapper, mate-score margin
+      exemption (F-42), SEE ordering-only; (5) UCI lifecycle: unchanged in this diff, prior
+      race dispositions hold; (6) manifests: match.py records threads and `flawless_ablate`
+      before the first game; read_committed_runs verifies identities/counts/duplicates;
+      (7) recovery: the deliberate-dispatch marker gate and read_committed_runs missing-slot
+      recomputation verified end-to-end (7/7 tests); (8) estimator: strict unrounded gate
+      design verified in rating_estimator (65/65); (9) workflow injection: scan clean — no
+      `${{ }}` reaches any `run:` body in any workflow (env-var indirection only);
+      (10) silent failures: the Phase-E fixes (engine-failure abort, pagination crash,
+      false-green check args) and fail-closed resolve/aggregate paths. Fresh full-diff pass
+      covered src (5 files), workflows (6), scripts (23), tests/correctness.rs and the
+      campaign control files (dispatch rev 57 / evidence-request rev 7 fields verified).
 
 ### Open gates (each must be verified before any merge)
 
@@ -319,8 +331,6 @@ candidate. Evidence produced under one identity is never reused for another.
 - [ ] Phase F: relative_benchmark missing-digest strictness + its regression (after the
       campaign closes, per plan).
 - [ ] Phase G: fresh independent full-diff review of the final head.
-- [ ] Phase H: remaining audit areas (pruning legality proof, TT, qsearch, manifests,
-      estimator, silent-failure sweep) documented to completion.
 - [ ] Phase I: full hosted CI matrix green on the exact final head (Ubuntu/Windows/MSRV,
       all 18 suites, perft/differential, UCI/clock/perf).
 - [ ] Phase J: final docs reconciliation including PR description; no checklist item checked
