@@ -1,0 +1,32 @@
+{
+  "anchor": "topple-0.1.1",
+  "anchor_sha256": "db75d4d816710b77810fb3b5d544b0f6f025542ff992a1c12301d7dffad5ffac",
+  "batch": "B",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "merge_rule": "counted games only; schedule_index must cover 0..n-1 exactly once; 60 registered openings x 4 slots (AB/BA pairs)",
+  "merged_sha256": "094c7bc430492ce0234d32d3f3f5172ae50e708a6431897cdd8b8e0414daf10c",
+  "n_counted": 240,
+  "n_runs": 2,
+  "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
+  "provenance": [
+    {
+      "manifest": "3a63ea5f91940c5049ba1f94d874a9985bd7fcb9a0884db35e4d37ac9362f67d",
+      "n_counted": 236,
+      "n_replay": 0,
+      "run": "run-45999142482",
+      "run_games_sha256": "3a63ea5f91940c5049ba1f94d874a9985bd7fcb9a0884db35e4d37ac9362f67d"
+    },
+    {
+      "manifest": "03735c995476221e95379dd4963c73bd985347b4c09e0b85a1dcfb634bbed545",
+      "n_counted": 4,
+      "n_replay": 0,
+      "run": "run-46158499536",
+      "run_games_sha256": "03735c995476221e95379dd4963c73bd985347b4c09e0b85a1dcfb634bbed545"
+    }
+  ],
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  }
+}
