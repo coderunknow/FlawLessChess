@@ -1,36 +1,43 @@
 {
- "_comment": "READY-TO-PUSH (PUSH ONLY AFTER evidence-bridge commits run-45999142482 with 59 shards/236 counted games under benches/evidence/confirmatory/batchB/topple-0.1.1/run-45999142482/, verified missing exactly [43]) recovery dispatch for confirmatory-B-topple-0.1.1 shard 43 (schedule slots 172-175).",
- "anchor_id": "topple-0.1.1",
- "batch": "B",
- "black_engine": "topple-0.1.1",
- "description": "RECOVERY: schedule indices 172-175 (shard 43) for batch B, anchor topple-0.1.1, run 45999142482 (shard43 cancelled by runner eviction). One attempt per schedule_index. Resolve must recompute exactly these 4 missing slots from committed runs or fail closed.",
- "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
- "opening_suite": "benches/rating-openings-batchB.txt",
- "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
- "power_assessment": "benches/rating-100-power-assessment-e4.json",
- "power_assessment_sha256": "b364e6298d9a9f90a8e2fa2daf0dd99ba418b0b24a74e558f58bca161982f55f",
- "preregistration": "PREREGISTRATION.md#rating-100-amendment-2026-11-16",
- "purpose": "confirmatory",
- "recovery_dispatch": true,
- "repetitions": 2,
- "revision": 60,
- "run_evidence": true,
- "sample_design": "rating-240-v1",
- "schedule_indices_by_shard": {
-  "43": [
-   172,
-   173,
-   174,
-   175
-  ]
- },
- "schema": 1,
- "seed": 20261122,
- "shard_count": 60,
- "shard_indices": [
-  43
- ],
- "target_commit": "cb7242cbb9a88a17e9c1a2b11437a507733e46eb",
- "tc": "40/15",
- "white_engine": "flawless"
+  "_comment": "READY-TO-PUSH recovery dispatch for confirmatory-A-topple-0.1.1 shards 31 and 37 (schedule indices 124-127 and 148-151), whose run 45999016751 was CANCELLED mid-shard. Push ONLY after the evidence-bridge rev 7 (run 46111148534 / 46111280738) has committed the run-45999016751 evidence dir with all 58 completed shards: the resolve gate recomputes missing slots via read_committed_runs and requires prior committed run evidence. Bump 'revision' to the next free value at push time if 58 is taken. Identities identical to the A/topple dispatch: engine bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329, target cb7242c, suite batchA 2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96, tc 40/15, seed 20261121, repetitions 2, shard_count 60. Only the missing indices are dispatched.",
+  "schema": 1,
+  "revision": 58,
+  "purpose": "confirmatory",
+  "sample_design": "rating-240-v1",
+  "description": "RECOVERY: schedule indices 124-127 (shard 31) and 148-151 (shard 37) for batch A, anchor topple-0.1.1, replacing the cancelled shards of run 45999016751; 40/15 wall-clock; engine SHA-256 bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329; source commit cb7242cbb9a88a17e9c1a2b11437a507733e46eb.",
+  "preregistration": "PREREGISTRATION.md#rating-100-amendment-2026-11-16",
+  "target_commit": "cb7242cbb9a88a17e9c1a2b11437a507733e46eb",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "batch": "A",
+  "anchor_id": "topple-0.1.1",
+  "white_engine": "flawless",
+  "black_engine": "topple-0.1.1",
+  "tc": "40/15",
+  "opening_suite": "benches/rating-openings-batchA.txt",
+  "opening_suite_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+  "seed": 20261121,
+  "repetitions": 2,
+  "shard_count": 60,
+  "shard_indices": [
+    31,
+    37
+  ],
+  "schedule_indices_by_shard": {
+    "31": [
+      124,
+      125,
+      126,
+      127
+    ],
+    "37": [
+      148,
+      149,
+      150,
+      151
+    ]
+  },
+  "power_assessment": "benches/rating-100-power-assessment-e4.json",
+  "power_assessment_sha256": "b364e6298d9a9f90a8e2fa2daf0dd99ba418b0b24a74e558f58bca161982f55f",
+  "recovery_dispatch": true,
+  "run_evidence": true
 }
