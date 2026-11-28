@@ -33,7 +33,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -108,6 +108,19 @@ jobs:
             echo "no probe output to commit"
           else
             git commit -m "diagnostics: engine probe results ($LABEL, depths $DEPTHS)"
-            git pull --rebase origin "$GITHUB_REF_NAME"
-            git push origin "HEAD:$GITHUB_REF_NAME"
+            COMMIT_SHA=$(git rev-parse HEAD)
+            # checkout@v4 leaves a depth-1 detached HEAD; `git pull --rebase` from
+            # there fails with exit 128 (no merge base) and silently lost the v7
+            # output. Rebuild the commit on top of the verified remote tip instead:
+            # fetch the branch, switch to it (untracked probe output survives), and
+            # cherry-pick the commit. If the tip already holds identical bytes the
+            # cherry-pick becomes empty and the push is a no-op — idempotent.
+            git fetch origin "$GITHUB_REF_NAME"
+            git checkout -B probe-commit "origin/$GITHUB_REF_NAME"
+            if git cherry-pick -x "$COMMIT_SHA" >/dev/null 2>&1; then
+              git push origin "HEAD:$GITHUB_REF_NAME"
+            else
+              echo "cherry-pick produced no new commit (identical output already on tip)"
+              git cherry-pick --abort 2>/dev/null || true
+            fi
           fi
