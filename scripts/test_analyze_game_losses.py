@@ -31,6 +31,7 @@ import chess
 
 from analyze_game_losses import (
     _safe_defense_exists,
+    legal_attackers,
     material_lost_after,
     queen_traps_after,
 )
@@ -62,6 +63,55 @@ DEFENSE_CAPTURE = "4k3/4p3/8/8/3n4/4N3/pp6/qr6 b - - 0 1"
 # interpose on a4, defended by the b5 pawn (Rxa4 bxa4 wins the exchange):
 # a safe interposition defense.
 DEFENSE_INTERPOSE = "4k3/8/8/Rp6/8/2n5/6K1/q7 b - - 0 1"
+# The only apparent attacker of the black queen a1 (boxed by its own rook b1 and
+# pawn a2) is the white bishop c3, pinned to Kd2 by Ba5 and therefore unable to
+# legally capture a1. The white knight b2 blocks the bishop's view; every knight
+# hop (Na4/Nc4/Nd1/Nd3) is a quiet release that preserves the pin, so none may
+# flag the queen as capturable (pinned-attacker false positive). The white pawn
+# c1 covers the b2 flight square so genuine traps still look real.
+PINNED_ATTACKER = "6k1/7p/8/b7/8/2B5/pN1K4/qrP5 b - - 0 1"
+# Same position without the pinner: the bishop really attacks a1 once the knight
+# steps aside, so those quiet replies are genuine traps.
+UNPINNED_ATTACKER = "6k1/7p/8/8/8/2B5/pN1K4/qrP5 b - - 0 1"
+
+# SANs of the knight releases from b2 -- the pin-preserving replies under test.
+NIGHT_RELEASES = {"Na4", "Nc4", "Nd1", "Nd3"}
+
+
+class TestPinnedAttacker(unittest.TestCase):
+    """A pinned piece cannot capture, so it must never register as a threat."""
+
+    def test_legal_attackers_excludes_pinned_piece(self) -> None:
+        board = chess.Board(PINNED_ATTACKER)
+        board.push(_move("h7h6"))
+        board.push(_move("b2a4"))
+        self.assertTrue(board.is_attacked_by(chess.WHITE, chess.A1),
+                        "geometric attack exists (python-chess counts pins)")
+        self.assertEqual(legal_attackers(board, chess.WHITE, chess.A1), set(),
+                         "the pinned bishop cannot legally capture a1")
+
+    def test_pinned_pseudo_attacker_does_not_flag_queen(self) -> None:
+        board = chess.Board(PINNED_ATTACKER)
+        traps = queen_traps_after(board, _move("h7h6"), MIN_LOSS)
+        self.assertEqual({t["reply"] for t in traps} & NIGHT_RELEASES, set(),
+                         "releasing a pinned bishop must never flag the queen")
+        for t in traps:
+            self.assertNotIn(t["reply"], NIGHT_RELEASES)
+
+    def test_unpinned_attacker_still_flags(self) -> None:
+        board = chess.Board(UNPINNED_ATTACKER)
+        traps = queen_traps_after(board, _move("h7h6"), MIN_LOSS)
+        self.assertEqual({t["reply"] for t in traps}, NIGHT_RELEASES,
+                         "an unpinned attacker releasing the line is a genuine trap")
+        for t in traps:
+            self.assertEqual(t["queen_escapes"], 2)
+
+    def test_legal_attackers_returns_real_attacker(self) -> None:
+        board = chess.Board(UNPINNED_ATTACKER)
+        board.push(_move("h7h6"))
+        board.push(_move("b2a4"))
+        self.assertEqual(legal_attackers(board, chess.WHITE, chess.A1),
+                         {chess.parse_square("c3")})
 
 
 class TestBlunderDetectors(unittest.TestCase):

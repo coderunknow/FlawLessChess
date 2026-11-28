@@ -14,6 +14,19 @@ import sys
 
 import chess
 
+
+def captured_square(board: chess.Board, move: chess.Move):
+    """Square of the piece ``move`` captures, or None.
+
+    En passant captures the pawn beside the capturing pawn, not on the move's
+    ``to_square``: the victim sits on the to-file at the mover's own rank.
+    """
+    if not board.is_capture(move):
+        return None
+    if board.is_en_passant(move):
+        return chess.square(chess.square_file(move.to_square), chess.square_rank(move.from_square))
+    return move.to_square
+
 sys.path.insert(0, "scripts")  # scanner lives in scripts/ (drift-frozen during campaigns)
 from analyze_game_losses import scan  # noqa: E402
 
@@ -26,23 +39,27 @@ def adjudicate(path, focus="flawless", min_loss_cp=150):
             if raw.strip():
                 records.append(json.loads(raw))
     flags = result["flagged"]
+    # Source-occurrence identity: (rec ordinal, fen, ply, move). ``game_index``
+    # repeats across shards and two transposed games can share (fen, ply, move);
+    # the record ordinal within this exact file is unique, so every flag is
+    # applied to exactly one source occurrence and never cross-joined.
     by_key = {}
     for f in flags:
         if "error" in f:
             continue
-        by_key.setdefault((f["fen"], f["ply"], f["move"]), []).append(f)
+        by_key.setdefault((f.get("rec"), f["fen"], f["ply"], f["move"]), []).append(f)
 
     qt_played = qt_fell = qt_total = 0
     mp_total = mp_collected = 0
     details = []
-    for rec in records:
+    for rec_ordinal, rec in enumerate(records):
         moves = rec.get("moves") or []
         if isinstance(moves, str):
             moves = json.loads(moves.replace("'", '"'))
         is_focus_white = str(rec.get("white", "")).casefold() == focus.casefold()
         board = chess.Board()
         for ply, uci in enumerate(moves):
-            key = (board.fen(), ply, uci)
+            key = (rec_ordinal, board.fen(), ply, uci)
             move = chess.Move.from_uci(uci)
             mover_is_focus = (board.turn == chess.WHITE) == is_focus_white
             if mover_is_focus:
@@ -71,9 +88,10 @@ def adjudicate(path, focus="flawless", min_loss_cp=150):
                                 # counting the mover's queens anywhere, since
                                 # a fleeing queen is usually taken off its
                                 # original square.
-                                cap = (board.is_capture(nxt)
-                                       and board.piece_type_at(nxt.to_square) == chess.QUEEN
-                                       and board.color_at(nxt.to_square) == mover)
+                                cap_sq = captured_square(board, nxt)
+                                cap = (cap_sq is not None
+                                       and board.piece_type_at(cap_sq) == chess.QUEEN
+                                       and board.color_at(cap_sq) == mover)
                                 board.push(nxt)
                                 depth_pushed += 1
                                 if cap:
@@ -99,7 +117,13 @@ def adjudicate(path, focus="flawless", min_loss_cp=150):
                         mp_total += 1
                         if ply + 1 < len(moves):
                             nxt = chess.Move.from_uci(moves[ply + 1])
-                            if board.is_capture(nxt) and nxt.to_square == move.to_square:
+                            # The reply is played after the flagged move: the
+                            # en passant right only exists there, so evaluate
+                            # the capture on the post-move position.
+                            board.push(move)
+                            collected = captured_square(board, nxt) == move.to_square
+                            board.pop()
+                            if collected:
                                 mp_collected += 1
             board.push(move)
     return {
