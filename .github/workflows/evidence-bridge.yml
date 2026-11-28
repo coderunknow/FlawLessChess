@@ -126,6 +126,23 @@ jobs:
                   sys.exit(f"run {run_id}: shard jobs not all successful: {bad[:5]}")
               dl = f"/tmp/bridge-{run_id}"
               subprocess.run(["gh", "run", "download", run_id, "-D", dl], check=True)
+              # Attempt-specific completed-shard collection: a cancelled or aborted
+              # shard leg uploads a partial artifact (meta.json completion_status
+              # != completed). Those must never enter aggregation; only fully
+              # completed shard artifacts are collected, and the expected count
+              # is checked against the collected set (fail closed).
+              dl_complete = f"/tmp/bridge-{run_id}-complete"
+              r3 = subprocess.run(
+                  [sys.executable, "scripts/collect_completed_shards.py",
+                   "--source", dl, "--out", dl_complete],
+                  capture_output=True, text=True)
+              n_complete = (r3.stdout or "").strip().splitlines()[-1] if r3.stdout else "0"
+              if r3.returncode != 0:
+                  sys.exit(f"collect_completed_shards failed for run {run_id}: {r3.stderr[-500:]}")
+              want = len(ent["shard_indices"])
+              if int(n_complete) != want:
+                  sys.exit(f"run {run_id}: {n_complete} completed shard artifacts, entry expects {want}")
+              dl = dl_complete
               out = f"benches/evidence/{ent['evidence_purpose']}/{ent['anchor_id']}"
               os.makedirs(out, exist_ok=True)
               cmd = [
