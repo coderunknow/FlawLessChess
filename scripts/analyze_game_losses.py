@@ -118,27 +118,6 @@ def _interpose_squares(board: chess.Board, attacker: chess.Square, victim: chess
     return out
 
 
-def legal_attackers(board: chess.Board, color: chess.Color, square: chess.Square) -> set[chess.Square]:
-    """Pieces of ``color`` that can LEGALLY capture on ``square``.
-
-    ``Board.attackers``/``is_attacked_by`` include pinned pieces, which cannot
-    actually capture without exposing their king. A pinned pseudo-attacker must
-    never be treated as a capturer (queen-trap false positives), so every
-    candidate is validated against the real capture move, promotions included.
-    """
-    out: set[chess.Square] = set()
-    for asq in board.attackers(color, square):
-        piece = board.piece_type_at(asq)
-        promo = chess.QUEEN if piece == chess.PAWN else None
-        move = chess.Move(asq, square, promotion=promo)
-        probe = board.copy(stack=False)
-        if probe.turn != color:
-            probe.turn = color  # validate the capture for the attacker's side
-        if move in probe.legal_moves:
-            out.add(asq)
-    return out
-
-
 def _safe_defense_exists(board: chess.Board, mover: chess.Color, qs: chess.Square,
                          attackers: set[chess.Square], min_loss_cp: int) -> bool:
     """Can a non-queen piece of the mover safely defuse the attack?
@@ -182,7 +161,7 @@ def queen_traps_after(board: chess.Board, move: chess.Move, min_loss_cp: int) ->
     queens = list(nb.pieces(chess.QUEEN, mover))
     if not queens:
         return []
-    attacked_before = {qs: bool(legal_attackers(nb, not mover, qs)) for qs in queens}
+    attacked_before = {qs: nb.is_attacked_by(not mover, qs) for qs in queens}
     traps: list[dict] = []
     for reply in nb.legal_moves:
         if nb.is_capture(reply) or reply.promotion:
@@ -195,7 +174,7 @@ def queen_traps_after(board: chess.Board, move: chess.Move, min_loss_cp: int) ->
         for qs in queens:
             if attacked_before[qs]:
                 continue  # a pre-existing hang is the moved_piece detector's job
-            if not legal_attackers(nb, not mover, qs):
+            if not nb.is_attacked_by(not mover, qs):
                 continue
             escapes = [m for m in nb.legal_moves if m.from_square == qs]
             safe = False
@@ -205,7 +184,7 @@ def queen_traps_after(board: chess.Board, move: chess.Move, min_loss_cp: int) ->
                     break
             if safe:
                 continue
-            attackers = legal_attackers(nb, not mover, qs)
+            attackers = nb.attackers(not mover, qs)
             if _safe_defense_exists(nb, mover, qs, attackers, min_loss_cp):
                 continue
             traps.append({
@@ -226,7 +205,7 @@ def scan(path: str, focus: str, min_loss_cp: int) -> dict:
                 records.append(json.loads(raw))
     focus = focus.casefold()
     out = {"source": path, "games": len(records), "flagged": []}
-    for rec_ordinal, rec in enumerate(records):
+    for rec in records:
         board = chess.Board()
         moves = rec.get("moves") or []
         if isinstance(moves, str):
@@ -236,8 +215,7 @@ def scan(path: str, focus: str, min_loss_cp: int) -> dict:
             move = chess.Move.from_uci(uci)
             if move not in board.legal_moves:
                 out["flagged"].append({
-                    "game": rec.get("game_index"), "rec": rec_ordinal,
-                    "ply": ply, "error": f"illegal move {uci}",
+                    "game": rec.get("game_index"), "ply": ply, "error": f"illegal move {uci}",
                     "fen": board.fen(),
                 })
                 break
@@ -247,7 +225,6 @@ def scan(path: str, focus: str, min_loss_cp: int) -> dict:
                 if lost >= min_loss_cp:
                     out["flagged"].append({
                         "game": rec.get("game_index"),
-                        "rec": rec_ordinal,
                         "result": rec.get("result"),
                         "opening": rec.get("opening"),
                         "ply": ply,
@@ -259,7 +236,6 @@ def scan(path: str, focus: str, min_loss_cp: int) -> dict:
                 for trap in queen_traps_after(board, move, min_loss_cp):
                     out["flagged"].append({
                         "game": rec.get("game_index"),
-                        "rec": rec_ordinal,
                         "result": rec.get("result"),
                         "opening": rec.get("opening"),
                         "ply": ply,

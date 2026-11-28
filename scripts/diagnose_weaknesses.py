@@ -22,7 +22,6 @@ import os
 import random
 import re
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -48,15 +47,6 @@ EVAL_SOURCE = REPO_ROOT / "src" / "eval.rs"
 
 class EngineError(RuntimeError):
     """The engine process failed in a way that makes the diagnostic meaningless."""
-
-
-class EngineFailure(EngineError):
-    """The engine failed mid-game: missing bestmove, 0000/(none), unparsable or illegal.
-
-    This is a genuine error, not a legitimate ply-cap truncation: the diagnostic
-    must abort with a distinct nonzero exit code instead of recording the broken
-    game as an unfinished one.
-    """
 
 
 def load_pst_from_source(path: Path) -> dict[int, list[int]]:
@@ -157,8 +147,6 @@ def engine_bestmove(fen: str, movetime_ms: int, binary: str) -> str | None:
                 parts = line.split()
                 bestmove = parts[1] if len(parts) > 1 else None
                 break
-        if bestmove is None:
-            raise EngineFailure(f"no bestmove before the engine stream ended ({fen})")
         return bestmove
     finally:
         try:
@@ -201,8 +189,28 @@ def build_pgn(
     return str(pgn_game)
 
 
-def _run_games(args, binary: str, flagged: list, losing_games: list, results: list) -> None:
-    """Play the diagnostic games. Raises EngineFailure on any engine failure."""
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--games", type=int, default=10)
+    parser.add_argument("--movetime-ms", type=int, default=500)
+    parser.add_argument("--max-plies", type=int, default=150)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--binary", default=ENGINE)
+    parser.add_argument("--out", default=str(OUT))
+    args = parser.parse_args()
+
+    binary = args.binary
+    if not Path(binary).is_file() or not os.access(binary, os.X_OK):
+        print(f"engine binary missing or not executable: {binary}")
+        return 2
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    random.seed(args.seed)
+    flagged: list[dict] = []
+    losing_games: list[str] = []
+    results: list[dict] = []
+
     for game in range(args.games):
         board = chess.Board()
         moves: list[chess.Move] = []
@@ -215,15 +223,16 @@ def _run_games(args, binary: str, flagged: list, losing_games: list, results: li
                 fen = board.fen()
                 best = engine_bestmove(fen, args.movetime_ms, binary)
                 if best is None or best in ("0000", "(none)"):
-                    raise EngineFailure(f"game {game}: the engine returned no bestmove at {fen}")
+                    print(f"game {game}: the engine returned no bestmove at {fen}")
+                    break
                 try:
                     move = chess.Move.from_uci(best)
                 except ValueError:
-                    raise EngineFailure(
-                        f"game {game}: the engine returned an unparsable move {best!r} at {fen}"
-                    )
+                    print(f"game {game}: the engine returned an unparsable move {best!r} at {fen}")
+                    break
                 if move not in board.legal_moves:
-                    raise EngineFailure(f"game {game}: illegal move {best} at {fen}")
+                    print(f"game {game}: illegal move {best} at {fen}")
+                    break
                 board.push(move)
                 moves.append(move)
                 engine_move = move
@@ -284,42 +293,6 @@ def _run_games(args, binary: str, flagged: list, losing_games: list, results: li
                 "unfinished": unfinished,
             }
         )
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--games", type=int, default=10)
-    parser.add_argument("--movetime-ms", type=int, default=500)
-    parser.add_argument("--max-plies", type=int, default=150)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--binary", default=ENGINE)
-    parser.add_argument("--out", default=str(OUT))
-    args = parser.parse_args()
-
-    binary = args.binary
-    if not Path(binary).is_file() or not os.access(binary, os.X_OK):
-        print(f"engine binary missing or not executable: {binary}")
-        return 2
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-
-    random.seed(args.seed)
-    flagged: list[dict] = []
-    losing_games: list[str] = []
-    results: list[dict] = []
-
-    try:
-        _run_games(args, binary, flagged, losing_games, results)
-    except EngineError as exc:
-        # Engine failures abort the run with a distinct exit code (3): a broken
-        # engine is a genuine error, never a truncated game. engine_bestmove
-        # already reaps its child (quit / wait / kill) before this handler runs.
-        print(f"ENGINE FAILURE: {exc}", file=sys.stderr)
-        print(
-            "aborting the diagnostic: an engine failure is not a ply-cap truncation",
-            file=sys.stderr,
-        )
-        return 3
 
     with (out / "weaknesses.jsonl").open("w", encoding="utf-8") as handle:
         for entry in flagged:

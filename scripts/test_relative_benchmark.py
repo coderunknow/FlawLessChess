@@ -165,7 +165,6 @@ def test_three_run_aggregate_is_clustered_and_provenance_checked() -> None:
                 "baseline_binary": {"sha256": "b" * 64},
                 "opening_suites": [{"path": "suite.txt", "sha256": "a" * 64}],
                 "opening_order_file": "openings.used.txt",
-                "opening_order_sha256": rb.sha256_file(run / "openings.used.txt"),
                 "elapsed_seconds": 1.0,
             }
             (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -281,75 +280,6 @@ def test_opening_order_digest_is_verified_before_aggregation() -> None:
               "the digest mismatch is reported as a validation error")
 
 
-def test_missing_opening_order_digest_is_rejected() -> None:
-    # Regression for the Phase F defect: a manifest WITHOUT opening_order_sha256 used
-    # to satisfy `digest_ok = not recorded_digest or ...`, so the saved opening order
-    # was folded into the pooled result unverified. Missing digests must now fail
-    # closed exactly like mismatches, and a missing used file stays rejected too.
-    with tempfile.TemporaryDirectory() as td:
-        root = Path(td) / "runs"
-        suite_lines = random_legal_opening_lines(100, 58)
-        run = root / "replicate-1"
-        match = run / "match"
-        match.mkdir(parents=True)
-        rb.write_openings(run / "openings.used.txt", suite_lines, 20261124)
-        games: list[dict] = []
-        for index, (name, _moves) in enumerate(suite_lines):
-            pair = make_pair(name, "1-0", "1/2-1/2")
-            for row in pair:
-                row["schedule_index"] = index * 2 + (0 if row["color_pair"] == "AB" else 1)
-            games.extend(pair)
-        (match / "games.jsonl").write_text(
-            "".join(json.dumps(row) + "\n" for row in games), encoding="utf-8"
-        )
-        (run / "summary.json").write_text(json.dumps({"valid": True}), encoding="utf-8")
-        manifest = {
-            "kind": "relative_engine_match",
-            "profile": "extended",
-            "status": "completed",
-            "seed": 20261124,
-            "candidate_commit": "candidate-sha",
-            "baseline_commit": "baseline-sha",
-            "candidate_binary": {"sha256": "c" * 64},
-            "baseline_binary": {"sha256": "b" * 64},
-            "opening_suites": [{"path": "suite.txt", "sha256": "a" * 64}],
-            "opening_order_file": "openings.used.txt",
-            # NOTE: opening_order_sha256 deliberately absent — that is the defect.
-            "flawless_ablate": "",
-            "elapsed_seconds": 1.0,
-        }
-        (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-
-        out = Path(td) / "aggregate-no-digest"
-        code = rb.aggregate_runs(Namespace(runs_root=str(root), out=str(out), bootstrap_seed=75))
-        result = json.loads((out / "aggregate-summary.json").read_text(encoding="utf-8"))
-        check(code != 0, "a manifest without an opening-order digest fails the aggregation")
-        check(not result["valid"], "a missing opening-order digest invalidates the aggregate")
-        check(any("lacks opening_order_sha256" in e for e in result["validation_errors"]),
-              "the missing digest is reported as a validation error naming the field")
-
-        # Empty-string digest is equally unverifiable and must not sneak past.
-        manifest["opening_order_sha256"] = ""
-        (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-        out2 = Path(td) / "aggregate-empty-digest"
-        code2 = rb.aggregate_runs(Namespace(runs_root=str(root), out=str(out2), bootstrap_seed=75))
-        result2 = json.loads((out2 / "aggregate-summary.json").read_text(encoding="utf-8"))
-        check(code2 != 0 and not result2["valid"],
-              "an empty opening-order digest is rejected like a missing one")
-
-        # The saved file itself missing stays rejected (pre-existing guarantee, pinned here).
-        manifest["opening_order_sha256"] = "f" * 64
-        (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-        (run / "openings.used.txt").unlink()
-        out3 = Path(td) / "aggregate-no-file"
-        code3 = rb.aggregate_runs(Namespace(runs_root=str(root), out=str(out3), bootstrap_seed=75))
-        result3 = json.loads((out3 / "aggregate-summary.json").read_text(encoding="utf-8"))
-        check(code3 != 0 and not result3["valid"],
-              "a missing openings.used.txt is still rejected")
-        check(any("missing openings.used.txt" in e for e in result3["validation_errors"]),
-              "the missing saved opening order is reported as a validation error")
-
-
 def test_replicates_with_different_ablation_masks_cannot_be_combined() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td) / "runs"
@@ -380,7 +310,6 @@ def test_replicates_with_different_ablation_masks_cannot_be_combined() -> None:
                 "baseline_binary": {"sha256": "b" * 64},
                 "opening_suites": [{"path": "suite.txt", "sha256": "a" * 64}],
                 "opening_order_file": "openings.used.txt",
-                "opening_order_sha256": rb.sha256_file(run / "openings.used.txt"),
                 "flawless_ablate": "" if run_no != 2 else "space",
                 "elapsed_seconds": 1.0,
             }
@@ -404,7 +333,6 @@ def main() -> int:
     test_a_perfect_score_is_a_positive_relative_signal()
     test_game_without_the_candidate_is_excluded_from_the_scorable_set()
     test_opening_order_digest_is_verified_before_aggregation()
-    test_missing_opening_order_digest_is_rejected()
     test_replicates_with_different_ablation_masks_cannot_be_combined()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0

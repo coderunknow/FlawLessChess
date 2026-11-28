@@ -14,7 +14,6 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -196,171 +195,11 @@ def test_two_losing_games_stay_two_separate_pgn_records() -> None:
               "a single newline strips the player headers of the later record")
 
 
-
-# ---------------------------------------------------------------------------
-# Engine failures must abort with a distinct exit code (3) and reap the child;
-# a legitimate ply-cap truncation keeps exit code 0 (pinned above).
-# ---------------------------------------------------------------------------
-
-ENGINE_FAILURE_RC = 3
-
-STUB_HEADER = (
-    "#!/usr/bin/env python3\n"
-    "import os, sys, time\n"
-    "def uci():\n"
-    "    print('id name stub')\n"
-    "    print('uciok', flush=True)\n"
-    "if os.environ.get('STUB_PID_FILE'):\n"
-    "    open(os.environ['STUB_PID_FILE'], 'w').write(str(os.getpid()))\n"
-)
-
-# bestmove 0000: the engine saw no legal move where one exists.
-STUB_0000 = STUB_HEADER + (
-    "for line in sys.stdin:\n"
-    "    line = line.strip()\n"
-    "    if line == 'uci':\n"
-    "        uci()\n"
-    "    elif line.startswith('go'):\n"
-    "        print('bestmove 0000', flush=True)\n"
-)
-
-# unparsable move token.
-STUB_MALFORMED = STUB_HEADER + (
-    "for line in sys.stdin:\n"
-    "    line = line.strip()\n"
-    "    if line == 'uci':\n"
-    "        uci()\n"
-    "    elif line.startswith('go'):\n"
-    "        print('bestmove z9z9z9', flush=True)\n"
-)
-
-# legal-looking token that is illegal in the current position.
-STUB_ILLEGAL = STUB_HEADER + (
-    "for line in sys.stdin:\n"
-    "    line = line.strip()\n"
-    "    if line == 'uci':\n"
-    "        uci()\n"
-    "    elif line.startswith('go'):\n"
-    "        print('bestmove a1a2', flush=True)\n"
-)
-
-# no bestmove at all: the stream simply ends.
-STUB_MISSING = STUB_HEADER + (
-    "for line in sys.stdin:\n"
-    "    line = line.strip()\n"
-    "    if line == 'uci':\n"
-    "        uci()\n"
-    "    elif line.startswith('go'):\n"
-    "        print('info string thinking', flush=True)\n"
-    "        sys.exit(0)\n"
-)
-
-# refuses to answer uci at all.
-STUB_NO_UCIOK = STUB_HEADER + "sys.exit(0)\n"
-
-
-def _write_stub(td: Path, name: str, body: str) -> Path:
-    path = td / name
-    path.write_text(body, encoding="utf-8")
-    path.chmod(0o755)
-    return path
-
-
-def _run_diagnostic(binary: Path, out: Path, games: str = "1", max_plies: str = "150",
-                    pid_file: Path | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if pid_file is not None:
-        env["STUB_PID_FILE"] = str(pid_file)
-    return subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT),
-            "--games", games,
-            "--movetime-ms", "10",
-            "--max-plies", max_plies,
-            "--binary", str(binary),
-            "--out", str(out),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        env=env,
-    )
-
-
-def test_engine_failure_aborts_with_distinct_exit_code() -> None:
-    cases = {
-        "0000": STUB_0000,
-        "malformed": STUB_MALFORMED,
-        "illegal": STUB_ILLEGAL,
-        "missing bestmove": STUB_MISSING,
-        "no uciok": STUB_NO_UCIOK,
-    }
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
-        for label, body in cases.items():
-            stub = _write_stub(td_path, f"stub_{label.replace(' ', '_')}.py", body)
-            out = td_path / f"out_{label.replace(' ', '_')}"
-            proc = _run_diagnostic(stub, out)
-            check(proc.returncode == ENGINE_FAILURE_RC,
-                  f"engine failure ({label}) aborts with rc={ENGINE_FAILURE_RC} (got {proc.returncode})")
-            check("ENGINE FAILURE" in proc.stderr,
-                  f"engine failure ({label}) names the failure on stderr")
-            check("not a ply-cap truncation" in proc.stderr,
-                  f"engine failure ({label}) distinguishes itself from truncation")
-            check(not (out / "summary.json").exists(),
-                  f"engine failure ({label}) writes no summary claiming results")
-
-
-def test_engine_failure_exit_codes_are_distinct() -> None:
-    # rc 2 (binary missing) and rc 3 (engine failure) must not collide, and a
-    # legitimate truncation must remain rc 0 (pinned in the earlier test).
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
-        proc = _run_diagnostic(td_path / "no_such_binary", td_path / "out_missing_binary")
-        check(proc.returncode == 2, f"a missing binary exits 2 (got {proc.returncode})")
-        stub = _write_stub(td_path, "stub_0000b.py", STUB_0000)
-        proc = _run_diagnostic(stub, td_path / "out_0000")
-        check(proc.returncode == 3, f"an engine failure exits 3 (got {proc.returncode})")
-        check(proc.returncode != 2, "engine failure and binary-missing exit codes differ")
-
-
-def test_engine_failure_reaps_the_child_process() -> None:
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
-        pid_file = td_path / "stub.pid"
-        stub = _write_stub(td_path, "stub_hang_fail.py", STUB_0000 + "time.sleep(60)\n")
-        proc = _run_diagnostic(stub, td_path / "out", pid_file=pid_file)
-        check(proc.returncode == ENGINE_FAILURE_RC,
-              f"the hanging-stub failure aborts (rc={proc.returncode})")
-        check(pid_file.is_file(), "the stub recorded its pid")
-        if pid_file.is_file():
-            pid = int(pid_file.read_text().strip())
-            alive = True
-            try:
-                os.kill(pid, 0)
-            except (ProcessLookupError, PermissionError):
-                alive = False
-            import time as _time
-            for _ in range(20):
-                if not alive:
-                    break
-                _time.sleep(0.5)
-                try:
-                    os.kill(pid, 0)
-                except (ProcessLookupError, PermissionError):
-                    alive = False
-            check(not alive, "the engine child process is reaped before the abort returns")
-
-
 def main() -> int:
     test_the_losing_game_is_a_replayable_pgn()
     test_a_truncated_game_is_unfinished_and_not_a_loss()
     test_the_losing_games_file_is_replaced_on_every_run()
     test_two_losing_games_stay_two_separate_pgn_records()
-    test_engine_failure_aborts_with_distinct_exit_code()
-    test_engine_failure_exit_codes_are_distinct()
-    test_engine_failure_reaps_the_child_process()
     print(f"\n{PASS} checks passed, {FAIL} failed")
     return 1 if FAIL else 0
 

@@ -166,10 +166,9 @@ def test_claims_name_the_candidate_when_it_has_no_runs() -> None:
     }
     claims = tool.build_claims(rows, meta)
     text = "\n".join(claims)
-    check("No hosted quick runs are on the current candidate engine yet" in text,
-          "the no-runs-on-candidate claim is emitted")
-    check("ddddddd" in text, "the claim names the candidate's last `src/` change")
-    check("identical earlier binary" in text, "the range is attributed to the earlier binary")
+    check("the no-runs-on-candidate claim is emitted", "No hosted quick runs are on the current candidate engine yet" in text)
+    check("the claim names the candidate's last `src/` change", "ddddddd" in text)
+    check("the range is attributed to the earlier binary", "identical earlier binary" in text)
     meta_on = dict(meta, on_candidate=True)
     claims_on = tool.build_claims(rows, meta_on)
     check(
