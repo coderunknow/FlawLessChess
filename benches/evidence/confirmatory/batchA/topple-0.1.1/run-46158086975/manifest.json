@@ -1,0 +1,26 @@
+{
+  "batch": "A",
+  "anchor": "topple-0.1.1",
+  "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
+  "anchor_sha256": "db75d4d816710b77810fb3b5d544b0f6f025542ff992a1c12301d7dffad5ffac",
+  "opening_suite_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+  "time_control": {
+    "mode": "clock",
+    "period_moves": 40,
+    "period_seconds": 900.0
+  },
+  "shard_ids": [
+    "confirmatory-A-topple-0.1.1-31",
+    "confirmatory-A-topple-0.1.1-37"
+  ],
+  "n_shards": 2,
+  "n_attempts": 8,
+  "n_counted": 8,
+  "n_engine_errors": 0,
+  "n_unadjudicated": 0,
+  "hardware_cpu_model": [
+    "AMD EPYC 9V74 80-Core Processor",
+    "Intel(R) Xeon(R) 6975P-C"
+  ],
+  "merged_sha256": "124198898fa69caf1ceb9ba110aab8440da538cef73ff706ff02a4ce08890c84"
+}
