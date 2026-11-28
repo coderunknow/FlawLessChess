@@ -548,8 +548,15 @@ def aggregate_runs(args: argparse.Namespace) -> int:
                 # pooled result unnoticed.
                 recorded_digest = manifest.get("opening_order_sha256")
                 actual_digest = sha256_file(used_file)
-                digest_ok = not recorded_digest or recorded_digest == actual_digest
-                if not digest_ok:
+                if not recorded_digest:
+                    # A missing digest is not a pass: without it the saved opening
+                    # order is folded into the pooled result unverified, so a
+                    # swapped or stale file cannot be told from the played order.
+                    validation_errors.append(
+                        f"seed {manifest.get('seed')}: manifest lacks opening_order_sha256; "
+                        "the saved opening order cannot be verified"
+                    )
+                elif recorded_digest != actual_digest:
                     validation_errors.append(
                         f"seed {manifest.get('seed')}: opening order digest mismatch "
                         f"(manifest {recorded_digest}, file {actual_digest})"
