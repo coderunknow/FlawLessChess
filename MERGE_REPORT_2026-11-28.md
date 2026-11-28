@@ -1,7 +1,8 @@
 # PR #6 merge-readiness report — 2026-11-28 checkpoint
 
-Branch `arena/247fe7df-flawlesschess`, base `main` = `6ab5b33`. Report head at writing:
-`1191f1a` (branch tip is authoritative; each claim names the state it was verified at).
+Branch `arena/247fe7df-flawlesschess`, base `main` = `6ab5b33`. Report head at the
+deadline snapshot: `bdc6176` (branch tip is authoritative; each claim names the state it
+was verified at).
 Deadline context: the mission work window closed at 16:00 (UTC+7) on 2026-11-28 while the
 registered ENGINE-4 campaign was still executing on hosted runners. Per the standing
 instruction, PR #6 is left **OPEN** and unmerged — no tag, no release.
@@ -32,15 +33,20 @@ what is verified and what remains, so the continuation is mechanical.
 
 ## B. ENGINE-4 campaign + recovery (hard gate)
 
-Verified from job-level API state (not run conclusions):
+Verified from job-level API state (not run conclusions). **Deadline snapshot (16:00 UTC+7 /
+09:00Z; data current to 08:50Z):** the evidence-bridge recovered and committed
+run-45999016751's 58 shards (`1072d33`, verified: 58 shards with exactly [31, 37] missing,
+232 counted games, identities matching the freeze), and the A/topple recovery dispatch rev
+58 was pushed (`bdc6176`, shards 31 [124–127] + 37 [148–151]) with its resolve run queued.
+The ladder is fully staged; the campaign itself was still executing at the deadline.
 
 | Batch/anchor | Run | State at 06:44Z | Recovery needed |
 |---|---|---|---|
 | A / wowl-1.3.7 | 45998977117 | FAILURE; 236 counted games committed at `…/batchA/wowl-1.3.7/run-45998977117/` | slots 124–127 (shard 31) — dispatch rev 57 pushed (`f4a0ba4`), rating-run 46111280732 queued |
-| A / topple-0.1.1 | 45999016751 | CANCELLED; 58 complete shards, partial 31/37; evidence NOT yet committed | bridge rev 7 queued (46111148534 / 46111280738) → then recovery rev 58 (slots 124–127 + 148–151), template ready |
+| A / topple-0.1.1 | 45999016751 | evidence COMMITTED via bridge (`1072d33`): 58 shards / 232 games, missing [31, 37] | recovery rev 58 pushed (`bdc6176`): shards 31+37 → slots 124–127 + 148–151, resolve run 46124193000 queued |
 | A / wyldchess-1.1 | 45999052791 | 59 shards success, shard 17 FAILED, aggregate queued | slots 68–71 after the run resolves (rev 59 template ready) |
 | B / wowl-1.3.7 | 45999096409 | 60/60 shards success, aggregate queued | — |
-| B / topple-0.1.1 | 45999142482 | running: 39 in progress / 19 queued / 3 success (≈3.2 h per 4-game shard) | — |
+| B / topple-0.1.1 | 45999142482 | running at 08:50Z: 31 in progress / 30 success (≈3.2 h per 4-game shard) | — |
 | B / wyldchess-1.1 | 45999195004 | 60 shards queued | — |
 
 Recovery protocol verified end-to-end against `rating-run.yml`: deliberate-dispatch marker
@@ -100,10 +106,10 @@ chain has not started.
 
 1. Campaign drain: B/topple + B/wyld shards complete; aggregates commit (or bridges
    commit the completed shards per protocol).
-2. A/wowl rev-57 recovery (run 46111280732) resolves, plays slots 124–127, commits
-   `run-<id>` evidence; verify by job conclusion AND committed records.
-3. Bridge rev 7 commits run-45999016751's 58 shards → dispatch A/topple recovery rev 58
-   (31+37) → commit evidence.
+2. A/wowl rev-57 recovery (run 46111280732) plays slots 124–127 and commits `run-<id>`
+   evidence; verify by job conclusion AND committed records.
+3. A/topple recovery rev 58 (run 46124193000, queued at the deadline) plays shards 31+37
+   (slots 124–127 + 148–151) and commits evidence.
 4. A/wyld run 45999052791 resolves → dispatch shard-17 recovery rev 59 (68–71) → commit.
 5. Every merged set independently re-aggregated; canonical counts = 240/anchor/batch.
 6. Phase C gate recomputed from the committed raw records (strict, unrounded) — PASS on all
