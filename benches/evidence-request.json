@@ -1,16 +1,16 @@
 {
  "schema": 1,
- "revision": 7,
- "description": "ENGINE-4 confirmatory batch A, anchor topple-0.1.1, run 45999016751: in-run aggregation never ran (2 shard legs -- shard31 and shard37 -- were cancelled by runner eviction, so needs.shard.result came out 'cancelled' and the aggregate-and-commit-evidence job was skipped). All 58 remaining shard jobs succeeded and their artifacts are complete; the two cancelled legs' partial artifacts (completion_status != completed) are excluded by the bridge's completed-shards collection. Schedule slots 124-127 and 148-151 are genuinely missing and will be recovered ONLY via a separate recovery_dispatch run (registered rule: recovery is represented by a separate run-* evidence directory; never re-run counted slots). Evidence lands at benches/evidence/confirmatory/batchA/topple-0.1.1/run-45999016751/ via evidence_out; the canonical merge to benches/evidence/batchA/topple-0.1.1/ requires 240 games and runs after the recovery run closes the gap. Identities: engine bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329 (cb7242cbb9a88a17e9c1a2b11437a507733e46eb), suite A 2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96, clock 40/900.0. Revision 6 (ENGINE-3 screening batch B collection) stays committed evidence under screening-b/ and is not re-collected here.",
+ "revision": 8,
+ "description": "ENGINE-4 confirmatory batch B, anchor topple-0.1.1, run 45999142482: in-run aggregation never ran (shard43 -- confirmatory-B-topple-0.1.1-shard43 -- was cancelled by runner eviction, so needs.shard.result came out 'cancelled' and the aggregate-and-commit-evidence job was skipped). All 59 remaining shard jobs succeeded and their artifacts are complete; the cancelled leg's partial artifact (completion_status != completed) is excluded by the bridge's completed-shards collection. Schedule slots 172-175 (shard 43) are genuinely missing and will be recovered ONLY via a separate recovery_dispatch run after this bridge commits the run evidence (registered rule: recovery is represented by a separate run-* evidence directory; never re-run counted slots). Evidence lands at benches/evidence/confirmatory/batchB/topple-0.1.1/run-45999142482/ via evidence_out; the canonical merge to benches/evidence/batchB/topple-0.1.1/ requires 240 games and runs after the recovery run closes the gap. Identities: engine bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329 (cb7242cbb9a88a17e9c1a2b11437a507733e46eb), suite B 744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4, clock 40/900.0. Revisions 6-7 stay committed evidence (screening-b/, run-45999016751) and are not re-collected here.",
  "runs": [
   {
    "purpose": "confirmatory",
-   "batch": "A",
+   "batch": "B",
    "anchor_id": "topple-0.1.1",
    "white_engine": "flawless",
    "black_engine": "topple-0.1.1",
    "engine_sha256": "bbf9582db58b1fe8fb0aa8f3675e4bedcc7e62062e8f1fe41de9e6526af0c329",
-   "opening_suite_sha256": "2c4a54d8a16f36d597cb2378ff74c1faafc636568647a257313274bd0969fc96",
+   "opening_suite_sha256": "744a3981cc312a676ba259962309858b7d2fc645094bf2dccf5391e77f2f9dd4",
    "tc_moves": 40,
    "tc_seconds": 900.0,
    "shard_count": 60,
@@ -46,17 +46,18 @@
     28,
     29,
     30,
+    31,
     32,
     33,
     34,
     35,
     36,
+    37,
     38,
     39,
     40,
     41,
     42,
-    43,
     44,
     45,
     46,
@@ -74,9 +75,9 @@
     58,
     59
    ],
-   "evidence_purpose": "confirmatory/batchA",
-   "evidence_out": "benches/evidence/confirmatory/batchA/topple-0.1.1/run-45999016751",
-   "run_id": 45999016751
+   "evidence_purpose": "confirmatory",
+   "evidence_out": "benches/evidence/confirmatory/batchB/topple-0.1.1/run-45999142482",
+   "run_id": 45999142482
   }
  ]
 }
